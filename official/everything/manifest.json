@@ -34,14 +34,6 @@
         "scope": "global",
         "command": "search.query"
       }
-    ],
-    "settings": [
-      {
-        "id": "limit",
-        "label": "最多返回条数",
-        "type": "number",
-        "defaultValue": "200"
-      }
     ]
   }
 }

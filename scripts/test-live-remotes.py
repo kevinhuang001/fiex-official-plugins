@@ -125,7 +125,10 @@ def main():
             assert base64.b64decode(reply["base64"]) == b"hello webdav\\n"
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
-            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            escape = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("fs.readStream", {"streamId": escape["streamId"], "offset": 0,
+                                             "maxBytes": 1024})
+            plugin.rpc("fs.closeRead", {"streamId": escape["streamId"]})
             plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})
             plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
@@ -152,7 +155,10 @@ def main():
             assert base64.b64decode(reply["base64"]) == b"hello smb\\n"
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
-            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            escape = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("fs.readStream", {"streamId": escape["streamId"], "offset": 0,
+                                             "maxBytes": 1024})
+            plugin.rpc("fs.closeRead", {"streamId": escape["streamId"]})
             plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})
             plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,

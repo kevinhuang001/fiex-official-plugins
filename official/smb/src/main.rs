@@ -22,7 +22,6 @@ struct StoredConnection {
 }
 struct RemoteFile {
     name: String,
-    path: String,
     is_dir: bool,
     size: u64,
     modified: u64,
@@ -163,7 +162,6 @@ async fn smb_list(conn: &StoredConnection, rel: &str) -> Result<Vec<RemoteFile>,
         }
         out.push(RemoteFile {
             name,
-            path: String::new(),
             is_dir: item.file_attributes.directory(),
             size: item.end_of_file,
             modified: 0,
@@ -173,6 +171,8 @@ async fn smb_list(conn: &StoredConnection, rel: &str) -> Result<Vec<RemoteFile>,
     Ok(out)
 }
 
+// Reserved for the Core-controlled binary read-stream adapter.
+#[allow(dead_code)]
 async fn smb_get(conn: &StoredConnection, rel: &str, dest: &Path) -> Result<u64, String> {
     let (client, unc) = smb_client(conn).await?;
     let path = smb_path(conn, rel);

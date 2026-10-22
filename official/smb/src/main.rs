@@ -4,7 +4,7 @@ use futures_util::{pin_mut, StreamExt};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use smb::ReadAt;
-use std::{fs, io::Write, path::Path, str::FromStr};
+use std::str::FromStr;
 use tokio::runtime::Builder;
 
 #[derive(Deserialize)]
@@ -46,7 +46,7 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
 fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
     if !matches!(
         method,
-        "connection.validate" | "fs.list" | "fs.readSmall" | "fs.download"
+        "connection.validate" | "fs.list" | "fs.readSmall" | "fs.readChunk"
     ) {
         return Err(RpcError::method_not_found(method));
     }
@@ -120,22 +120,22 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                 "length": bytes.len()
             }))
         }
-        "fs.download" => {
+        "fs.readChunk" => {
             if path.is_empty() {
                 return Err(RpcError::invalid_params("missing node ID"));
             }
-            let destination = p
-                .get("destination")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing destination"))?;
-            let target = Path::new(destination);
-            if !target.is_absolute() {
-                return Err(RpcError::invalid_params("destination must be absolute"));
+            let offset = p.get("offset").and_then(Value::as_u64)
+                .ok_or_else(|| RpcError::invalid_params("missing offset"))?;
+            let max = p.get("maxBytes").and_then(Value::as_u64)
+                .ok_or_else(|| RpcError::invalid_params("missing maxBytes"))?;
+            if max == 0 || max > 256 * 1024 {
+                return Err(RpcError::invalid_params("invalid chunk size"));
             }
-            let bytes = rt
-                .block_on(smb_get(&config, path, target))
+            let (bytes, eof) = rt.block_on(smb_read_chunk(&config, path, offset, max as usize))
                 .map_err(RpcError::internal)?;
-            Ok(json!({"bytesWritten": bytes}))
+            use base64::Engine;
+            Ok(json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),
+                "bytesRead":bytes.len(),"eof":eof}))
         }
         _ => Err(RpcError::method_not_found(method)),
     }
@@ -234,8 +234,13 @@ async fn smb_read_small(conn: &StoredConnection, rel: &str, max: usize) -> Resul
     Ok(bytes)
 }
 
-// Interim Core-controlled staging download; binary streams will replace this.
-async fn smb_get(conn: &StoredConnection, rel: &str, dest: &Path) -> Result<u64, String> {
+/// SMB reads at an explicit offset without receiving a local file path.
+async fn smb_read_chunk(
+    conn: &StoredConnection,
+    rel: &str,
+    offset: u64,
+    max: usize,
+) -> Result<(Vec<u8>, bool), String> {
     let (client, unc) = smb_client(conn).await?;
     let path = smb_path(conn, rel);
     let file = client
@@ -248,24 +253,10 @@ async fn smb_get(conn: &StoredConnection, rel: &str, dest: &Path) -> Result<u64,
         .await
         .map_err(|e| e.to_string())?
         .unwrap_file();
-    let mut output = fs::File::create(dest).map_err(|e| e.to_string())?;
-    let mut offset = 0u64;
-    let mut buffer = vec![0u8; 1024 * 1024];
-    let mut total = 0u64;
-    loop {
-        let read = file
-            .read_at(&mut buffer, offset)
-            .await
-            .map_err(|e| e.to_string())?;
-        if read == 0 {
-            break;
-        }
-        output
-            .write_all(&buffer[..read])
-            .map_err(|e| e.to_string())?;
-        offset += read as u64;
-        total += read as u64;
-    }
+    let mut bytes = vec![0u8; max];
+    let read = file.read_at(&mut bytes, offset).await.map_err(|e| e.to_string());
     let _ = file.close().await;
-    Ok(total)
+    let read = read?;
+    bytes.truncate(read);
+    Ok((bytes, read < max))
 }

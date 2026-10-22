@@ -118,22 +118,17 @@ def main():
             check_list(plugin, cfg, "WebDAV")
             result = plugin.rpc("fs.readSmall", {"connection": cfg, "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello webdav\n", result
-            download = root / "webdav" / "read-webdav.txt"
-            reply = plugin.rpc("fs.download", {"connection": cfg,
-                                               "nodeId": "hello.txt",
-                                               "destination": str(download)})
-            assert reply["bytesWritten"] == len(b"hello webdav\n")
-            assert download.read_bytes() == b"hello webdav\n"
-            plugin.invalid("fs.download", {"connection": cfg,
-                                           "nodeId": "../escape",
-                                           "destination": str(root / "forbidden.txt")})
-            plugin.invalid("fs.download", {"connection": cfg,
-                                           "nodeId": "hello.txt",
-                                           "destination": "relative.txt"})
-            assert not (root / "forbidden.txt").exists()
+            reply = plugin.rpc("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
+                                                "offset": 0, "maxBytes": 262144})
+            assert base64.b64decode(reply["base64"]) == b"hello webdav\\n"
+            assert reply["eof"] is True
+            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "../escape",
+                                            "offset": 0, "maxBytes": 1024})
+            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
+                                            "offset": 0, "maxBytes": 262145})
         finally:
             plugin.close()
-        print("PASS WebDAV: validate, list, pagination, path guards, preview and full download", flush=True)
+        print("PASS WebDAV: validate, list, pagination, path guards, preview and bounded byte streaming", flush=True)
 
         exe, plugin_id = unpack(args.packages, "smb", root / "smb")
         cfg = {"host": "127.0.0.1", "share": "fiex", "base": "",
@@ -146,23 +141,18 @@ def main():
             result = plugin.rpc("fs.readSmall", {"connection": cfg,
                                                   "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello smb\n", result
-            download = root / "smb" / "read-smb.txt"
-            reply = plugin.rpc("fs.download", {"connection": cfg,
-                                               "nodeId": "hello.txt",
-                                               "destination": str(download)})
-            assert reply["bytesWritten"] == len(b"hello smb\n")
-            assert download.read_bytes() == b"hello smb\n"
-            plugin.invalid("fs.download", {"connection": cfg,
-                                           "nodeId": "../escape",
-                                           "destination": str(root / "forbidden.txt")})
-            plugin.invalid("fs.download", {"connection": cfg,
-                                           "nodeId": "hello.txt",
-                                           "destination": "relative.txt"})
-            assert not (root / "forbidden.txt").exists()
+            reply = plugin.rpc("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
+                                                "offset": 0, "maxBytes": 262144})
+            assert base64.b64decode(reply["base64"]) == b"hello smb\\n"
+            assert reply["eof"] is True
+            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "../escape",
+                                            "offset": 0, "maxBytes": 1024})
+            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
+                                            "offset": 0, "maxBytes": 262145})
             plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()
-        print("PASS SMB: validate, list, pagination, path guards, preview and download", flush=True)
+        print("PASS SMB: validate, list, pagination, path guards, preview and bounded byte streaming", flush=True)
 
 
 if __name__ == "__main__":

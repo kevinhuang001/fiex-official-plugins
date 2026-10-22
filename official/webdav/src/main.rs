@@ -5,12 +5,7 @@ use futures_util::StreamExt;
 use quick_xml::events::Event;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{
-    fs,
-    io::Write,
-    path::Path,
-    time::{Duration, UNIX_EPOCH},
-};
+use std::time::{Duration, UNIX_EPOCH};
 use tokio::runtime::Builder;
 
 const DAV_BODY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
@@ -47,7 +42,7 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
 fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
     if !matches!(
         method,
-        "connection.validate" | "fs.list" | "fs.readSmall" | "fs.download"
+        "connection.validate" | "fs.list" | "fs.readSmall" | "fs.readChunk"
     ) {
         return Err(RpcError::method_not_found(method));
     }
@@ -155,22 +150,22 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                 json!({"base64":base64::engine::general_purpose::STANDARD.encode(&data),"length":data.len()}),
             )
         }
-        "fs.download" => {
+        "fs.readChunk" => {
             if path.is_empty() {
                 return Err(RpcError::invalid_params("missing node ID"));
             }
-            let destination = p
-                .get("destination")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing destination"))?;
-            let target = Path::new(destination);
-            if !target.is_absolute() {
-                return Err(RpcError::invalid_params("destination must be absolute"));
+            let offset = p.get("offset").and_then(Value::as_u64)
+                .ok_or_else(|| RpcError::invalid_params("missing offset"))?;
+            let max = p.get("maxBytes").and_then(Value::as_u64)
+                .ok_or_else(|| RpcError::invalid_params("missing maxBytes"))?;
+            if max == 0 || max > 256 * 1024 {
+                return Err(RpcError::invalid_params("invalid chunk size"));
             }
-            let bytes = rt
-                .block_on(webdav_get(&cfg, path, target))
+            let (bytes, eof) = rt.block_on(webdav_read_chunk(&cfg, path, offset, max))
                 .map_err(RpcError::internal)?;
-            Ok(json!({"bytesWritten": bytes}))
+            use base64::Engine;
+            Ok(json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),
+                "bytesRead":bytes.len(),"eof":eof}))
         }
         _ => Err(RpcError::method_not_found(method)),
     }
@@ -339,21 +334,54 @@ fn parse_dav(url: &str, rel: &str, xml: &str) -> Result<Vec<RemoteFile>, String>
     Ok(out)
 }
 
-async fn webdav_get(conn: &StoredConnection, rel: &str, dest: &Path) -> Result<u64, String> {
-    let client = webdav_client(conn)?;
-    let request = client.get(webdav_url(conn, rel));
-    let response = auth(request, conn)
-        .send()
-        .await
-        .map_err(|e| format!("WebDAV 下载失败：{e}"))?;
-    let response = response.error_for_status().map_err(|e| e.to_string())?;
-    let mut file = fs::File::create(dest).map_err(|e| e.to_string())?;
-    let mut stream = response.bytes_stream();
-    let mut size = 0u64;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| e.to_string())?;
-        file.write_all(&chunk).map_err(|e| e.to_string())?;
-        size += chunk.len() as u64;
+/// One range request is bounded to one IPC frame. No host filesystem
+/// pathname is ever accepted from the plugin caller.
+async fn webdav_read_chunk(
+    conn: &StoredConnection,
+    rel: &str,
+    offset: u64,
+    max: u64,
+) -> Result<(Vec<u8>, bool), String> {
+    let request = auth(
+        webdav_client(conn)?
+            .get(webdav_url(conn, rel))
+            .header("Range", format!("bytes={offset}-{}", offset + max - 1)),
+        conn,
+    );
+    let response = request.send().await.map_err(|e| e.to_string())?;
+    if response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+        return Ok((Vec::new(), true));
     }
-    Ok(size)
+    let partial = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+    if !partial && !(offset == 0 && response.status().is_success()) {
+        return Err("WebDAV server did not respect byte range".into());
+    }
+    let eof = if partial {
+        let header = response.headers().get(reqwest::header::CONTENT_RANGE)
+            .ok_or("missing Content-Range")?
+            .to_str().map_err(|e| e.to_string())?;
+        let (range, total) = header.split_once('/').ok_or("invalid Content-Range")?;
+        let (start, end) = range.strip_prefix("bytes ")
+            .ok_or("invalid Content-Range unit")?
+            .split_once('-').ok_or("invalid Content-Range bounds")?;
+        let start: u64 = start.parse().map_err(|_| "invalid range offset")?;
+        let end: u64 = end.parse().map_err(|_| "invalid range end")?;
+        let total: u64 = total.parse().map_err(|_| "unknown total length")?;
+        if start != offset || end < start || end - start + 1 > max || end >= total {
+            return Err("WebDAV server returned an unexpected range".into());
+        }
+        end + 1 == total
+    } else {
+        true
+    };
+    let mut bytes = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let part = chunk.map_err(|e| e.to_string())?;
+        if bytes.len().saturating_add(part.len()) > max as usize {
+            return Err("WebDAV response exceeds requested chunk".into());
+        }
+        bytes.extend_from_slice(&part);
+    }
+    Ok((bytes, eof))
 }

@@ -118,14 +118,18 @@ def main():
             check_list(plugin, cfg, "WebDAV")
             result = plugin.rpc("fs.readSmall", {"connection": cfg, "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello webdav\n", result
-            reply = plugin.rpc("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                                "offset": 0, "maxBytes": 262144})
+            opened = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
+            stream_id = opened["streamId"]
+            reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                                 "maxBytes": 262144})
             assert base64.b64decode(reply["base64"]) == b"hello webdav\\n"
             assert reply["eof"] is True
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "../escape",
-                                            "offset": 0, "maxBytes": 1024})
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                            "offset": 0, "maxBytes": 262145})
+            plugin.rpc("fs.closeRead", {"streamId": stream_id})
+            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
+                                             "maxBytes": 1024})
+            plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                             "maxBytes": 262145})
         finally:
             plugin.close()
         print("PASS WebDAV: validate, list, pagination, path guards, preview and bounded byte streaming", flush=True)
@@ -141,14 +145,18 @@ def main():
             result = plugin.rpc("fs.readSmall", {"connection": cfg,
                                                   "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello smb\n", result
-            reply = plugin.rpc("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                                "offset": 0, "maxBytes": 262144})
+            opened = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
+            stream_id = opened["streamId"]
+            reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                                 "maxBytes": 262144})
             assert base64.b64decode(reply["base64"]) == b"hello smb\\n"
             assert reply["eof"] is True
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "../escape",
-                                            "offset": 0, "maxBytes": 1024})
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                            "offset": 0, "maxBytes": 262145})
+            plugin.rpc("fs.closeRead", {"streamId": stream_id})
+            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
+                                             "maxBytes": 1024})
+            plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                             "maxBytes": 262145})
             plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()

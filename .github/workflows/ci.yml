@@ -48,13 +48,14 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
-          for slug in git webdav smb archive checksum; do
+          for slug in git webdav smb archive checksum everything; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
             cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"
           done
+          python scripts/generate-catalog.py
       - name: Real process handshake, ping, errors and shutdown
         shell: bash
         run: |
@@ -63,7 +64,9 @@ jobs:
         with:
           name: fiex-plugins-${{ matrix.target }}
           if-no-files-found: error
-          path: dist/plugins/*.fiexplugin
+          path: |
+            dist/plugins/*.fiexplugin
+            dist/plugins/fiex-catalog.json
   core-integration:
     name: Installed official plugins ↔ real Core host (Linux)
     needs: build
@@ -197,4 +200,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."
+          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."

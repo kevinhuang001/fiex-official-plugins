@@ -3,7 +3,7 @@ name = "fiex-plugin-webdav"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.90"
-license = "MIT"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 fiex-plugin-sdk = { path = "../../sdk/rust" }

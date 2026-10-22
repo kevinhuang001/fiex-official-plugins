@@ -32,7 +32,7 @@ def run(binary, plugin_id):
     with subprocess.Popen([str(binary.resolve())], stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
         for req, check in [
-            ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"1.0"}}, "init"),
+            ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"2.0"}}, "init"),
             ({"id":2,"method":"plugin.ping","params":{}}, "ping"),
             ({"id":3,"method":"test.unknown","params":{}}, "unknown"),
             ({"id":4,"method":"plugin.shutdown","params":{}}, "shutdown"),
@@ -56,9 +56,13 @@ def main():
     parser.add_argument("--target", required=True)
     parser.add_argument("--binary-root", required=True)
     args = parser.parse_args()
-    for slug in ("git","webdav","smb","archive","checksum"):
+    for slug in ("git","webdav","smb","archive","checksum","everything"):
         manifest = json.loads((Path("official") / slug / "manifest.json").read_text(encoding="utf-8"))
-        binary = Path(args.binary_root) / manifest["entrypoints"][args.target]
+        entry = manifest.get("runtime", {}).get("entrypoints", {}).get(args.target)
+        if not entry:
+            print("SKIP", slug, "for", args.target)
+            continue
+        binary = Path(args.binary_root) / entry
         assert binary.is_file(), binary
         run(binary, manifest["id"])
         print("PASS", slug, "real process IPC")

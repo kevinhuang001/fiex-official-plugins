@@ -5,12 +5,17 @@ use futures_util::StreamExt;
 use quick_xml::events::Event;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::time::{Duration, UNIX_EPOCH};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+    time::{Duration, UNIX_EPOCH},
+};
 use tokio::runtime::Builder;
 
 const DAV_BODY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getcontenttype/></d:prop></d:propfind>"#;
-#[derive(Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredConnection {
     url: String,
@@ -20,6 +25,8 @@ struct StoredConnection {
     password: String,
     #[serde(default)]
     allow_invalid_certs: bool,
+    #[serde(default)]
+    network_domains: Vec<String>,
 }
 struct RemoteFile {
     name: String,
@@ -27,6 +34,21 @@ struct RemoteFile {
     is_dir: bool,
     size: u64,
     modified: u64,
+}
+
+fn trim_host(value: &str) -> String {
+    value
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_ascii_lowercase()
+}
+fn is_loopback(host: &str) -> bool {
+    let host = trim_host(host);
+    host == "localhost"
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 fn safe_relative(value: &str) -> Result<(), RpcError> {
@@ -39,21 +61,58 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
     }
     Ok(())
 }
-fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
+struct ReadStream {
+    connection: StoredConnection,
+    node_id: String,
+}
+type Streams = Rc<RefCell<HashMap<String, ReadStream>>>;
+
+fn dispatch(
+    method: &str,
+    p: Value,
+    streams: &Streams,
+    next_stream: &Cell<u64>,
+) -> Result<Value, RpcError> {
     if !matches!(
         method,
-        "connection.validate" | "fs.list" | "fs.readSmall" | "fs.readChunk"
+        "connection.validate"
+            | "fs.list"
+            | "fs.readSmall"
+            | "fs.openRead"
+            | "fs.readStream"
+            | "fs.closeRead"
     ) {
         return Err(RpcError::method_not_found(method));
     }
-    let cfg: StoredConnection = serde_json::from_value(
-        p.get("connection")
-            .cloned()
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
-    if !(cfg.url.starts_with("https://") || cfg.url.starts_with("http://")) {
+    // Stream reads are bound to an already-opened handle and never resend
+    // credentials. Only the methods that initiate a connection parse it.
+    let streaming = matches!(method, "fs.readStream" | "fs.closeRead");
+    let cfg: StoredConnection = if streaming {
+        StoredConnection::default()
+    } else {
+        serde_json::from_value(
+            p.get("connection")
+                .cloned()
+                .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+        )
+        .map_err(|e| RpcError::invalid_params(e.to_string()))?
+    };
+    if !streaming && !(cfg.url.starts_with("https://") || cfg.url.starts_with("http://")) {
         return Err(RpcError::invalid_params("invalid WebDAV URL"));
+    }
+    if !streaming {
+        let target = reqwest::Url::parse(&cfg.url)
+            .ok()
+            .and_then(|url| url.host_str().map(trim_host))
+            .ok_or_else(|| RpcError::invalid_params("invalid WebDAV host"))?;
+        if !is_loopback(&target)
+            && !cfg
+                .network_domains
+                .iter()
+                .any(|domain| trim_host(domain) == target)
+        {
+            return Err(RpcError::invalid_params("network domain not granted"));
+        }
     }
     let path = p
         .get("directoryId")
@@ -150,28 +209,72 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                 json!({"base64":base64::engine::general_purpose::STANDARD.encode(&data),"length":data.len()}),
             )
         }
-        "fs.readChunk" => {
+        "fs.openRead" => {
             if path.is_empty() {
                 return Err(RpcError::invalid_params("missing node ID"));
             }
-            let offset = p.get("offset").and_then(Value::as_u64)
+            let stream_id = format!("stream-{}", next_stream.get() + 1);
+            next_stream.set(next_stream.get() + 1);
+            streams.borrow_mut().insert(
+                stream_id.clone(),
+                ReadStream {
+                    connection: cfg,
+                    node_id: path.to_string(),
+                },
+            );
+            Ok(json!({"streamId": stream_id}))
+        }
+        "fs.readStream" => {
+            let stream_id = p
+                .get("streamId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
+            let offset = p
+                .get("offset")
+                .and_then(Value::as_u64)
                 .ok_or_else(|| RpcError::invalid_params("missing offset"))?;
-            let max = p.get("maxBytes").and_then(Value::as_u64)
+            let max = p
+                .get("maxBytes")
+                .and_then(Value::as_u64)
                 .ok_or_else(|| RpcError::invalid_params("missing maxBytes"))?;
             if max == 0 || max > 256 * 1024 {
                 return Err(RpcError::invalid_params("invalid chunk size"));
             }
-            let (bytes, eof) = rt.block_on(webdav_read_chunk(&cfg, path, offset, max))
+            let streams = streams.borrow();
+            let stream = streams
+                .get(stream_id)
+                .ok_or_else(|| RpcError::invalid_params("unknown read stream"))?;
+            let (bytes, eof) = rt
+                .block_on(webdav_read_chunk(
+                    &stream.connection,
+                    &stream.node_id,
+                    offset,
+                    max,
+                ))
                 .map_err(RpcError::internal)?;
             use base64::Engine;
-            Ok(json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),
-                "bytesRead":bytes.len(),"eof":eof}))
+            Ok(
+                json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),
+                "bytesRead":bytes.len(),"eof":eof}),
+            )
+        }
+        "fs.closeRead" => {
+            let stream_id = p
+                .get("streamId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
+            streams.borrow_mut().remove(stream_id);
+            Ok(Value::Null)
         }
         _ => Err(RpcError::method_not_found(method)),
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.webdav", dispatch) {
+    let streams: Streams = Rc::new(RefCell::new(HashMap::new()));
+    let next_stream = Cell::new(0u64);
+    if let Err(e) = sdk::serve("org.fiex.webdav", move |method, params| {
+        dispatch(method, params, &streams, &next_stream)
+    }) {
         eprintln!("WebDAV plugin IPC failed: {e}");
         std::process::exit(1);
     }
@@ -357,13 +460,18 @@ async fn webdav_read_chunk(
         return Err("WebDAV server did not respect byte range".into());
     }
     let eof = if partial {
-        let header = response.headers().get(reqwest::header::CONTENT_RANGE)
+        let header = response
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
             .ok_or("missing Content-Range")?
-            .to_str().map_err(|e| e.to_string())?;
+            .to_str()
+            .map_err(|e| e.to_string())?;
         let (range, total) = header.split_once('/').ok_or("invalid Content-Range")?;
-        let (start, end) = range.strip_prefix("bytes ")
+        let (start, end) = range
+            .strip_prefix("bytes ")
             .ok_or("invalid Content-Range unit")?
-            .split_once('-').ok_or("invalid Content-Range bounds")?;
+            .split_once('-')
+            .ok_or("invalid Content-Range bounds")?;
         let start: u64 = start.parse().map_err(|_| "invalid range offset")?;
         let end: u64 = end.parse().map_err(|_| "invalid range end")?;
         let total: u64 = total.parse().map_err(|_| "unknown total length")?;

@@ -21,8 +21,11 @@ def main():
     root=Path("official")/args.slug
     manifest_path=root/"manifest.json"
     manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
-    entry=manifest.get("entrypoints",{}).get(platform)
-    if not entry or Path(entry).name!=entry:parser.error("invalid plugin entrypoint")
+    entry=manifest.get("runtime",{}).get("entrypoints",{}).get(platform)
+    if not entry:
+        print("Skipping",args.slug,"for",platform,"(no entrypoint)")
+        return
+    if Path(entry).name!=entry:parser.error("invalid plugin entrypoint")
     binary=Path(args.target_dir)/args.target/"release"/entry
     if not binary.is_file():parser.error("missing compiled binary: "+str(binary))
     output=Path(args.output)

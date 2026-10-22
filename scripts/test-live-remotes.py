@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import zipfile
 
@@ -42,9 +43,9 @@ class Plugin:
     def __init__(self, binary, plugin_id):
         self.child = subprocess.Popen([str(binary.resolve())],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                      stderr=subprocess.DEVNULL)
+                                      stderr=subprocess.PIPE)
         self.serial = 0
-        info = self.rpc("plugin.initialize", {"protocolVersion": "1.0"})
+        info = self.rpc("plugin.initialize", {"protocolVersion": "2.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
     def rpc(self, method, params):
@@ -74,6 +75,10 @@ class Plugin:
             if self.child.poll() is None:
                 self.child.kill()
                 self.child.wait(timeout=5)
+            if self.child.stderr is not None:
+                diagnostics = self.child.stderr.read()
+                if diagnostics:
+                    print(diagnostics.decode("utf-8", "replace"), file=sys.stderr)
 
 
 def unpack(packages, slug, dest):
@@ -83,7 +88,7 @@ def unpack(packages, slug, dest):
         # Packages were created by our own CI in an isolated temporary folder.
         archive.extractall(dest)
     manifest = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
-    binary = dest / manifest["entrypoints"]["linux-x86_64"]
+    binary = dest / manifest["runtime"]["entrypoints"]["linux-x86_64"]
     assert binary.is_file()
     binary.chmod(0o755)
     return binary, manifest["id"]
@@ -108,6 +113,7 @@ def check_list(plugin, connection, description):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--packages", type=Path, required=True)
+    p.add_argument("--only", choices=["webdav", "smb", "both"], default="both")
     args = p.parse_args()
     with tempfile.TemporaryDirectory() as workspace:
         root = Path(workspace)
@@ -118,18 +124,24 @@ def main():
             check_list(plugin, cfg, "WebDAV")
             result = plugin.rpc("fs.readSmall", {"connection": cfg, "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello webdav\n", result
-            reply = plugin.rpc("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                                "offset": 0, "maxBytes": 262144})
-            assert base64.b64decode(reply["base64"]) == b"hello webdav\\n"
+            opened = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
+            stream_id = opened["streamId"]
+            reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                                 "maxBytes": 262144})
+            assert base64.b64decode(reply["base64"]) == b"hello webdav\n"
             assert reply["eof"] is True
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "../escape",
-                                            "offset": 0, "maxBytes": 1024})
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                            "offset": 0, "maxBytes": 262145})
+            plugin.rpc("fs.closeRead", {"streamId": stream_id})
+            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
+                                             "maxBytes": 1024})
+            plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                             "maxBytes": 262145})
         finally:
             plugin.close()
         print("PASS WebDAV: validate, list, pagination, path guards, preview and bounded byte streaming", flush=True)
 
+        if args.only == "webdav":
+            return
         exe, plugin_id = unpack(args.packages, "smb", root / "smb")
         cfg = {"host": "127.0.0.1", "share": "fiex", "base": "",
                "port": int(os.environ.get("FIEX_TEST_SMB_PORT", "445")),
@@ -141,14 +153,18 @@ def main():
             result = plugin.rpc("fs.readSmall", {"connection": cfg,
                                                   "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello smb\n", result
-            reply = plugin.rpc("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                                "offset": 0, "maxBytes": 262144})
-            assert base64.b64decode(reply["base64"]) == b"hello smb\\n"
+            opened = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
+            stream_id = opened["streamId"]
+            reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                                 "maxBytes": 262144})
+            assert base64.b64decode(reply["base64"]) == b"hello smb\n"
             assert reply["eof"] is True
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "../escape",
-                                            "offset": 0, "maxBytes": 1024})
-            plugin.invalid("fs.readChunk", {"connection": cfg, "nodeId": "hello.txt",
-                                            "offset": 0, "maxBytes": 262145})
+            plugin.rpc("fs.closeRead", {"streamId": stream_id})
+            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
+                                             "maxBytes": 1024})
+            plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
+                                             "maxBytes": 262145})
             plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()

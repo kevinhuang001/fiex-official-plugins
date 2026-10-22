@@ -3,22 +3,32 @@
   "id": "org.fiex.archive",
   "name": "压缩与解压",
   "version": "0.1.0",
-  "protocolVersion": "1.0",
-  "capabilities": ["commands", "toolbar", "contextMenu"],
-  "entrypoints": {
-    "windows-x86_64": "fiex-plugin-archive.exe",
-    "macos-aarch64": "fiex-plugin-archive",
-    "macos-x86_64": "fiex-plugin-archive",
-    "linux-x86_64": "fiex-plugin-archive"
+  "description": "压缩与解压 ZIP、7z、TAR 等格式。",
+  "icon": "archive",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-archive.exe",
+      "macos-aarch64": "fiex-plugin-archive",
+      "macos-x86_64": "fiex-plugin-archive",
+      "linux-x86_64": "fiex-plugin-archive"
+    }
   },
   "permissions": {
-    "storage": false,
-    "secrets": false,
-    "filesystem.read": true,
-    "filesystem.write": true,
-    "ui.dialog": true
+    "filesystem": {
+      "read": true,
+      "write": true
+    },
+    "network": {
+      "enabled": false,
+      "domains": []
+    }
   },
-  "contributes": {
+  "contributions": {
     "toolbar": [
       {
         "id": "archive.main",
@@ -43,7 +53,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.zip",
-              "extensions": ["zip"],
+              "extensions": [
+                "zip"
+              ],
               "param": "destination"
             }
           },
@@ -57,7 +69,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.7z",
-              "extensions": ["7z"],
+              "extensions": [
+                "7z"
+              ],
               "param": "destination"
             }
           },
@@ -71,7 +85,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar",
-              "extensions": ["tar"],
+              "extensions": [
+                "tar"
+              ],
               "param": "destination"
             }
           },
@@ -85,7 +101,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar.gz",
-              "extensions": ["gz"],
+              "extensions": [
+                "gz"
+              ],
               "param": "destination"
             }
           },
@@ -99,7 +117,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar.bz2",
-              "extensions": ["bz2"],
+              "extensions": [
+                "bz2"
+              ],
               "param": "destination"
             }
           },
@@ -113,7 +133,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar.xz",
-              "extensions": ["xz"],
+              "extensions": [
+                "xz"
+              ],
               "param": "destination"
             }
           }
@@ -133,24 +155,15 @@
         "id": "archive.advanced",
         "title": "高级压缩…",
         "when": "context.selection.count > 0",
-        "openPanel": "archive.options"
-      }
-    ],
-    "panels": [
-      {
-        "id": "archive.options",
-        "title": "高级压缩",
-        "entry": "ui/index.html",
-        "placement": "modal",
-        "defaultSize": {
-          "width": 630,
-          "height": 470
+        "panel": {
+          "title": "高级压缩",
+          "entry": "ui/index.html",
+          "defaultSize": {
+            "width": 630,
+            "height": 520
+          }
         }
       }
     ]
-  },
-  "author": {
-    "name": "Fiex Contributors",
-    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   }
 }

@@ -66,8 +66,10 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
     Ok(())
 }
 struct ReadStream {
-    _client: smb::Client,
+    // Drop the file/handle before the client connection: SMB close relies on
+    // the client still being alive, and Rust drops struct fields in order.
     file: smb::File,
+    _client: smb::Client,
     size: u64,
 }
 type Streams = Rc<RefCell<HashMap<String, ReadStream>>>;

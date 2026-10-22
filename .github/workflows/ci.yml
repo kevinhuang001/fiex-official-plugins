@@ -1,0 +1,117 @@
+name: Build and test optional Fiex plugins
+on:
+  push:
+    branches: [main]
+    tags: ['plugins-v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Plugin build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows-x86_64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            platform: macos-aarch64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: official/git -> target
+          key: official-${{ matrix.target }}
+          cache-on-failure: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Plugin unit tests and cross-platform packages
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py
+          for slug in git webdav smb archive checksum; do
+            cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
+            cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
+            cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
+            cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
+            python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"
+          done
+      - name: Real process handshake, ping, errors and shutdown
+        shell: bash
+        run: |
+          python scripts/test-plugin-process.py --target "${{ matrix.platform }}" --binary-root "target/${{ matrix.target }}/release"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fiex-plugins-${{ matrix.target }}
+          if-no-files-found: error
+          path: dist/plugins/*.fiexplugin
+  core-integration:
+    name: Installed official plugins ↔ real Core host (Linux)
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: kevinhuang001/fiex
+          ref: feat/plugin-sdk-extraction
+          path: core
+      - name: Checkout Core's pinned SDK
+        run: git -C core submodule update --init sdk
+      - uses: actions/download-artifact@v4
+        with:
+          name: fiex-plugins-x86_64-unknown-linux-gnu
+          path: packages
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/src-tauri -> target
+          key: core-host-integration
+      - name: Spawn each packaged plugin through the real Core host
+        shell: bash
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/fiex-official-plugin-tests/user-data
+          FIEX_PLUGIN_DIR: ${{ runner.temp }}/fiex-official-plugin-tests/plugins
+        run: |
+          set -euo pipefail
+          mkdir -p "$FIEX_PLUGIN_DIR"
+          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)==5; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.archive org.fiex.checksum; do
+            cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
+          done
+  release:
+    if: startsWith(github.ref, 'refs/tags/plugins-v')
+    needs: [build, core-integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fiex-plugins-*
+          path: dist/plugins
+          merge-multiple: true
+      - name: Publish optional GitHub plugin packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."

@@ -3,13 +3,13 @@
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use futures_util::StreamExt;
 use quick_xml::events::Event;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
     fs,
     io::Write,
     path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, UNIX_EPOCH},
 };
 use tokio::runtime::Builder;
 
@@ -127,10 +127,8 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                         .map_err(|e| e.to_string())?
                         .error_for_status()
                         .map_err(|e| e.to_string())?;
-                    if res.status().as_u16() != 206 {
-                        if res.content_length().unwrap_or(u64::MAX) > max {
-                            return Err("server ignored Range".into());
-                        }
+                    if res.status().as_u16() != 206 && res.content_length().unwrap_or(u64::MAX) > max {
+                        return Err("server ignored Range".into());
                     }
                     let mut data = Vec::with_capacity((max.min(65536)) as usize);
                     let mut stream = res.bytes_stream();

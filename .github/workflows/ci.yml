@@ -134,10 +134,10 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y samba smbclient
           sudo useradd -M -s /usr/sbin/nologin fiex 2>/dev/null || true
-          mkdir -p .ci/smb
-          printf 'hello smb\n' > .ci/smb/hello.txt
-          printf 'another smb\n' > .ci/smb/another.txt
-          chmod 777 .ci/smb
+          mkdir -p .ci/smb /tmp/fiex-ci-smb
+          printf 'hello smb\n' > /tmp/fiex-ci-smb/hello.txt
+          printf 'another smb\n' > /tmp/fiex-ci-smb/another.txt
+          chmod 755 /tmp/fiex-ci-smb
           printf 'FiexCI-Test-Only-2026\nFiexCI-Test-Only-2026\n' | sudo smbpasswd -a fiex -s
           cat > .ci/smb.conf <<EOF
           [global]
@@ -148,7 +148,7 @@ jobs:
             server min protocol = SMB2
             smb ports = 445
           [fiex]
-            path = $PWD/.ci/smb
+            path = /tmp/fiex-ci-smb
             browseable = yes
             read only = no
             guest ok = no
@@ -156,12 +156,19 @@ jobs:
             force user = fiex
           EOF
           sudo systemctl stop smbd 2>/dev/null || true
-          sudo smbd -s "$PWD/.ci/smb.conf" -F --no-process-group > .ci/smb.log 2>&1 &
+          sudo testparm -s "$PWD/.ci/smb.conf"
+          sudo smbd -s "$PWD/.ci/smb.conf" -F --debug-stdout --debuglevel=2 > .ci/smb.log 2>&1 &
           for i in $(seq 1 30); do
-            if smbclient //127.0.0.1/fiex -U 'fiex%FiexCI-Test-Only-2026' -c ls > /dev/null; then exit 0; fi
+            if smbclient //127.0.0.1/fiex -U 'fiex%FiexCI-Test-Only-2026' -c ls > /dev/null 2>&1; then exit 0; fi
+            if ! sudo pgrep -x smbd > /dev/null; then
+              echo "smbd exited before serving test requests"
+              cat .ci/smb.log
+              exit 1
+            fi
             sleep 1
           done
           cat .ci/smb.log
+          sudo ss -lntp || true
           exit 1
       - name: Test released plugin processes against both servers
         shell: bash

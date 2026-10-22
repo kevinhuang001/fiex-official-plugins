@@ -83,7 +83,7 @@ def unpack(packages, slug, dest):
         # Packages were created by our own CI in an isolated temporary folder.
         archive.extractall(dest)
     manifest = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
-    binary = dest / manifest["entrypoints"]["linux-x86_64"]
+    binary = dest / manifest["runtime"]["entrypoints"]["linux-x86_64"]
     assert binary.is_file()
     binary.chmod(0o755)
     return binary, manifest["id"]

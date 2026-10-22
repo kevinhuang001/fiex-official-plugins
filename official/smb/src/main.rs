@@ -44,7 +44,7 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
     Ok(())
 }
 fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
-    if !matches!(method, "connection.validate" | "fs.list") {
+    if !matches!(method, "connection.validate" | "fs.list" | "fs.readSmall") {
         return Err(RpcError::method_not_found(method));
     }
     let config: StoredConnection = serde_json::from_value(
@@ -98,6 +98,24 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                 json!({"entries":entries,"nextCursor":if end<nodes.len(){Some(end.to_string())}else{None},
                 "snapshotToken":null,"identityStability":"path"}),
             )
+        }
+        "fs.readSmall" => {
+            if path.is_empty() {
+                return Err(RpcError::invalid_params("missing node ID"));
+            }
+            let max = p
+                .get("maxBytes")
+                .and_then(Value::as_u64)
+                .unwrap_or(262144)
+                .clamp(1, 1048576) as usize;
+            let bytes = rt
+                .block_on(smb_read_small(&config, path, max))
+                .map_err(RpcError::internal)?;
+            use base64::Engine;
+            Ok(json!({
+                "base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
+                "length": bytes.len()
+            }))
         }
         _ => Err(RpcError::method_not_found(method)),
     }
@@ -172,6 +190,32 @@ async fn smb_list(conn: &StoredConnection, rel: &str) -> Result<Vec<RemoteFile>,
     }
     let _ = dir.close().await;
     Ok(out)
+}
+
+/// Return at most max bytes. Preview content never escapes the plugin process
+/// as a raw host filesystem path.
+async fn smb_read_small(
+    conn: &StoredConnection,
+    rel: &str,
+    max: usize,
+) -> Result<Vec<u8>, String> {
+    let (client, unc) = smb_client(conn).await?;
+    let path = smb_path(conn, rel);
+    let file = client
+        .create_file(
+            &unc.with_path(&path),
+            &smb::FileCreateArgs::make_open_existing(
+                smb::FileAccessMask::new().with_generic_read(true),
+            ),
+        )
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_file();
+    let mut bytes = vec![0u8; max];
+    let result = file.read_at(&mut bytes, 0).await.map_err(|e| e.to_string());
+    let _ = file.close().await;
+    bytes.truncate(result?);
+    Ok(bytes)
 }
 
 // Reserved for the Core-controlled binary read-stream adapter.

@@ -130,9 +130,13 @@ def main():
         plugin = Plugin(exe, plugin_id)
         try:
             check_list(plugin, cfg, "SMB")
+            result = plugin.rpc("fs.readSmall", {"connection": cfg,
+                                                  "nodeId": "hello.txt", "maxBytes": 1024})
+            assert base64.b64decode(result["base64"]) == b"hello smb\\n", result
+            plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()
-        print("PASS SMB: validate, list, pagination, path guards", flush=True)
+        print("PASS SMB: validate, list, pagination, path guards, read bytes", flush=True)
 
 
 if __name__ == "__main__":

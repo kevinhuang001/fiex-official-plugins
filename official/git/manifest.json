@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.git",
   "name": "Git",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "源代码管理、提交历史、远程仓库与只读历史浏览。",
   "icon": "git-branch",
   "author": {
@@ -27,6 +27,12 @@
       "enabled": true,
       "domains": [
         "github.com"
+      ]
+    },
+    "commands": {
+      "enabled": true,
+      "allow": [
+        "git"
       ]
     }
   },

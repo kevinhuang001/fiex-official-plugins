@@ -40,6 +40,7 @@ def main() -> None:
         if network.get("enabled"):
             permissions.append("network")
         permissions.sort()
+        commands = manifest.get("permissions", {}).get("commands", {}).get("allow", [])
         out["plugins"].append(
             {
                 "id": manifest["id"],
@@ -49,6 +50,7 @@ def main() -> None:
                 "author": manifest.get("author"),
                 "permissions": permissions,
                 "networkDomains": manifest.get("permissions", {}).get("network", {}).get("domains", []),
+                "commands": commands,
                 "assets": {
                     platform: f"{slug}-{platform}.fiexplugin"
                     for platform in PLATFORMS

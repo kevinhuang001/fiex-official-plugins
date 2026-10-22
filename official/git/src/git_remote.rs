@@ -1,4 +1,5 @@
 use crate::git::{repository, run};
+use fiex_plugin_sdk::HostServices;
 use serde::Serialize;
 use std::path::Path;
 
@@ -50,19 +51,22 @@ pub struct RemoteStatus {
     pub behind: usize,
 }
 
-pub fn status(root: &str) -> Result<RemoteStatus, String> {
-    let root = repository(root)?;
-    let names = run(&root, &["remote"])?;
+pub fn status(host: &mut dyn HostServices, root: &str) -> Result<RemoteStatus, String> {
+    let root = repository(host, root)?;
+    let names = run(host, &root, &["remote"])?;
     let remotes = names
         .lines()
         .map(|name| Remote {
             name: name.into(),
-            url: run(&root, &["remote", "get-url", "--", name]).unwrap_or_default(),
+            url: run(host, &root, &["remote", "get-url", "--", name]).unwrap_or_default(),
         })
         .collect();
-    let branch = run(&root, &["symbolic-ref", "--quiet", "--short", "HEAD"]).unwrap_or_default();
-    let upstream = run(&root, &["rev-parse", "--abbrev-ref", "@{upstream}"]).unwrap_or_default();
+    let branch =
+        run(host, &root, &["symbolic-ref", "--quiet", "--short", "HEAD"]).unwrap_or_default();
+    let upstream =
+        run(host, &root, &["rev-parse", "--abbrev-ref", "@{upstream}"]).unwrap_or_default();
     let counts = run(
+        host,
         &root,
         &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
     )
@@ -77,7 +81,13 @@ pub fn status(root: &str) -> Result<RemoteStatus, String> {
     })
 }
 
-pub fn save(root: &str, name: &str, url: &str, domains: &[String]) -> Result<(), String> {
+pub fn save(
+    host: &mut dyn HostServices,
+    root: &str,
+    name: &str,
+    url: &str,
+    domains: &[String],
+) -> Result<(), String> {
     if name.is_empty()
         || name.starts_with('-')
         || !name
@@ -91,9 +101,10 @@ pub fn save(root: &str, name: &str, url: &str, domains: &[String]) -> Result<(),
         return Err("请输入有效的仓库地址".into());
     }
     ensure_domain(url, domains)?;
-    let root = repository(root)?;
-    let exists = run(&root, &["remote"])?.lines().any(|n| n == name);
+    let root = repository(host, root)?;
+    let exists = run(host, &root, &["remote"])?.lines().any(|n| n == name);
     run(
+        host,
         &root,
         &[
             "remote",
@@ -106,14 +117,14 @@ pub fn save(root: &str, name: &str, url: &str, domains: &[String]) -> Result<(),
     Ok(())
 }
 
-fn remote<'a>(root: &Path, name: &'a str) -> Result<&'a str, String> {
-    if !run(root, &["remote"])?.lines().any(|n| n == name) {
+fn remote<'a>(host: &mut dyn HostServices, root: &Path, name: &'a str) -> Result<&'a str, String> {
+    if !run(host, root, &["remote"])?.lines().any(|n| n == name) {
         return Err("请选择已配置的远程仓库".into());
     }
     Ok(name)
 }
 
-pub fn remove(root: &str, name: &str) -> Result<(), String> {
+pub fn remove(host: &mut dyn HostServices, root: &str, name: &str) -> Result<(), String> {
     if name.is_empty()
         || name.starts_with('-')
         || !name
@@ -122,34 +133,42 @@ pub fn remove(root: &str, name: &str) -> Result<(), String> {
     {
         return Err("请输入有效的远程名称".into());
     }
-    let root = repository(root)?;
-    if !run(&root, &["remote"])?.lines().any(|item| item == name) {
+    let root = repository(host, root)?;
+    if !run(host, &root, &["remote"])?
+        .lines()
+        .any(|item| item == name)
+    {
         return Err("远程仓库不存在".into());
     }
-    run(&root, &["remote", "remove", "--", name])?;
+    run(host, &root, &["remote", "remove", "--", name])?;
     Ok(())
 }
 pub fn sync(
+    host: &mut dyn HostServices,
     root: &str,
     name: &str,
     push: bool,
     branch: Option<&str>,
     domains: &[String],
 ) -> Result<String, String> {
-    let root = repository(root)?;
-    let name = remote(&root, name)?;
-    let url = run(&root, &["remote", "get-url", "--", name])?;
+    let root = repository(host, root)?;
+    let name = remote(host, &root, name)?;
+    let url = run(host, &root, &["remote", "get-url", "--", name])?;
     ensure_domain(&url, domains)?;
     let branch = match branch.map(str::trim).filter(|value| !value.is_empty()) {
         Some(chosen) => chosen.to_string(),
-        None => run(&root, &["symbolic-ref", "--quiet", "--short", "HEAD"])
+        None => run(host, &root, &["symbolic-ref", "--quiet", "--short", "HEAD"])
             .map_err(|_| "请先返回本地分支".to_string())?,
     };
     if push {
-        run(&root, &["push", "--set-upstream", "--", name, &branch])
+        run(
+            host,
+            &root,
+            &["push", "--set-upstream", "--", name, &branch],
+        )
     } else {
         // Never silently merge, rewrite history or discard uncommitted changes.
-        run(&root, &["pull", "--ff-only", "--", name, &branch])
+        run(host, &root, &["pull", "--ff-only", "--", name, &branch])
     }
 }
 
@@ -157,7 +176,34 @@ pub fn sync(
 mod tests {
     use super::*;
     use crate::git;
+    use fiex_plugin_sdk::RpcError;
+    use serde_json::{json, Value};
     use std::{fs, process::Command};
+    struct LocalHost;
+    impl HostServices for LocalHost {
+        fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError> {
+            if method != "host.exec" {
+                return Err(RpcError::invalid_params("unexpected method"));
+            }
+            let out = Command::new(params["command"].as_str().unwrap_or("git"))
+                .args(
+                    params["args"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str),
+                )
+                .current_dir(params["cwd"].as_str().unwrap_or("."))
+                .output()
+                .map_err(|error| RpcError::internal(error.to_string()))?;
+            use base64::{engine::general_purpose::STANDARD, Engine};
+            Ok(json!({
+                "code": out.status.code(),
+                "stdoutBase64": STANDARD.encode(&out.stdout),
+                "stderr": String::from_utf8_lossy(&out.stderr)
+            }))
+        }
+    }
     #[test]
     fn push_pull_and_divergence_preserve_local_history() {
         let t = tempfile::tempdir().unwrap();
@@ -171,13 +217,14 @@ mod tests {
         let a = t.path().join("a");
         fs::create_dir(&a).unwrap();
         let root = a.to_str().unwrap();
-        git::init(root).unwrap();
+        let mut host = LocalHost;
+        git::init(&mut host, root).unwrap();
         fs::write(a.join("a.txt"), "a").unwrap();
-        git::stage(root, &[], true).unwrap();
-        git::commit(root, "first", "Test", "test@example.com").unwrap();
-        save(root, "origin", bare.to_str().unwrap(), &[]).unwrap();
-        sync(root, "origin", true, None, &[]).unwrap();
-        assert_eq!(status(root).unwrap().upstream, "origin/main");
+        git::stage(&mut host, root, &[], true).unwrap();
+        git::commit(&mut host, root, "first", "Test", "test@example.com").unwrap();
+        save(&mut host, root, "origin", bare.to_str().unwrap(), &[]).unwrap();
+        sync(&mut host, root, "origin", true, None, &[]).unwrap();
+        assert_eq!(status(&mut host, root).unwrap().upstream, "origin/main");
         let b = t.path().join("b");
         assert!(Command::new("git")
             .arg("clone")
@@ -187,22 +234,36 @@ mod tests {
             .unwrap()
             .success());
         fs::write(b.join("b.txt"), "remote").unwrap();
-        git::stage(b.to_str().unwrap(), &[], true).unwrap();
-        git::commit(b.to_str().unwrap(), "remote", "Test", "test@example.com").unwrap();
-        sync(b.to_str().unwrap(), "origin", true, None, &[]).unwrap();
-        sync(root, "origin", false, None, &[]).unwrap();
+        git::stage(&mut host, b.to_str().unwrap(), &[], true).unwrap();
+        git::commit(
+            &mut host,
+            b.to_str().unwrap(),
+            "remote",
+            "Test",
+            "test@example.com",
+        )
+        .unwrap();
+        sync(&mut host, b.to_str().unwrap(), "origin", true, None, &[]).unwrap();
+        sync(&mut host, root, "origin", false, None, &[]).unwrap();
         assert_eq!(fs::read_to_string(a.join("b.txt")).unwrap(), "remote");
         fs::write(a.join("a.txt"), "local").unwrap();
-        git::stage(root, &[], true).unwrap();
-        let before = git::commit(root, "local", "Test", "test@example.com").unwrap();
+        git::stage(&mut host, root, &[], true).unwrap();
+        let before = git::commit(&mut host, root, "local", "Test", "test@example.com").unwrap();
         fs::write(b.join("c.txt"), "remote2").unwrap();
-        git::stage(b.to_str().unwrap(), &[], true).unwrap();
-        git::commit(b.to_str().unwrap(), "remote2", "Test", "test@example.com").unwrap();
-        sync(b.to_str().unwrap(), "origin", true, None, &[]).unwrap();
-        assert!(sync(root, "origin", false, None, &[]).is_err());
-        assert!(sync(root, "origin", true, None, &[]).is_err());
-        assert_eq!(git::refs(root).unwrap().head, before);
-        assert!(save(root, "--bad", "x", &[]).is_err());
-        assert!(sync(root, "missing", true, None, &[]).is_err());
+        git::stage(&mut host, b.to_str().unwrap(), &[], true).unwrap();
+        git::commit(
+            &mut host,
+            b.to_str().unwrap(),
+            "remote2",
+            "Test",
+            "test@example.com",
+        )
+        .unwrap();
+        sync(&mut host, b.to_str().unwrap(), "origin", true, None, &[]).unwrap();
+        assert!(sync(&mut host, root, "origin", false, None, &[]).is_err());
+        assert!(sync(&mut host, root, "origin", true, None, &[]).is_err());
+        assert_eq!(git::refs(&mut host, root).unwrap().head, before);
+        assert!(save(&mut host, root, "--bad", "x", &[]).is_err());
+        assert!(sync(&mut host, root, "missing", true, None, &[]).is_err());
     }
 }

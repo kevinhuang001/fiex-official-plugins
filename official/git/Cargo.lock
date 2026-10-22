@@ -95,7 +95,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fiex-plugin-git"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "dirs",
@@ -107,7 +107,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "url",
- "which",
 ]
 
 [[package]]
@@ -556,15 +555,6 @@ name = "utf8_iter"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
-
-[[package]]
-name = "which"
-version = "8.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bae2f2b2b816647a1cab1acc91f5bd20812d53cb344382635ec2181940c8034f"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "windows-link"

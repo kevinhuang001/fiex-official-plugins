@@ -28,3 +28,13 @@ Fiex Settings → Plugins reads the catalog from the latest release; there is no
 Permissions are limited to `filesystem.read`, `filesystem.write` and `network`. Git requests `github.com`; users can add their own Gitea/GitLab hosts in permission management. `localhost` and loopback addresses are always allowed.
 
 The **remote-integration** GitHub Actions job starts actual WebDAV and Samba servers and tests the released binaries' connection validation, directory listings, pagination, unsafe path rejection, and WebDAV file reads. Separate **core-integration** invokes the same optional packages through Fiex's real process host. Core CI does not run these protocol fixtures.
+
+## Command execution
+
+Plugin processes cannot spawn programs. A plugin that needs Git, ffmpeg or
+another executable requests it in `permissions.commands` and calls the host's
+`host.exec` proxy. The host checks the user's per-command grants, strips the
+environment, blocks shells/paths, and enforces a timeout and output cap. Users
+can add or remove allowed commands under **Settings → Plugins → Permissions**.
+
+## Layout

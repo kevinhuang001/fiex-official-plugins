@@ -194,11 +194,7 @@ async fn smb_list(conn: &StoredConnection, rel: &str) -> Result<Vec<RemoteFile>,
 
 /// Return at most max bytes. Preview content never escapes the plugin process
 /// as a raw host filesystem path.
-async fn smb_read_small(
-    conn: &StoredConnection,
-    rel: &str,
-    max: usize,
-) -> Result<Vec<u8>, String> {
+async fn smb_read_small(conn: &StoredConnection, rel: &str, max: usize) -> Result<Vec<u8>, String> {
     let (client, unc) = smb_client(conn).await?;
     let path = smb_path(conn, rel);
     let file = client

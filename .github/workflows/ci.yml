@@ -196,6 +196,22 @@ jobs:
           pattern: fiex-plugins-*
           path: dist/plugins
           merge-multiple: true
+      - name: Filter catalog to artifacts built by this release
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("dist/plugins")
+          files = {path.name for path in root.glob("*.fiexplugin")}
+          target = root / "fiex-catalog.json"
+          catalog = json.loads(target.read_text(encoding="utf-8"))
+          for plugin in catalog["plugins"]:
+              plugin["assets"] = {
+                  platform: name
+                  for platform, name in plugin["assets"].items()
+                  if name in files
+              }
+          target.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
       - name: Publish optional GitHub plugin packages
         env:
           GH_TOKEN: ${{ github.token }}

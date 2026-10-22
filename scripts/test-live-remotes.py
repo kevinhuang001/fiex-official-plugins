@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import zipfile
 
@@ -42,7 +43,7 @@ class Plugin:
     def __init__(self, binary, plugin_id):
         self.child = subprocess.Popen([str(binary.resolve())],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                      stderr=subprocess.DEVNULL)
+                                      stderr=subprocess.PIPE)
         self.serial = 0
         info = self.rpc("plugin.initialize", {"protocolVersion": "2.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
@@ -74,6 +75,10 @@ class Plugin:
             if self.child.poll() is None:
                 self.child.kill()
                 self.child.wait(timeout=5)
+            if self.child.stderr is not None:
+                diagnostics = self.child.stderr.read()
+                if diagnostics:
+                    print(diagnostics.decode("utf-8", "replace"), file=sys.stderr)
 
 
 def unpack(packages, slug, dest):

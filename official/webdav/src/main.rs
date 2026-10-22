@@ -45,7 +45,10 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
     Ok(())
 }
 fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
-    if !matches!(method, "connection.validate" | "fs.list" | "fs.readSmall" | "fs.download") {
+    if !matches!(
+        method,
+        "connection.validate" | "fs.list" | "fs.readSmall" | "fs.download"
+    ) {
         return Err(RpcError::method_not_found(method));
     }
     let cfg: StoredConnection = serde_json::from_value(

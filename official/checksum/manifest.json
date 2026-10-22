@@ -4,7 +4,11 @@
   "name": "校验和",
   "version": "0.1.0",
   "protocolVersion": "1.0",
-  "capabilities": ["commands", "toolbar", "contextMenu"],
+  "capabilities": [
+    "commands",
+    "toolbar",
+    "contextMenu"
+  ],
   "entrypoints": {
     "windows-x86_64": "fiex-plugin-checksum.exe",
     "macos-aarch64": "fiex-plugin-checksum",
@@ -12,11 +16,9 @@
     "linux-x86_64": "fiex-plugin-checksum"
   },
   "permissions": {
-    "storage": false,
-    "secrets": false,
     "filesystem.read": true,
     "filesystem.write": false,
-    "ui.dialog": true
+    "network": false
   },
   "contributes": {
     "toolbar": [
@@ -39,5 +41,7 @@
   "author": {
     "name": "Fiex Contributors",
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
-  }
+  },
+  "description": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",
+  "networkDomains": []
 }

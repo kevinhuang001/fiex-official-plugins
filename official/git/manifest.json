@@ -4,7 +4,12 @@
   "name": "Git",
   "version": "0.1.0",
   "protocolVersion": "1.0",
-  "capabilities": ["filesystem", "toolbar", "commands", "panel"],
+  "capabilities": [
+    "filesystem",
+    "toolbar",
+    "commands",
+    "panel"
+  ],
   "entrypoints": {
     "windows-x86_64": "fiex-plugin-git.exe",
     "macos-aarch64": "fiex-plugin-git",
@@ -27,19 +32,24 @@
         "type": "number",
         "defaultValue": "50"
       }
-    ]
+    ],
+    "vfs": {
+      "schemes": [
+        "history"
+      ]
+    }
   },
   "permissions": {
-    "storage": true,
-    "secrets": false,
-    "network": false,
     "filesystem.read": true,
     "filesystem.write": true,
-    "externalCommands": true,
-    "ui.dialog": true
+    "network": true
   },
   "author": {
     "name": "Fiex Contributors",
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
-  }
+  },
+  "description": "源代码管理、提交历史、远程仓库与只读历史浏览。",
+  "networkDomains": [
+    "github.com"
+  ]
 }

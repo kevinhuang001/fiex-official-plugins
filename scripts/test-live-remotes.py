@@ -44,7 +44,7 @@ class Plugin:
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=subprocess.DEVNULL)
         self.serial = 0
-        info = self.rpc("plugin.initialize", {"protocolVersion": "1.0"})
+        info = self.rpc("plugin.initialize", {"protocolVersion": "2.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
     def rpc(self, method, params):

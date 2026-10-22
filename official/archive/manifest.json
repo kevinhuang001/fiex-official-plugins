@@ -4,7 +4,11 @@
   "name": "压缩与解压",
   "version": "0.1.0",
   "protocolVersion": "1.0",
-  "capabilities": ["commands", "toolbar", "contextMenu"],
+  "capabilities": [
+    "commands",
+    "toolbar",
+    "contextMenu"
+  ],
   "entrypoints": {
     "windows-x86_64": "fiex-plugin-archive.exe",
     "macos-aarch64": "fiex-plugin-archive",
@@ -12,11 +16,9 @@
     "linux-x86_64": "fiex-plugin-archive"
   },
   "permissions": {
-    "storage": false,
-    "secrets": false,
     "filesystem.read": true,
     "filesystem.write": true,
-    "ui.dialog": true
+    "network": false
   },
   "contributes": {
     "toolbar": [
@@ -43,7 +45,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.zip",
-              "extensions": ["zip"],
+              "extensions": [
+                "zip"
+              ],
               "param": "destination"
             }
           },
@@ -57,7 +61,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.7z",
-              "extensions": ["7z"],
+              "extensions": [
+                "7z"
+              ],
               "param": "destination"
             }
           },
@@ -71,7 +77,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar",
-              "extensions": ["tar"],
+              "extensions": [
+                "tar"
+              ],
               "param": "destination"
             }
           },
@@ -85,7 +93,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar.gz",
-              "extensions": ["gz"],
+              "extensions": [
+                "gz"
+              ],
               "param": "destination"
             }
           },
@@ -99,7 +109,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar.bz2",
-              "extensions": ["bz2"],
+              "extensions": [
+                "bz2"
+              ],
               "param": "destination"
             }
           },
@@ -113,7 +125,9 @@
             "picker": {
               "mode": "saveFile",
               "suggestedName": "Archive.tar.xz",
-              "extensions": ["xz"],
+              "extensions": [
+                "xz"
+              ],
               "param": "destination"
             }
           }
@@ -152,5 +166,7 @@
   "author": {
     "name": "Fiex Contributors",
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
-  }
+  },
+  "description": "压缩与解压 ZIP、7z、TAR 等格式。",
+  "networkDomains": []
 }

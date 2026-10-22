@@ -3,7 +3,7 @@ name = "fiex-plugin-git"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.90"
-license = "MIT"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 fiex-plugin-sdk = { path = "../../sdk/rust" }
@@ -15,6 +15,7 @@ base64 = "0.22"
 dirs = "6"
 globset = "0.4"
 mime_guess = "2"
+url = "2"
 
 [dev-dependencies]
 tempfile = "3"

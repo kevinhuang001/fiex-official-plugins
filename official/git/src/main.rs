@@ -13,6 +13,18 @@ fn param<'a>(p: &'a Value, name: &str) -> Result<&'a str, RpcError> {
         .and_then(Value::as_str)
         .ok_or_else(|| RpcError::invalid_params(format!("missing {name}")))
 }
+fn domain_list(p: &Value) -> Vec<String> {
+    p.get("networkDomains")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
 fn string_list(p: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     let values = p
         .get(name)
@@ -78,6 +90,7 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
             root()?,
             param(&p, "name")?,
             param(&p, "url")?,
+            &domain_list(&p),
         )),
         "git.remoteRemove" => response(git_remote::remove(root()?, param(&p, "name")?)),
         "git.remoteSync" => response(git_remote::sync(
@@ -85,11 +98,25 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
             param(&p, "remote")?,
             p.get("push").and_then(Value::as_bool).unwrap_or(false),
             p.get("branch").and_then(Value::as_str),
+            &domain_list(&p),
         )),
-        // Core VFS uses standard methods; legacy history:// is contained in plugin.
-        "fs.list" => {
-            let path = param(&p, "directoryId")?;
-            let result = git_history::list(path, true, &[]).map_err(RpcError::internal)?;
+        // Core routes plugin-owned schemes (declared in contributes.vfs)
+        // through the same generic VFS methods for every plugin.
+        "vfs.list" => {
+            let path = param(&p, "nodeId")?;
+            let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
+            let ignores = p
+                .get("ignores")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let result = git_history::list(path, hidden, &ignores).map_err(RpcError::internal)?;
             let start = p
                 .get("cursor")
                 .and_then(Value::as_str)
@@ -105,21 +132,59 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                 return Err(RpcError::invalid_params("cursor out of range"));
             }
             let end = (start + limit).min(result.entries.len());
-            let entries = result.entries[start..end]
-                .iter()
-                .map(|entry| {
-                    json!({
-                        "nodeId":entry.path,"name":entry.name,
-                        "kind":if entry.is_dir {"directory"} else {"file"},
-                        "size":entry.size,"modified":entry.modified,"capabilities":["read"]
-                    })
-                })
-                .collect::<Vec<_>>();
-            Ok(
-                json!({"entries":entries,"nextCursor":if end<result.entries.len(){Some(end.to_string())}else{None},"snapshotToken":null}),
-            )
+            let entries = result.entries[start..end].to_vec();
+            Ok(json!({
+                "entries": entries,
+                "nextCursor": if end < result.entries.len() { Some(end.to_string()) } else { None },
+                "snapshotToken": serde_json::Value::Null,
+                "warnings": result.warnings
+            }))
         }
-        "fs.stat" => response(git_history::info(param(&p, "nodeId")?)),
+        "vfs.stat" => response(git_history::info(param(&p, "nodeId")?)),
+        "vfs.readSmall" => {
+            use base64::Engine;
+            let text = git_history::preview(param(&p, "nodeId")?).map_err(RpcError::internal)?;
+            let bytes = text.into_bytes();
+            let max = p
+                .get("maxBytes")
+                .and_then(Value::as_u64)
+                .unwrap_or(262144)
+                .clamp(1, 1024 * 1024) as usize;
+            let bytes = if bytes.len() > max {
+                return Err(RpcError::invalid_params("preview exceeds requested size"));
+            } else {
+                bytes
+            };
+            Ok(json!({
+                "base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
+                "length": bytes.len()
+            }))
+        }
+        "vfs.search" => {
+            let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
+            let ignores = p
+                .get("ignores")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let limit = p
+                .get("limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(500)
+                .clamp(1, 2000) as usize;
+            let mut entries =
+                git_history::search(param(&p, "nodeId")?, param(&p, "query")?, hidden, &ignores)
+                    .map_err(RpcError::internal)?;
+            let truncated = entries.len() > limit;
+            entries.truncate(limit);
+            Ok(json!({"entries": entries, "truncated": truncated}))
+        }
         _ => Err(RpcError::method_not_found(method)),
     }
 }

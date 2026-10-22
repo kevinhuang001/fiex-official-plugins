@@ -48,7 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
-          for slug in git webdav smb archive checksum; do
+          for slug in git webdav smb archive checksum everything; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings

@@ -2,7 +2,7 @@
 
 > License: GPL-3.0-or-later. These plugins are optional; nothing is bundled with Fiex.
 
-Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, Archive and Checksum.
+Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, Archive, Checksum and the Windows Everything search provider.
 
 **No plugins ship inside the Fiex application.** All plugins, including these official examples, require the user to download, install and approve the declared permissions. Publishing here grants no special trust.
 
@@ -11,6 +11,7 @@ The SDK is a pinned Git submodule under `sdk/`. Run `git submodule update --init
 ```sh
 cargo test --manifest-path official/git/Cargo.toml
 cargo test --manifest-path official/checksum/Cargo.toml
+cargo test --manifest-path official/everything/Cargo.toml
 ```
 
 Release packages are published under tags `plugins-v*`, separately from Fiex Core releases.
@@ -19,7 +20,7 @@ Release contract:
 
 - `fiex-catalog.json` — app-store catalog (`id`, `name`, `permissions`, `networkDomains`, per-platform assets).
 - `<slug>-<platform>.fiexplugin` — one package per plugin/platform.
-- `slug`: `git | webdav | smb | archive | checksum`.
+- `slug`: `git | webdav | smb | archive | checksum | everything`.
 - `platform`: `linux-x86_64 | macos-aarch64 | macos-x86_64 | windows-x86_64`.
 
 Fiex Settings → Plugins reads the catalog from the latest release; there is no manual repository input.

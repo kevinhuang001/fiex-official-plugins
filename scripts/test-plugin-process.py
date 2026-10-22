@@ -56,9 +56,13 @@ def main():
     parser.add_argument("--target", required=True)
     parser.add_argument("--binary-root", required=True)
     args = parser.parse_args()
-    for slug in ("git","webdav","smb","archive","checksum"):
+    for slug in ("git","webdav","smb","archive","checksum","everything"):
         manifest = json.loads((Path("official") / slug / "manifest.json").read_text(encoding="utf-8"))
-        binary = Path(args.binary_root) / manifest["entrypoints"][args.target]
+        entry = manifest.get("runtime", {}).get("entrypoints", {}).get(args.target)
+        if not entry:
+            print("SKIP", slug, "for", args.target)
+            continue
+        binary = Path(args.binary_root) / entry
         assert binary.is_file(), binary
         run(binary, manifest["id"])
         print("PASS", slug, "real process IPC")

@@ -15,13 +15,14 @@ PLATFORMS = [
     "macos-x86_64",
     "windows-x86_64",
 ]
-SLUGS = ["git", "webdav", "smb", "archive", "checksum"]
+SLUGS = ["git", "webdav", "smb", "archive", "checksum", "everything"]
 DESCRIPTIONS = {
     "git": "源代码管理、提交历史、远程仓库与只读历史浏览。",
     "webdav": "通过独立进程连接 WebDAV 服务器，目录按需读取。",
     "smb": "通过独立进程连接 SMB / NAS 共享。",
     "archive": "压缩与解压 ZIP、7z、TAR 等格式。",
     "checksum": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",
+    "everything": "借用 Everything 的 Windows 本地索引进行秒级文件名搜索。",
 }
 
 def main() -> None:
@@ -29,9 +30,16 @@ def main() -> None:
     for slug in SLUGS:
         manifest_path = Path("official") / slug / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        permissions = sorted(
-            name for name, granted in manifest.get("permissions", {}).items() if granted
-        )
+        permissions = []
+        filesystem = manifest.get("permissions", {}).get("filesystem", {})
+        if filesystem.get("read"):
+            permissions.append("filesystem.read")
+        if filesystem.get("write"):
+            permissions.append("filesystem.write")
+        network = manifest.get("permissions", {}).get("network", {})
+        if network.get("enabled"):
+            permissions.append("network")
+        permissions.sort()
         out["plugins"].append(
             {
                 "id": manifest["id"],
@@ -40,8 +48,12 @@ def main() -> None:
                 "description": manifest.get("description") or DESCRIPTIONS.get(slug, ""),
                 "author": manifest.get("author"),
                 "permissions": permissions,
-                "networkDomains": manifest.get("networkDomains", []),
-                "assets": {platform: f"{slug}-{platform}.fiexplugin" for platform in PLATFORMS},
+                "networkDomains": manifest.get("permissions", {}).get("network", {}).get("domains", []),
+                "assets": {
+                    platform: f"{slug}-{platform}.fiexplugin"
+                    for platform in PLATFORMS
+                    if platform in manifest.get("runtime", {}).get("entrypoints", {})
+                },
             }
         )
     target = Path("dist/plugins/fiex-catalog.json")

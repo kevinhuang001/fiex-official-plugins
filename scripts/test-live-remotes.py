@@ -118,6 +118,11 @@ def main():
             check_list(plugin, cfg, "WebDAV")
             result = plugin.rpc("fs.readSmall", {"connection": cfg, "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello webdav\n", result
+            output = root / "webdav-download.txt"
+            result = plugin.rpc("fs.download", {"connection": cfg, "nodeId": "hello.txt",
+                                                 "destination": str(output.resolve())})
+            assert result["bytesWritten"] == len(b"hello webdav\n"), result
+            assert output.read_bytes() == b"hello webdav\n"
             download = root / "webdav" / "read-webdav.txt"
             reply = plugin.rpc("fs.download", {"connection": cfg,
                                                "nodeId": "hello.txt",
@@ -139,6 +144,11 @@ def main():
             result = plugin.rpc("fs.readSmall", {"connection": cfg,
                                                   "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello smb\n", result
+            output = root / "smb-download.txt"
+            result = plugin.rpc("fs.download", {"connection": cfg, "nodeId": "hello.txt",
+                                                 "destination": str(output.resolve())})
+            assert result["bytesWritten"] == len(b"hello smb\n"), result
+            assert output.read_bytes() == b"hello smb\n"
             download = root / "smb" / "read-smb.txt"
             reply = plugin.rpc("fs.download", {"connection": cfg,
                                                "nodeId": "hello.txt",
@@ -148,7 +158,7 @@ def main():
             plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()
-        print("PASS SMB: validate, list, pagination, path guards, read bytes", flush=True)
+        print("PASS SMB: validate, list, pagination, path guards, preview and download", flush=True)
 
 
 if __name__ == "__main__":

@@ -45,7 +45,7 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
     Ok(())
 }
 fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
-    if !matches!(method, "connection.validate" | "fs.list" | "fs.readSmall") {
+    if !matches!(method, "connection.validate" | "fs.list" | "fs.readSmall" | "fs.download") {
         return Err(RpcError::method_not_found(method));
     }
     let cfg: StoredConnection = serde_json::from_value(
@@ -151,6 +151,23 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
             Ok(
                 json!({"base64":base64::engine::general_purpose::STANDARD.encode(&data),"length":data.len()}),
             )
+        }
+        "fs.download" => {
+            if path.is_empty() {
+                return Err(RpcError::invalid_params("missing node ID"));
+            }
+            let destination = p
+                .get("destination")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing destination"))?;
+            let target = Path::new(destination);
+            if !target.is_absolute() {
+                return Err(RpcError::invalid_params("destination must be absolute"));
+            }
+            let bytes = rt
+                .block_on(webdav_get(&cfg, path, target))
+                .map_err(RpcError::internal)?;
+            Ok(json!({"bytesWritten": bytes}))
         }
         _ => Err(RpcError::method_not_found(method)),
     }
@@ -319,7 +336,6 @@ fn parse_dav(url: &str, rel: &str, xml: &str) -> Result<Vec<RemoteFile>, String>
     Ok(out)
 }
 
-#[allow(dead_code)]
 async fn webdav_get(conn: &StoredConnection, rel: &str, dest: &Path) -> Result<u64, String> {
     let client = webdav_client(conn)?;
     let request = client.get(webdav_url(conn, rel));

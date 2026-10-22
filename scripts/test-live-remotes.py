@@ -118,9 +118,15 @@ def main():
             check_list(plugin, cfg, "WebDAV")
             result = plugin.rpc("fs.readSmall", {"connection": cfg, "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello webdav\n", result
+            download = root / "webdav" / "read-webdav.txt"
+            reply = plugin.rpc("fs.download", {"connection": cfg,
+                                               "nodeId": "hello.txt",
+                                               "destination": str(download)})
+            assert reply["bytesWritten"] == len(b"hello webdav\n")
+            assert download.read_bytes() == b"hello webdav\n"
         finally:
             plugin.close()
-        print("PASS WebDAV: validate, list, pagination, path guards, read bytes", flush=True)
+        print("PASS WebDAV: validate, list, pagination, path guards, preview and full download", flush=True)
 
         exe, plugin_id = unpack(args.packages, "smb", root / "smb")
         cfg = {"host": "127.0.0.1", "share": "fiex", "base": "",
@@ -133,6 +139,12 @@ def main():
             result = plugin.rpc("fs.readSmall", {"connection": cfg,
                                                   "nodeId": "hello.txt", "maxBytes": 1024})
             assert base64.b64decode(result["base64"]) == b"hello smb\n", result
+            download = root / "smb" / "read-smb.txt"
+            reply = plugin.rpc("fs.download", {"connection": cfg,
+                                               "nodeId": "hello.txt",
+                                               "destination": str(download)})
+            assert reply["bytesWritten"] == len(b"hello smb\n")
+            assert download.read_bytes() == b"hello smb\n"
             plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()

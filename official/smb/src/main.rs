@@ -44,7 +44,7 @@ fn safe_relative(value: &str) -> Result<(), RpcError> {
     Ok(())
 }
 fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
-    if !matches!(method, "connection.validate" | "fs.list" | "fs.readSmall") {
+    if !matches!(method, "connection.validate" | "fs.list" | "fs.readSmall" | "fs.download") {
         return Err(RpcError::method_not_found(method));
     }
     let config: StoredConnection = serde_json::from_value(
@@ -116,6 +116,23 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                 "base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
                 "length": bytes.len()
             }))
+        }
+        "fs.download" => {
+            if path.is_empty() {
+                return Err(RpcError::invalid_params("missing node ID"));
+            }
+            let destination = p
+                .get("destination")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing destination"))?;
+            let target = Path::new(destination);
+            if !target.is_absolute() {
+                return Err(RpcError::invalid_params("destination must be absolute"));
+            }
+            let bytes = rt
+                .block_on(smb_get(&config, path, target))
+                .map_err(RpcError::internal)?;
+            Ok(json!({"bytesWritten": bytes}))
         }
         _ => Err(RpcError::method_not_found(method)),
     }
@@ -214,8 +231,7 @@ async fn smb_read_small(conn: &StoredConnection, rel: &str, max: usize) -> Resul
     Ok(bytes)
 }
 
-// Reserved for the Core-controlled binary read-stream adapter.
-#[allow(dead_code)]
+// Interim Core-controlled staging download; binary streams will replace this.
 async fn smb_get(conn: &StoredConnection, rel: &str, dest: &Path) -> Result<u64, String> {
     let (client, unc) = smb_client(conn).await?;
     let path = smb_path(conn, rel);

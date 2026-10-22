@@ -250,9 +250,11 @@ fn dispatch(
                 .get("streamId")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
-            if let Some(stream) = streams.borrow_mut().remove(stream_id) {
-                let _ = rt.block_on(stream.file.close());
-            }
+            // Dropping the stream releases the SMB handle and its client
+            // connection. Do not synchronously round-trip CLOSE here: the
+            // control channel must stay responsive while the server tears
+            // the session down.
+            streams.borrow_mut().remove(stream_id);
             Ok(Value::Null)
         }
         _ => Err(RpcError::method_not_found(method)),

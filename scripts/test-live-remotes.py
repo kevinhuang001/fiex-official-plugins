@@ -108,6 +108,7 @@ def check_list(plugin, connection, description):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--packages", type=Path, required=True)
+    p.add_argument("--only", choices=["webdav", "smb", "both"], default="both")
     args = p.parse_args()
     with tempfile.TemporaryDirectory() as workspace:
         root = Path(workspace)
@@ -122,7 +123,7 @@ def main():
             stream_id = opened["streamId"]
             reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
                                                  "maxBytes": 262144})
-            assert base64.b64decode(reply["base64"]) == b"hello webdav\\n"
+            assert base64.b64decode(reply["base64"]) == b"hello webdav\n"
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
             escape = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
@@ -137,6 +138,8 @@ def main():
             plugin.close()
         print("PASS WebDAV: validate, list, pagination, path guards, preview and bounded byte streaming", flush=True)
 
+        if args.only == "webdav":
+            return
         exe, plugin_id = unpack(args.packages, "smb", root / "smb")
         cfg = {"host": "127.0.0.1", "share": "fiex", "base": "",
                "port": int(os.environ.get("FIEX_TEST_SMB_PORT", "445")),
@@ -152,7 +155,7 @@ def main():
             stream_id = opened["streamId"]
             reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
                                                  "maxBytes": 262144})
-            assert base64.b64decode(reply["base64"]) == b"hello smb\\n"
+            assert base64.b64decode(reply["base64"]) == b"hello smb\n"
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
             escape = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "../escape"})

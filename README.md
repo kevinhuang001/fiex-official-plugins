@@ -12,3 +12,5 @@ cargo test --manifest-path official/checksum/Cargo.toml
 ```
 
 Release packages are published by plugin CI under tags `plugins-v*`, separately from Fiex Core releases. In Fiex Settings → Plugins, use the GitHub repository `kevinhuang001/fiex-official-plugins`.
+
+The **remote-integration** GitHub Actions job starts actual WebDAV and Samba servers and tests the released binaries' connection validation, directory listings, pagination, unsafe path rejection, and WebDAV file reads. Separate **core-integration** invokes the same optional packages through Fiex's real process host. Core CI does not run these protocol fixtures.

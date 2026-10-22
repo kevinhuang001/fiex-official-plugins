@@ -47,7 +47,7 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           set -euo pipefail
-          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py
+          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
           for slug in git webdav smb archive checksum; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
@@ -98,9 +98,85 @@ jobs:
           for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.archive org.fiex.checksum; do
             cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
           done
+  remote-integration:
+    name: Real WebDAV and SMB plugin integration (Linux)
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fiex-plugins-x86_64-unknown-linux-gnu
+          path: packages
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare isolated WebDAV fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q wsgidav cheroot
+          mkdir -p .ci/webdav
+          printf 'hello webdav\n' > .ci/webdav/hello.txt
+          printf 'another webdav\n' > .ci/webdav/another.txt
+          python -c 'from wsgidav.server.server_cli import run; run()' --host=127.0.0.1 --port=8080 --root="$PWD/.ci/webdav" --auth=anonymous > .ci/webdav.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS -X PROPFIND -H 'Depth: 1' http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat .ci/webdav.log
+          exit 1
+      - name: Prepare isolated SMB fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y samba smbclient
+          sudo useradd -M -s /usr/sbin/nologin fiex 2>/dev/null || true
+          mkdir -p .ci/smb
+          printf 'hello smb\n' > .ci/smb/hello.txt
+          printf 'another smb\n' > .ci/smb/another.txt
+          chmod 777 .ci/smb
+          printf 'FiexCI-Test-Only-2026\nFiexCI-Test-Only-2026\n' | sudo smbpasswd -a fiex -s
+          cat > .ci/smb.conf <<EOF
+          [global]
+            workgroup = WORKGROUP
+            server role = standalone server
+            security = user
+            map to guest = Bad User
+            server min protocol = SMB2
+            smb ports = 445
+          [fiex]
+            path = $PWD/.ci/smb
+            browseable = yes
+            read only = no
+            guest ok = no
+            valid users = fiex
+            force user = fiex
+          EOF
+          sudo systemctl stop smbd 2>/dev/null || true
+          sudo smbd -s "$PWD/.ci/smb.conf" -F --no-process-group > .ci/smb.log 2>&1 &
+          for i in $(seq 1 30); do
+            if smbclient //127.0.0.1/fiex -U 'fiex%FiexCI-Test-Only-2026' -c ls > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat .ci/smb.log
+          exit 1
+      - name: Test released plugin processes against both servers
+        shell: bash
+        env:
+          FIEX_TEST_SMB_PASSWORD: FiexCI-Test-Only-2026
+        run: |
+          timeout 240s python scripts/test-live-remotes.py --packages packages
+      - name: Remote fixture diagnostics
+        if: failure()
+        run: |
+          cat .ci/webdav.log 2>/dev/null || true
+          cat .ci/smb.log 2>/dev/null || true
   release:
     if: startsWith(github.ref, 'refs/tags/plugins-v')
-    needs: [build, core-integration]
+    needs: [build, core-integration, remote-integration]
     runs-on: ubuntu-latest
     permissions:
       contents: write

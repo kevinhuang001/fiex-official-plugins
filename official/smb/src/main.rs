@@ -253,10 +253,14 @@ fn dispatch(
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
             // Dropping the stream releases the SMB handle and its client
-            // connection. Do not synchronously round-trip CLOSE here: the
-            // control channel must stay responsive while the server tears
-            // the session down.
-            streams.borrow_mut().remove(stream_id);
+            // connection. The client's Drop spawns a Tokio task, so it must
+            // happen inside the runtime context; the control channel itself
+            // stays responsive because no network round-trip is awaited.
+            let stream = streams.borrow_mut().remove(stream_id);
+            if let Some(stream) = stream {
+                let _guard = rt.enter();
+                drop(stream);
+            }
             Ok(Value::Null)
         }
         _ => Err(RpcError::method_not_found(method)),

@@ -127,7 +127,9 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
                         .map_err(|e| e.to_string())?
                         .error_for_status()
                         .map_err(|e| e.to_string())?;
-                    if res.status().as_u16() != 206 && res.content_length().unwrap_or(u64::MAX) > max {
+                    if res.status().as_u16() != 206
+                        && res.content_length().unwrap_or(u64::MAX) > max
+                    {
                         return Err("server ignored Range".into());
                     }
                     let mut data = Vec::with_capacity((max.min(65536)) as usize);

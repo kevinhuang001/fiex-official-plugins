@@ -13,7 +13,6 @@ pub struct Route {
     pub root: PathBuf,
     pub commit: String,
     pub relative: String,
-    pub base: String,
 }
 pub fn route(path: &str) -> Option<Route> {
     let tail = path.strip_prefix("history://")?;
@@ -37,7 +36,6 @@ pub fn route(path: &str) -> Option<Route> {
         root: PathBuf::from(root),
         commit: commit.into(),
         relative,
-        base: format!("history://{encoded}/{commit}"),
     })
 }
 fn output(root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {

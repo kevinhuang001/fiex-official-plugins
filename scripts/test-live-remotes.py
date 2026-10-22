@@ -124,6 +124,13 @@ def main():
                                                "destination": str(download)})
             assert reply["bytesWritten"] == len(b"hello webdav\n")
             assert download.read_bytes() == b"hello webdav\n"
+            plugin.invalid("fs.download", {"connection": cfg,
+                                           "nodeId": "../escape",
+                                           "destination": str(root / "forbidden.txt")})
+            plugin.invalid("fs.download", {"connection": cfg,
+                                           "nodeId": "hello.txt",
+                                           "destination": "relative.txt"})
+            assert not (root / "forbidden.txt").exists()
         finally:
             plugin.close()
         print("PASS WebDAV: validate, list, pagination, path guards, preview and full download", flush=True)
@@ -145,6 +152,13 @@ def main():
                                                "destination": str(download)})
             assert reply["bytesWritten"] == len(b"hello smb\n")
             assert download.read_bytes() == b"hello smb\n"
+            plugin.invalid("fs.download", {"connection": cfg,
+                                           "nodeId": "../escape",
+                                           "destination": str(root / "forbidden.txt")})
+            plugin.invalid("fs.download", {"connection": cfg,
+                                           "nodeId": "hello.txt",
+                                           "destination": "relative.txt"})
+            assert not (root / "forbidden.txt").exists()
             plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()

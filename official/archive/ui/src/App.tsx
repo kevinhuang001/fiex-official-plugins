@@ -1,30 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
-import { Archive, Check, ChevronDown, LoaderCircle } from 'lucide-react'
+import { Archive, Check, ChevronDown, FolderOpen, LoaderCircle } from 'lucide-react'
 import { FiexUiClient } from '../../../../sdk/ui/src/index'
 
 interface Context {
   selectionPaths?: string[]
   directoryPath?: string
 }
+interface Format {
+  id: string
+  label: string
+  ext: string
+  levelMax: number
+  password: boolean
+  note: string
+}
+
 const client = new FiexUiClient()
-const formats = [
-  { id: 'zip', label: 'ZIP', ext: 'zip' },
-  { id: 'rar', label: 'RAR', ext: 'rar' },
-  { id: '7z', label: '7z', ext: '7z' },
-  { id: 'tar', label: 'TAR', ext: 'tar' },
-  { id: 'tar.gz', label: 'TAR.GZ', ext: 'tar.gz' },
-  { id: 'tar.bz2', label: 'TAR.BZ2', ext: 'tar.bz2' },
-  { id: 'tar.xz', label: 'TAR.XZ', ext: 'tar.xz' },
+const formats: Format[] = [
+  { id: 'zip', label: 'ZIP', ext: 'zip', levelMax: 9, password: true, note: 'Deflate · 支持 AES-256 密码' },
+  { id: 'rar', label: 'RAR', ext: 'rar', levelMax: 5, password: true, note: 'RAR5 · 支持密码' },
+  { id: '7z', label: '7z', ext: '7z', levelMax: 9, password: false, note: 'LZMA2 · 高压缩比' },
+  { id: 'tar', label: 'TAR', ext: 'tar', levelMax: 0, password: false, note: '仅打包，不压缩' },
+  { id: 'tar.gz', label: 'TAR.GZ', ext: 'tar.gz', levelMax: 9, password: false, note: 'Gzip 压缩' },
+  { id: 'tar.bz2', label: 'TAR.BZ2', ext: 'tar.bz2', levelMax: 9, password: false, note: 'Bzip2 压缩' },
+  { id: 'tar.xz', label: 'TAR.XZ', ext: 'tar.xz', levelMax: 9, password: false, note: 'XZ 压缩' },
 ]
 const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value
+const trimSlash = (value: string) => value.replace(/[\\/]+$/, '')
 
-function FormatSelect({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (value: string) => void
-}) {
+function FormatSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false)
   const [up, setUp] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -47,7 +51,7 @@ function FormatSelect({
         aria-label="压缩格式"
         onClick={() => {
           const rect = root.current?.getBoundingClientRect()
-          setUp(Boolean(rect && rect.bottom + 200 > window.innerHeight - 8))
+          setUp(Boolean(rect && rect.bottom + 190 > window.innerHeight - 8))
           setOpen(!open)
         }}
       >
@@ -72,7 +76,10 @@ function FormatSelect({
                 setOpen(false)
               }}
             >
-              {entry.label}
+              <span className="format-option-copy">
+                <strong>{entry.label}</strong>
+                <small>{entry.note}</small>
+              </span>
               {entry.id === value && <Check size={13} />}
             </button>
           ))}
@@ -84,52 +91,75 @@ function FormatSelect({
 
 export function App() {
   const [paths, setPaths] = useState<string[]>([])
+  const [directory, setDirectory] = useState('')
   const [ready, setReady] = useState(false)
   const [format, setFormat] = useState('zip')
   const [level, setLevel] = useState(6)
   const [password, setPassword] = useState('')
-  const [full, setFull] = useState(false)
+  const [destination, setDestination] = useState('')
+  const [editedDestination, setEditedDestination] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
+  const selected = formats.find((entry) => entry.id === format) || formats[0]
+  const base = paths.length === 1 ? lastSegment(paths[0]).replace(/\.[^.]+$/, '') : 'Archive'
 
   useEffect(() => {
     void client
       .invoke<Context>('context.get')
-      .then((context) => setPaths(context.selectionPaths || []))
+      .then((context) => {
+        setPaths(context.selectionPaths || [])
+        setDirectory(context.directoryPath || '')
+      })
       .catch((cause) => setError(String(cause)))
       .finally(() => setReady(true))
   }, [])
+  useEffect(() => {
+    if (editedDestination) return
+    const folder = trimSlash(directory)
+    setDestination(folder ? `${folder}/${base}.${selected.ext}` : '')
+  }, [directory, base, selected.ext, editedDestination])
+  useEffect(() => {
+    setLevel((current) => Math.min(current, selected.levelMax))
+  }, [selected.levelMax])
 
+  const pickDestination = async () => {
+    setError('')
+    try {
+      const picked = await client.invoke<string | null>('dialog.saveFile', {
+        suggestedName: `${base}.${selected.ext}`,
+        extensions: [selected.ext.split('.').pop() || 'zip'],
+      })
+      if (picked) {
+        setDestination(picked)
+        setEditedDestination(true)
+      }
+    } catch (cause) {
+      setError(String(cause))
+    }
+  }
   const compress = async () => {
     if (!paths.length) return
+    if (!destination.trim()) {
+      setError('请选择压缩到的位置')
+      return
+    }
     setBusy(true)
     setError('')
     setDone('')
-    const selected = formats.find((entry) => entry.id === format) || formats[0]
-    const base = paths.length === 1 ? lastSegment(paths[0]).replace(/\.[^.]+$/, '') : 'Archive'
     let task: { taskId: string } | null = null
     try {
       task = await client.tasks.create(`正在压缩为 ${selected.label}`, {
         detail: `${paths.length} 个项目`,
       })
-      const destination = await client.invoke<string | null>('dialog.saveFile', {
-        suggestedName: `${base}.${selected.ext}`,
-        extensions: [selected.ext.split('.').pop() || 'zip'],
-      })
-      if (!destination) {
-        await client.tasks.finish(task.taskId, { detail: '已取消' })
-        return
-      }
       const created = await client.invoke<string>('plugin.invoke', {
         method: 'archive.compress',
         params: {
           paths,
-          destination,
+          destination: destination.trim(),
           format: selected.id,
           level: password ? null : level,
           password: password || null,
-          ignores: full ? [] : [],
         },
       })
       setDone(created)
@@ -142,62 +172,104 @@ export function App() {
     }
   }
 
+  if (!ready) {
+    return (
+      <div className="app">
+        <div className="archive-loading">
+          <LoaderCircle size={18} className="spin" />
+        </div>
+      </div>
+    )
+  }
+  if (!paths.length) {
+    return (
+      <div className="app">
+        <div className="archive-loading">请选择要压缩的文件或文件夹。</div>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
-      {ready &&
-        (paths.length > 0 ? (
-          <>
-            <p className="hint">
-              将压缩 {paths.length} 个项目：{paths.map(lastSegment).slice(0, 3).join('、')}
-              {paths.length > 3 ? '…' : ''}
-            </p>
-            <label>
-              压缩格式
-              <FormatSelect value={format} onChange={setFormat} />
-            </label>
-            <label>
-              压缩级别
-              <input
-                type="range"
-                min={0}
-                max={9}
-                value={level}
-                disabled={Boolean(password)}
-                onChange={(event) => setLevel(Number(event.target.value))}
-              />
-              <span>{level}</span>
-            </label>
-            <label>
-              ZIP / RAR 密码
-              <input
-                type="password"
-                value={password}
-                autoComplete="off"
-                placeholder="不设置则不加密"
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={full}
-                onChange={(event) => setFull(event.target.checked)}
-              />
-              包含被忽略的项目
-            </label>
-            {error && <div className="error">{error}</div>}
-            {done && <div className="done">已创建 {done}</div>}
-            <footer>
-              <button onClick={() => void client.invoke('panel.close')}>取消</button>
-              <button className="primary" disabled={busy} onClick={() => void compress()}>
-                {busy ? <LoaderCircle size={14} className="spin" /> : <Archive size={14} />}
-                开始压缩
+      <div className="archive-summary">
+        <span className="archive-summary-icon">
+          <Archive size={16} />
+        </span>
+        <span>
+          <strong>{selected.label}</strong>
+          <small>{selected.note}</small>
+        </span>
+      </div>
+
+      <div className="archive-field">
+        <span className="archive-label">压缩到</span>
+        <div className="archive-path-row">
+          <span className="archive-path" title={destination || '未选择'}>
+            {destination || '未选择'}
+          </span>
+          <button type="button" className="archive-pick" onClick={() => void pickDestination()}>
+            <FolderOpen size={14} /> 选择…
+          </button>
+        </div>
+      </div>
+
+      <div className="archive-field">
+        <span className="archive-label">压缩格式</span>
+        <FormatSelect
+          value={format}
+          onChange={(next) => {
+            setFormat(next)
+            setPassword('')
+          }}
+        />
+      </div>
+
+      {selected.levelMax > 0 && (
+        <div className="archive-field">
+          <span className="archive-label">
+            压缩级别 <b>{level}</b>
+          </span>
+          <div className="archive-levels" role="radiogroup" aria-label="压缩级别">
+            {Array.from({ length: selected.levelMax + 1 }, (_, value) => (
+              <button
+                type="button"
+                role="radio"
+                aria-checked={value === level}
+                className={value === level ? 'active' : ''}
+                key={value}
+                onClick={() => setLevel(value)}
+              >
+                {value}
               </button>
-            </footer>
-          </>
-        ) : (
-          <p className="hint">请选择要压缩的文件或文件夹。</p>
-        ))}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selected.password && (
+        <label className="archive-field">
+          <span className="archive-label">密码（可选）</span>
+          <input
+            type="password"
+            className="archive-input"
+            value={password}
+            autoComplete="off"
+            placeholder="留空则不加密"
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+      )}
+
+      <p className="archive-note">忽略规则在插件设置中配置。</p>
+      {error && <div className="error">{error}</div>}
+      {done && <div className="done">已创建 {done}</div>}
+      <footer>
+        <button onClick={() => void client.invoke('panel.close')}>取消</button>
+        <button className="primary" disabled={busy} onClick={() => void compress()}>
+          {busy ? <LoaderCircle size={14} className="spin" /> : <Archive size={14} />}
+          开始压缩
+        </button>
+      </footer>
     </div>
   )
 }

@@ -22,6 +22,7 @@ const short = (value: string) => `${value.slice(0, 16)}…${value.slice(-8)}`
 
 export function App() {
   const [paths, setPaths] = useState<string[]>([])
+  const [ready, setReady] = useState(false)
   const [rows, setRows] = useState<Hashes[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -56,6 +57,7 @@ export function App() {
         }
       })
       .catch((cause) => setError(String(cause)))
+      .finally(() => setReady(true))
   }, [])
 
   return (
@@ -66,7 +68,9 @@ export function App() {
           <LoaderCircle size={14} className="spin" /> 正在计算…
         </p>
       )}
-      {!busy && !error && !paths.length && <p className="hint">请选择一个或多个文件。</p>}
+      {ready && !busy && !error && !paths.length && (
+        <p className="hint">请选择一个或多个文件。</p>
+      )}
       {rows.map((row) => (
         <section key={row.path}>
           <h2 title={row.path}>{base(row.path)}</h2>

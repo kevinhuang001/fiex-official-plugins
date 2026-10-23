@@ -20,6 +20,7 @@ const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value
 
 export function App() {
   const [paths, setPaths] = useState<string[]>([])
+  const [ready, setReady] = useState(false)
   const [format, setFormat] = useState('zip')
   const [level, setLevel] = useState(6)
   const [password, setPassword] = useState('')
@@ -33,6 +34,7 @@ export function App() {
       .invoke<Context>('context.get')
       .then((context) => setPaths(context.selectionPaths || []))
       .catch((cause) => setError(String(cause)))
+      .finally(() => setReady(true))
   }, [])
 
   const compress = async () => {
@@ -77,7 +79,7 @@ export function App() {
 
   return (
     <div className="app">
-      {paths.length > 0 ? (
+      {ready && (paths.length > 0 ? (
         <>
           <p className="hint">
             将压缩 {paths.length} 个项目：{paths.map(lastSegment).slice(0, 3).join('、')}
@@ -131,7 +133,7 @@ export function App() {
         </>
       ) : (
         <p className="hint">请选择要压缩的文件或文件夹。</p>
-      )}
+      ))}
     </div>
   )
 }

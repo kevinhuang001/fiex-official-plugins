@@ -1,3 +1,7 @@
+# Fiex plugins 0.2.7
+
+- Archive and Checksum wait for the bridge context before rendering their empty-selection hints, removing the “请选择…” flash when the panel opens.
+
 # Fiex plugins 0.2.6
 
 - Archive’s advanced-compression panel declares a compact 520×320 content size.

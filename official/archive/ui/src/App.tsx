@@ -59,7 +59,7 @@ function FormatSelect({
         aria-label="压缩格式"
         onClick={() => {
           const rect = root.current?.getBoundingClientRect()
-          setUp(Boolean(rect && rect.bottom + 190 > window.innerHeight - 8))
+          setUp(Boolean(rect && rect.bottom + 280 > window.innerHeight - 8))
           setOpen(!open)
         }}
       >

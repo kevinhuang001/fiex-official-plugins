@@ -323,3 +323,39 @@ footer button.primary:hover:not(:disabled) {
     transition: none !important;
   }
 }
+.format-trigger.hero {
+  min-height: 56px;
+  padding: 9px 12px;
+  gap: 10px;
+}
+.format-hero-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--panel-accent);
+  background: var(--panel-accent-soft);
+}
+.format-trigger-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+  text-align: left;
+}
+.format-trigger-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.format-trigger-copy small {
+  overflow: hidden;
+  color: var(--panel-muted);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app {
+  height: auto;
+}

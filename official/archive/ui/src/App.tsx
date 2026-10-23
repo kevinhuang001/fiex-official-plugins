@@ -28,7 +28,15 @@ const formats: Format[] = [
 const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value
 const trimSlash = (value: string) => value.replace(/[\\/]+$/, '')
 
-function FormatSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function FormatSelect({
+  value,
+  onChange,
+  hero = false,
+}: {
+  value: string
+  onChange: (value: string) => void
+  hero?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [up, setUp] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -45,7 +53,7 @@ function FormatSelect({ value, onChange }: { value: string; onChange: (value: st
     <div className="format-select" ref={root}>
       <button
         type="button"
-        className="format-trigger"
+        className={`format-trigger${hero ? ' hero' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="压缩格式"
@@ -55,7 +63,15 @@ function FormatSelect({ value, onChange }: { value: string; onChange: (value: st
           setOpen(!open)
         }}
       >
-        {current.label}
+        {hero && (
+          <span className="format-hero-icon">
+            <Archive size={18} />
+          </span>
+        )}
+        <span className="format-trigger-copy">
+          <strong>{current.label}</strong>
+          {hero && <small>{current.note}</small>}
+        </span>
         <ChevronDown size={14} className={open ? 'open' : ''} />
       </button>
       {open && (
@@ -122,6 +138,12 @@ export function App() {
   useEffect(() => {
     setLevel((current) => Math.min(current, selected.levelMax))
   }, [selected.levelMax])
+  useEffect(() => {
+    const app = document.querySelector('.app') as HTMLElement | null
+    if (!app) return
+    const height = Math.max(250, Math.ceil(app.scrollHeight))
+    void client.invoke('panel.resize', { width: 520, height }).catch(() => {})
+  }, [paths, format, password, error, done, ready])
 
   const pickDestination = async () => {
     setError('')
@@ -191,15 +213,14 @@ export function App() {
 
   return (
     <div className="app">
-      <div className="archive-summary">
-        <span className="archive-summary-icon">
-          <Archive size={16} />
-        </span>
-        <span>
-          <strong>{selected.label}</strong>
-          <small>{selected.note}</small>
-        </span>
-      </div>
+      <FormatSelect
+        hero
+        value={format}
+        onChange={(next) => {
+          setFormat(next)
+          setPassword('')
+        }}
+      />
 
       <div className="archive-field">
         <span className="archive-label">压缩到</span>
@@ -211,17 +232,6 @@ export function App() {
             <FolderOpen size={14} /> 选择…
           </button>
         </div>
-      </div>
-
-      <div className="archive-field">
-        <span className="archive-label">压缩格式</span>
-        <FormatSelect
-          value={format}
-          onChange={(next) => {
-            setFormat(next)
-            setPassword('')
-          }}
-        />
       </div>
 
       {selected.levelMax > 0 && (

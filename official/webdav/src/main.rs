@@ -274,9 +274,9 @@ fn main() {
     let next_stream = Cell::new(0u64);
     if let Err(e) = sdk::serve_with_manifest(
         "org.fiex.webdav",
-        include_str!("../manifest.json"), move |method, params| {
-        dispatch(method, params, &streams, &next_stream)
-    }) {
+        include_str!("../manifest.json"),
+        move |method, params| dispatch(method, params, &streams, &next_stream),
+    ) {
         eprintln!("WebDAV plugin IPC failed: {e}");
         std::process::exit(1);
     }

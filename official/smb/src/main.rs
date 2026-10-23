@@ -275,9 +275,9 @@ fn main() {
     let next_stream = Cell::new(0u64);
     if let Err(e) = sdk::serve_with_manifest(
         "org.fiex.smb",
-        include_str!("../manifest.json"), move |method, params| {
-        dispatch(method, params, &rt, &streams, &next_stream)
-    }) {
+        include_str!("../manifest.json"),
+        move |method, params| dispatch(method, params, &rt, &streams, &next_stream),
+    ) {
         eprintln!("SMB plugin IPC error: {e}");
         std::process::exit(1);
     }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Archive, LoaderCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Archive, Check, ChevronDown, LoaderCircle } from 'lucide-react'
 import { FiexUiClient } from '../../../../sdk/ui/src/index'
 
 interface Context {
@@ -17,6 +17,70 @@ const formats = [
   { id: 'tar.xz', label: 'TAR.XZ', ext: 'tar.xz' },
 ]
 const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value
+
+function FormatSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [up, setUp] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [open])
+  const current = formats.find((entry) => entry.id === value) || formats[0]
+  return (
+    <div className="format-select" ref={root}>
+      <button
+        type="button"
+        className="format-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="压缩格式"
+        onClick={() => {
+          const rect = root.current?.getBoundingClientRect()
+          setUp(Boolean(rect && rect.bottom + 200 > window.innerHeight - 8))
+          setOpen(!open)
+        }}
+      >
+        {current.label}
+        <ChevronDown size={14} className={open ? 'open' : ''} />
+      </button>
+      {open && (
+        <div
+          className={`format-menu${up ? ' open-up' : ''}`}
+          role="listbox"
+          aria-label="压缩格式"
+        >
+          {formats.map((entry) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={entry.id === value}
+              className={`format-option ${entry.id === value ? 'active' : ''}`}
+              key={entry.id}
+              onClick={() => {
+                onChange(entry.id)
+                setOpen(false)
+              }}
+            >
+              {entry.label}
+              {entry.id === value && <Check size={13} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function App() {
   const [paths, setPaths] = useState<string[]>([])
@@ -89,13 +153,7 @@ export function App() {
             </p>
             <label>
               压缩格式
-              <select value={format} onChange={(event) => setFormat(event.target.value)}>
-                {formats.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.label}
-                  </option>
-                ))}
-              </select>
+              <FormatSelect value={format} onChange={setFormat} />
             </label>
             <label>
               压缩级别

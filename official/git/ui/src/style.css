@@ -741,3 +741,66 @@ button.primary:hover:not(:disabled) {
   font-weight: 600;
   letter-spacing: 0.02em;
 }
+.branch-select {
+  position: relative;
+  min-width: 0;
+}
+.branch-select-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--text);
+  font-size: 10.5px;
+}
+.branch-select-trigger svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.branch-select-trigger svg.open {
+  transform: rotate(180deg);
+}
+.branch-select-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 12px 28px color-mix(in srgb, #0b1a2a 18%, transparent);
+}
+.branch-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 10.5px;
+  text-align: left;
+}
+.branch-select-option:hover,
+.branch-select-option.active {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+}
+.branch-select-menu.open-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}

@@ -2,7 +2,7 @@
 
 > License: GPL-3.0-or-later. These plugins are optional; nothing is bundled with Fiex.
 
-Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, Archive, Checksum and the Windows Everything search provider.
+Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, OpenList, Office preview, Archive, Checksum and the Windows Everything search provider.
 
 **No plugins ship inside the Fiex application.** All plugins, including these official examples, require the user to download, install and approve the declared permissions. Publishing here grants no special trust.
 
@@ -20,29 +20,76 @@ Release contract:
 
 - `fiex-catalog.json` — app-store catalog (`id`, `name`, `permissions`, `networkDomains`, per-platform assets).
 - `<slug>-<platform>.fiexplugin` — one package per plugin/platform.
-- `slug`: `git | webdav | smb | archive | checksum | everything`.
+- `slug`: `git | webdav | smb | openlist | office-preview | archive | checksum | everything | gpg | vista | win11`.
 - `platform`: `linux-x86_64 | macos-aarch64 | macos-x86_64 | windows-x86_64`.
 
 Fiex Settings → Plugins reads the catalog from the latest release; there is no manual repository input.
 
-Permissions are limited to `filesystem.read`, `filesystem.write` and `network`. Git requests `github.com`; users can add their own Gitea/GitLab hosts in permission management. `localhost` and loopback addresses are always allowed.
+Permissions are reviewed individually at activation. Installation leaves the plugin disabled. File capabilities are `folders.read`, `folders.create`, `folders.delete`, `folders.rename`, `files.read` and `files.write`. `network` has one exact-host allowlist shared by HTTP and TCP, including localhost and IP literals. Valid ports on an approved host are available to both transports. Revoking a grant disables the plugin.
 
+Native plugin processes have no user-file access, direct network sockets or subprocess execution. Archive and Checksum use the high-level file SDK; WebDAV uses the HTTP SDK; SMB supplies its protocol over the SDK TCP stream. Git logic remains in this repository and invokes the user's PATH Git through the generic Host command runner. Everything similarly requires the optional ES command in PATH instead of contacting native window-message IPC directly.
 The **remote-integration** GitHub Actions job starts actual WebDAV and Samba servers and tests the released binaries' connection validation, directory listings, pagination, unsafe path rejection, and WebDAV file reads. Separate **core-integration** invokes the same optional packages through Fiex's real process host. Core CI does not run these protocol fixtures.
 
 ## Command execution
 
-Plugin processes cannot spawn programs. A plugin that needs Git, ffmpeg or
-another executable requests it in `permissions.commands` and calls the host's
-`host.exec` proxy. The host checks the user's per-command grants, strips the
-environment, blocks shells/paths, and enforces a timeout and output cap. Users
-can add or remove allowed commands under **Settings → Plugins → Permissions**.
+Plugin processes cannot spawn programs. Approved external commands are resolved through the host's PATH and run as the current user outside the plugin sandbox. Plugins supply argument arrays. These commands can access files outside SDK scopes, use the network and start other programs; the activation dialog explains this general risk without plugin-specific warnings. Timeouts and output limits apply, but command approval is an explicit trust decision.
 
 ## Layout
 
+## UI and theme guides
+
+The end-to-end guides live in the Core repository:
+
+- [Plugin panel UI](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/21-PANEL-UI-GUIDE.md)
+  — manifest entries, SDK, theme inheritance, local dev loop.
+- [Theme packages](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/22-THEME-AUTHORING.md)
+  — package shape, token reference, validation, review checklist.
+
 ## UI builds
 
-Git, Archive and Checksum ship React/Vite panels under `official/<slug>/ui`.
-The built single-file HTML is committed as `official/<slug>/ui/dist/index.html`, so
-release packaging and CI need no Node.js. After changing UI source run
-`npm ci && npm run build` in that directory and commit `ui/dist`.
+Git, Archive, Checksum and GPG ship React/Vite panels under `official/<slug>/ui`.
+CI builds the panels once, uploads them as `plugin-panels`, and uses the same
+artifact in every platform package job. Generated `ui/dist` files are not source
+files. All panels consume the Host theme tokens through the UI SDK.
 
+## Themes
+
+Vista Aero and Windows 11 are declarative theme packages: no executable, no iframe,
+no permissions. Install and enable them, then select the theme in Appearance.
+`manifest.json` declares `contributions.themes: [{"path":"theme.json"}]`.
+The JSON theme contains `id`, `name`, `mode` (`light` or `dark`) and a `tokens`
+map. Core namespaces IDs by plugin and validates package-confined paths and token
+values. Tokens define colors, radii, shadows, gradients and fonts; raw CSS and
+scripts are not accepted. These themes preserve Fiex's layout.
+
+## GPG
+
+Install GnuPG and make `gpg` available on PATH. Activate the plugin and explicitly
+approve the generic `gpg` command grant. File actions are a right-click
+integration: select files, then use **GPG → 加密 / 解密 / 签名 / 验证签名**.
+**公钥管理** is a toolbar tool (`toolbar` contribution) so the keyring stays
+reachable without a selection. Every entry opens the same panel document with the
+clicked contribution id in `context.get().panelId`; the panel renders only that
+action instead of a tab switcher.
+
+The panel supports encryption, decryption, detached signatures, verification,
+public-key import and export. It uses the existing keyring/Agent; private-key
+passphrases stay in pinentry, never in the panel or plugin settings. Select full
+fingerprints from the key list. Existing output files are not overwritten, and
+unverified recipients require an explicit toggle (`--trust-model always` is only
+added when that toggle is on). Signature failure is reported as an error with the
+GnuPG status reason.
+Core's command runtime deadline applies; cancellation of a UI wait does not
+terminate an already-running GnuPG operation.
+
+CI's `plugin_gpg_e2e` creates an isolated temporary keyring and checks a binary
+round trip, valid and tampered signatures, overwrite refusal and theme loading
+through the real Core host. It never uses the runner's regular keyring.
+
+## Integration ownership
+
+Business-specific host integration fixtures live in `integration/examples`, not
+in the Core repository. Check out the matching Core revision under `core/`, then
+run `cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e`
+and `plugin_optional_e2e` with isolated `FIEX_PLUGIN_DIR` and `XDG_DATA_HOME`.
+Core's own CI uses the standalone SDK mock process.

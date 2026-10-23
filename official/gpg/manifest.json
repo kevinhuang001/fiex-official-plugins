@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "id": "org.fiex.gpg",
+  "name": "GPG",
+  "version": "0.2.8",
+  "description": "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。",
+  "icon": "key-round",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-gpg.exe",
+      "macos-aarch64": "fiex-plugin-gpg",
+      "macos-x86_64": "fiex-plugin-gpg",
+      "linux-x86_64": "fiex-plugin-gpg"
+    }
+  },
+  "permissions": {
+    "commands": {
+      "enabled": true,
+      "allow": [
+        "gpg"
+      ]
+    }
+  },
+  "contributions": {
+    "contextMenus": [
+      {
+        "id": "gpg.menu",
+        "title": "GPG",
+        "when": "context.selection.count > 0",
+        "children": [
+          {
+            "id": "gpg.encrypt",
+            "title": "加密…",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "GPG 加密",
+              "defaultSize": {
+                "width": 560,
+                "height": 520
+              }
+            }
+          },
+          {
+            "id": "gpg.decrypt",
+            "title": "解密…",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "GPG 解密",
+              "defaultSize": {
+                "width": 520,
+                "height": 400
+              }
+            }
+          },
+          {
+            "id": "gpg.sign",
+            "title": "签名…",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "GPG 签名",
+              "defaultSize": {
+                "width": 540,
+                "height": 470
+              }
+            }
+          },
+          {
+            "id": "gpg.verify",
+            "title": "验证签名…",
+            "when": "context.selection.count == 1",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "验证签名",
+              "defaultSize": {
+                "width": 520,
+                "height": 420
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "toolbar": [
+      {
+        "id": "gpg.keys",
+        "title": "公钥管理",
+        "icon": "key-round",
+        "panel": {
+          "entry": "ui/dist/index.html",
+          "title": "GPG 公钥管理",
+          "defaultSize": {
+            "width": 420,
+            "height": 460
+          }
+        }
+      }
+    ]
+  }
+}

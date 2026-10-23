@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.archive",
   "name": "压缩与解压",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "压缩与解压 ZIP、RAR、7z、TAR 等格式。",
   "icon": "archive",
   "author": {
@@ -19,13 +19,118 @@
     }
   },
   "permissions": {
-    "filesystem": {
+    "folders": {
+      "read": {
+        "enabled": true,
+        "decorations": {
+          "mode": "declarative",
+          "priority": 10,
+          "rules": [
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "zip"
+                ]
+              },
+              "badge": {
+                "text": "ZIP",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "rar"
+                ]
+              },
+              "badge": {
+                "text": "RAR",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "7z"
+                ]
+              },
+              "badge": {
+                "text": "7Z",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "tar"
+                ]
+              },
+              "badge": {
+                "text": "TAR",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "gz",
+                  "tgz"
+                ]
+              },
+              "badge": {
+                "text": "TGZ",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "bz2",
+                  "tbz2"
+                ]
+              },
+              "badge": {
+                "text": "TBZ",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "xz",
+                  "txz"
+                ]
+              },
+              "badge": {
+                "text": "TXZ",
+                "color": "neutral"
+              }
+            }
+          ]
+        }
+      },
+      "create": true,
+      "delete": true,
+      "rename": true
+    },
+    "files": {
       "read": true,
       "write": true
     },
     "network": {
       "enabled": false,
       "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
     }
   },
   "contributions": {
@@ -98,8 +203,8 @@
               "entry": "ui/dist/index.html",
               "title": "高级压缩",
               "defaultSize": {
-                "width": 520,
-                "height": 320
+                "width": 400,
+                "height": 420
               }
             }
           }
@@ -112,98 +217,26 @@
         "command": "archive.extract"
       }
     ],
-    "decorations": {
-      "mode": "declarative",
-      "priority": 10,
-      "rules": [
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "zip"
-            ]
-          },
-          "badge": {
-            "text": "ZIP",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "rar"
-            ]
-          },
-          "badge": {
-            "text": "RAR",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "7z"
-            ]
-          },
-          "badge": {
-            "text": "7Z",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "tar"
-            ]
-          },
-          "badge": {
-            "text": "TAR",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "gz",
-              "tgz"
-            ]
-          },
-          "badge": {
-            "text": "TGZ",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "bz2",
-              "tbz2"
-            ]
-          },
-          "badge": {
-            "text": "TBZ",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "xz",
-              "txz"
-            ]
-          },
-          "badge": {
-            "text": "TXZ",
-            "color": "neutral"
-          }
-        }
-      ]
-    }
+    "settings": [
+      {
+        "id": "compressIgnores",
+        "label": "压缩时忽略的文件或目录",
+        "type": "list",
+        "placeholder": ".git",
+        "defaultValue": [
+          ".git",
+          "node_modules"
+        ]
+      },
+      {
+        "id": "extractIgnores",
+        "label": "解压时忽略的文件或目录",
+        "type": "list",
+        "placeholder": "__MACOSX",
+        "defaultValue": [
+          "__MACOSX"
+        ]
+      }
+    ]
   }
 }

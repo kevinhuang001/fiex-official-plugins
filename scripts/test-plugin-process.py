@@ -56,7 +56,7 @@ def main():
     parser.add_argument("--target", required=True)
     parser.add_argument("--binary-root", required=True)
     args = parser.parse_args()
-    for slug in ("git","webdav","smb","archive","checksum","everything"):
+    for slug in ("git","webdav","smb","openlist","office-preview","archive","checksum","everything","gpg"):
         manifest = json.loads((Path("official") / slug / "manifest.json").read_text(encoding="utf-8"))
         entry = manifest.get("runtime", {}).get("entrypoints", {}).get(args.target)
         if not entry:

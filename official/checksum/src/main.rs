@@ -1,22 +1,30 @@
 mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-fn run(method: &str, p: Value) -> Result<Value, RpcError> {
+fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
     match method {
         "checksum.calculate" => {
             let path = p
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            Ok(json!(
-                checksums::calculate(path).map_err(RpcError::internal)?
-            ))
+            let metadata = host.fs_stat(path)?;
+            let files = host.files();
+            let reader = files
+                .open_read(path)
+                .map_err(|e| RpcError::internal(e.to_string()))?;
+            let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
+            let mut result = json!({"path": path, "size": metadata.size});
+            for hash in hashes {
+                result[hash.algorithm.to_ascii_lowercase().replace('-', "")] = json!(hash.value);
+            }
+            Ok(result)
         }
         _ => Err(RpcError::method_not_found(method)),
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.checksum", run) {
+    if let Err(e) = sdk::serve_with_host("org.fiex.checksum", run) {
         eprintln!("Checksum plugin failed: {e}");
         std::process::exit(1);
     }

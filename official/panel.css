@@ -1,0 +1,14 @@
+/* Host semantic tokens are applied inline by the UI SDK before theme updates. */
+:root {
+  --panel-bg: var(--canvas);
+  font-family: var(--font-family, "Segoe UI", sans-serif);
+}
+button,
+input,
+select,
+textarea {
+  border-radius: var(--radius-control, 7px);
+}
+html[data-panel-visible="false"] * {
+  animation-play-state: paused !important;
+}

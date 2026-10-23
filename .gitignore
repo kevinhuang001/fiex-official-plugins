@@ -7,5 +7,8 @@ dist/
 
 node_modules/
 **/node_modules/
-!official/*/ui/dist/
-!official/*/ui/dist/**
+
+/core
+
+# Bundles are built once in CI and packaged from the same artifact.
+official/*/ui/dist/

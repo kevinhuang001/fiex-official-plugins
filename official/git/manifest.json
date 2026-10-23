@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.git",
   "name": "Git",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "源代码管理、提交历史、远程仓库与只读历史浏览。",
   "icon": "git-branch",
   "author": {
@@ -19,7 +19,23 @@
     }
   },
   "permissions": {
-    "filesystem": {
+    "folders": {
+      "read": {
+        "enabled": true,
+        "decorations": {
+          "mode": "dynamic",
+          "method": "decorations.list",
+          "priority": 50,
+          "scope": {
+            "marker": ".git"
+          }
+        }
+      },
+      "create": true,
+      "delete": true,
+      "rename": true
+    },
+    "files": {
       "read": true,
       "write": true
     },
@@ -27,6 +43,12 @@
       "enabled": true,
       "domains": [
         "github.com"
+      ]
+    },
+    "commands": {
+      "enabled": true,
+      "allow": [
+        "git"
       ]
     }
   },
@@ -40,8 +62,8 @@
           "title": "源代码管理",
           "entry": "ui/dist/index.html",
           "defaultSize": {
-            "width": 560,
-            "height": 620
+            "width": 480,
+            "height": 300
           }
         },
         "schemes": [
@@ -56,14 +78,6 @@
         "type": "number",
         "defaultValue": "50"
       }
-    ],
-    "decorations": {
-      "mode": "dynamic",
-      "method": "decorations.list",
-      "priority": 50,
-      "scope": {
-        "marker": ".git"
-      }
-    }
+    ]
   }
 }

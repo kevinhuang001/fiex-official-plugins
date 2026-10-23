@@ -15,10 +15,12 @@ PLATFORMS = [
     "macos-x86_64",
     "windows-x86_64",
 ]
-SLUGS = ["git", "webdav", "smb", "archive", "checksum", "everything"]
+SLUGS = ["git", "webdav", "smb", "openlist", "office-preview", "archive", "checksum", "everything", "gpg", "vista", "win11"]
 DESCRIPTIONS = {
     "git": "源代码管理、提交历史、远程仓库与只读历史浏览。",
     "webdav": "通过独立进程连接 WebDAV 服务器，目录按需读取。",
+    "openlist": "通过 OpenList 原生 API 连接服务器，账号密码在插件设置中配置。",
+    "office-preview": "Word、Excel、PowerPoint 的只读预览（文本级）。",
     "smb": "通过独立进程连接 SMB / NAS 共享。",
     "archive": "压缩与解压 ZIP、7z、TAR 等格式。",
     "checksum": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",
@@ -31,11 +33,18 @@ def main() -> None:
         manifest_path = Path("official") / slug / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         permissions = []
-        filesystem = manifest.get("permissions", {}).get("filesystem", {})
-        if filesystem.get("read"):
-            permissions.append("filesystem.read")
-        if filesystem.get("write"):
-            permissions.append("filesystem.write")
+        requested = manifest.get("permissions", {})
+        folders = requested.get("folders", {})
+        if folders.get("read", {}).get("enabled"):
+            permissions.append("folders.read")
+        for action in ("create", "delete", "rename"):
+            if folders.get(action):
+                permissions.append("folders." + action)
+        for action in ("read", "write"):
+            if requested.get("files", {}).get(action):
+                permissions.append("files." + action)
+        if requested.get("commands", {}).get("enabled"):
+            permissions.append("commands")
         network = manifest.get("permissions", {}).get("network", {})
         if network.get("enabled"):
             permissions.append("network")
@@ -55,7 +64,7 @@ def main() -> None:
                 "assets": {
                     platform: f"{slug}-{platform}.fiexplugin"
                     for platform in PLATFORMS
-                    if platform in manifest.get("runtime", {}).get("entrypoints", {})
+                    if platform in manifest.get("runtime", {}).get("entrypoints", {}) or manifest.get("contributions", {}).get("themes")
                 },
             }
         )

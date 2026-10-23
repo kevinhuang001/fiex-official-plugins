@@ -6,16 +6,12 @@ use std::io::Read;
 
 #[derive(Serialize)]
 pub struct Checksum {
-    algorithm: &'static str,
-    value: String,
+    pub algorithm: &'static str,
+    pub value: String,
 }
 
 /// Read once, with bounded memory, regardless of file size or algorithm count.
-pub fn calculate(path: &str) -> Result<Vec<Checksum>, String> {
-    let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    if !file.metadata().map_err(|e| e.to_string())?.is_file() {
-        return Err("请选择文件".into());
-    }
+pub fn calculate(mut file: impl Read) -> Result<Vec<Checksum>, String> {
     let mut md5 = Md5::new();
     let mut sha1 = Sha1::new();
     let mut sha256 = Sha256::new();
@@ -71,7 +67,7 @@ mod tests {
     fn known_vectors() {
         let file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(file.path(), b"abc").unwrap();
-        let hashes = calculate(file.path().to_str().unwrap()).unwrap();
+        let hashes = calculate(std::fs::File::open(file.path()).unwrap()).unwrap();
         assert_eq!(
             hashes[0].value,
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"

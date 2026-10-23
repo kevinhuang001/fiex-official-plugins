@@ -62,7 +62,7 @@
           "title": "源代码管理",
           "entry": "ui/dist/index.html",
           "defaultSize": {
-            "width": 560,
+            "width": 480,
             "height": 300
           }
         },

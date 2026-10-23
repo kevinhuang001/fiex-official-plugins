@@ -171,7 +171,7 @@ export function App() {
     if (!app) return
     const minimum = commitOpen || pickerOpen || remoteOpen ? 430 : 240
     const height = Math.max(minimum, Math.ceil(app.scrollHeight))
-    void client.invoke('panel.resize', { width: 560, height }).catch(() => {})
+    void client.invoke('panel.resize', { width: 480, height }).catch(() => {})
   }, [status, error, busy, commitOpen, pickerOpen, remoteOpen])
 
   const changes = useMemo(
@@ -445,7 +445,7 @@ export function App() {
       {commitOpen && (
         <div className="git-sheet" role="dialog" aria-label="提交修改">
           <form
-            className="git-sheet-card"
+            className="git-sheet-card git-commit-card"
             onSubmit={(event) => {
               event.preventDefault()
               if (!busy && staged.length && message.trim() && identity.name && identity.email) commit()
@@ -457,42 +457,57 @@ export function App() {
                 <X size={16} />
               </button>
             </header>
-            <label className="git-sheet-label" htmlFor="git-message">
-              提交说明
-            </label>
-            <textarea
-              id="git-message"
-              aria-label="提交说明"
-              placeholder="提交说明"
-              value={message}
-              rows={4}
-              onChange={(event) => setMessage(event.target.value)}
-            />
-            <div className="git-identity">
-              <label>
-                姓名
-                <input
-                  aria-label="提交者姓名"
-                  value={identity.name}
-                  placeholder="姓名"
-                  onChange={(event) => setIdentity({ ...identity, name: event.target.value })}
-                />
-              </label>
-              <label>
-                邮箱
-                <input
-                  aria-label="提交者邮箱"
-                  type="email"
-                  value={identity.email}
-                  placeholder="you@example.com"
-                  onChange={(event) => setIdentity({ ...identity, email: event.target.value })}
-                />
-              </label>
+            <div className="git-commit-form">
+              <label htmlFor="git-message">提交说明 / comment</label>
+              <textarea
+                id="git-message"
+                aria-label="提交说明"
+                placeholder="提交说明"
+                value={message}
+                required
+                rows={4}
+                onChange={(event) => setMessage(event.target.value)}
+              />
+              <fieldset className="git-identity">
+                <legend>提交身份</legend>
+                <div>
+                  <label>
+                    姓名
+                    <input
+                      aria-label="提交者姓名"
+                      value={identity.name}
+                      required
+                      placeholder="姓名"
+                      onChange={(event) => setIdentity({ ...identity, name: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    邮箱
+                    <input
+                      aria-label="提交者邮箱"
+                      type="email"
+                      value={identity.email}
+                      required
+                      placeholder="you@example.com"
+                      onChange={(event) => setIdentity({ ...identity, email: event.target.value })}
+                    />
+                  </label>
+                </div>
+              </fieldset>
+              {error && (
+                <p className="git-panel-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <button
+                className="primary"
+                type="submit"
+                disabled={busy || !staged.length || !message.trim() || !identity.name || !identity.email}
+              >
+                <GitCommitHorizontal size={15} />
+                {staged.length ? `提交 ${staged.length} 个文件` : '没有已暂存的文件'}
+              </button>
             </div>
-            <button className="primary" type="submit" disabled={busy || !staged.length || !message.trim()}>
-              <GitCommitHorizontal size={15} />
-              {staged.length ? `提交 ${staged.length} 个文件` : '没有已暂存的文件'}
-            </button>
           </form>
         </div>
       )}

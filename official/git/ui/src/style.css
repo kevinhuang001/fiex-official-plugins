@@ -665,3 +665,66 @@ button.primary:hover:not(:disabled) {
   border-radius: 8px;
   background: var(--canvas);
 }
+.git-commit-card {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+.git-commit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.git-commit-form > label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.git-commit-form textarea {
+  min-height: 72px;
+  max-height: 170px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.git-identity {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0 8px;
+  border: 0;
+}
+.git-identity legend {
+  padding: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.git-identity > div {
+  display: flex;
+  gap: 10px;
+  margin-top: 9px;
+}
+.git-identity label {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.git-identity input {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--text);
+  font-size: 12px;
+}
+.git-commit-form > .primary {
+  width: 100%;
+  height: 34px;
+  margin-top: 2px;
+}

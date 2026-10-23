@@ -1,3 +1,8 @@
+# Fiex plugins 0.2.5
+
+- Git status badges now also color the filename: modified orange, added green, deleted red, renamed blue, untracked gray.
+- Decoration badges sit after the filename.
+
 # Fiex plugins 0.2.4
 
 - Archive uses separate first-level context entries: “压缩”, “解压缩”, and “高级”; “压缩到…” lives inside “高级”.

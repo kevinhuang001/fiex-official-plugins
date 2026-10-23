@@ -19,13 +19,23 @@
     }
   },
   "permissions": {
-    "filesystem": {
-      "read": true,
+    "folders": {
+      "read": {
+        "enabled": false
+      },
+      "write": false
+    },
+    "files": {
+      "read": false,
       "write": false
     },
     "network": {
       "enabled": true,
       "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
     }
   },
   "contributions": {

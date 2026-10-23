@@ -19,13 +19,116 @@
     }
   },
   "permissions": {
-    "filesystem": {
+    "folders": {
+      "read": {
+        "enabled": true,
+        "decorations": {
+          "mode": "declarative",
+          "priority": 10,
+          "rules": [
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "zip"
+                ]
+              },
+              "badge": {
+                "text": "ZIP",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "rar"
+                ]
+              },
+              "badge": {
+                "text": "RAR",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "7z"
+                ]
+              },
+              "badge": {
+                "text": "7Z",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "tar"
+                ]
+              },
+              "badge": {
+                "text": "TAR",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "gz",
+                  "tgz"
+                ]
+              },
+              "badge": {
+                "text": "TGZ",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "bz2",
+                  "tbz2"
+                ]
+              },
+              "badge": {
+                "text": "TBZ",
+                "color": "neutral"
+              }
+            },
+            {
+              "match": {
+                "isDir": false,
+                "extensions": [
+                  "xz",
+                  "txz"
+                ]
+              },
+              "badge": {
+                "text": "TXZ",
+                "color": "neutral"
+              }
+            }
+          ]
+        }
+      },
+      "write": true
+    },
+    "files": {
       "read": true,
       "write": true
     },
     "network": {
       "enabled": false,
       "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
     }
   },
   "contributions": {
@@ -111,99 +214,6 @@
         "when": "context.selection.isArchive",
         "command": "archive.extract"
       }
-    ],
-    "decorations": {
-      "mode": "declarative",
-      "priority": 10,
-      "rules": [
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "zip"
-            ]
-          },
-          "badge": {
-            "text": "ZIP",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "rar"
-            ]
-          },
-          "badge": {
-            "text": "RAR",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "7z"
-            ]
-          },
-          "badge": {
-            "text": "7Z",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "tar"
-            ]
-          },
-          "badge": {
-            "text": "TAR",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "gz",
-              "tgz"
-            ]
-          },
-          "badge": {
-            "text": "TGZ",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "bz2",
-              "tbz2"
-            ]
-          },
-          "badge": {
-            "text": "TBZ",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "xz",
-              "txz"
-            ]
-          },
-          "badge": {
-            "text": "TXZ",
-            "color": "neutral"
-          }
-        }
-      ]
-    }
+    ]
   }
 }

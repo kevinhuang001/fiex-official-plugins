@@ -19,7 +19,21 @@
     }
   },
   "permissions": {
-    "filesystem": {
+    "folders": {
+      "read": {
+        "enabled": true,
+        "decorations": {
+          "mode": "dynamic",
+          "method": "decorations.list",
+          "priority": 50,
+          "scope": {
+            "marker": ".git"
+          }
+        }
+      },
+      "write": true
+    },
+    "files": {
       "read": true,
       "write": true
     },
@@ -27,6 +41,12 @@
       "enabled": true,
       "domains": [
         "github.com"
+      ]
+    },
+    "commands": {
+      "enabled": true,
+      "allow": [
+        "git"
       ]
     }
   },
@@ -56,14 +76,6 @@
         "type": "number",
         "defaultValue": "50"
       }
-    ],
-    "decorations": {
-      "mode": "dynamic",
-      "method": "decorations.list",
-      "priority": 50,
-      "scope": {
-        "marker": ".git"
-      }
-    }
+    ]
   }
 }

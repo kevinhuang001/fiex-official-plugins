@@ -221,16 +221,21 @@
       {
         "id": "compressIgnores",
         "label": "压缩时忽略的文件或目录",
-        "type": "text",
-        "placeholder": ".git, node_modules, *.log",
-        "defaultValue": ".git, node_modules"
+        "type": "list",
+        "placeholder": ".git",
+        "defaultValue": [
+          ".git",
+          "node_modules"
+        ]
       },
       {
         "id": "extractIgnores",
         "label": "解压时忽略的文件或目录",
-        "type": "text",
-        "placeholder": "__MACOSX, *.tmp",
-        "defaultValue": "__MACOSX"
+        "type": "list",
+        "placeholder": "__MACOSX",
+        "defaultValue": [
+          "__MACOSX"
+        ]
       }
     ]
   }

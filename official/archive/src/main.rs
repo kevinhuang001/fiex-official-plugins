@@ -7,10 +7,17 @@ fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
         .and_then(Value::as_str)
         .ok_or_else(|| RpcError::invalid_params(format!("missing {k}")))
 }
-/// Settings are comma or newline separated; blank entries and comments are
-/// ignored by `IgnoreSet` as well.
+/// Stored as a JSON array by the list setting; older installs may still hold a
+/// comma/newline separated string, which is accepted for compatibility.
 fn stored_ignores(host: &mut dyn sdk::HostServices, key: &str) -> Vec<String> {
     match host.storage_get("global", key) {
+        Ok(Value::Array(items)) => items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(str::to_string)
+            .collect(),
         Ok(Value::String(value)) => value
             .split(['\n', ',', '，'])
             .map(str::trim)

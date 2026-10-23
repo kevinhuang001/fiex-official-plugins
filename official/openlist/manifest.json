@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "org.fiex.openlist",
+  "name": "OpenList",
+  "version": "0.2.8",
+  "description": "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。",
+  "icon": "cloud",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-openlist.exe",
+      "macos-aarch64": "fiex-plugin-openlist",
+      "macos-x86_64": "fiex-plugin-openlist",
+      "linux-x86_64": "fiex-plugin-openlist"
+    }
+  },
+  "permissions": {
+    "folders": {
+      "read": {
+        "enabled": false
+      },
+      "create": false,
+      "delete": false,
+      "rename": false
+    },
+    "files": {
+      "read": false,
+      "write": false
+    },
+    "network": {
+      "enabled": true,
+      "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
+    }
+  },
+  "contributions": {
+    "connections": [
+      {
+        "id": "openlist",
+        "title": "OpenList",
+        "fields": []
+      }
+    ],
+    "settings": [
+      {
+        "id": "url",
+        "label": "服务器地址",
+        "type": "url",
+        "required": true,
+        "placeholder": "https://openlist.example.com"
+      },
+      {
+        "id": "username",
+        "label": "用户名",
+        "type": "text"
+      },
+      {
+        "id": "password",
+        "label": "密码",
+        "type": "secret"
+      },
+      {
+        "id": "timeout",
+        "label": "连接超时（秒）",
+        "type": "number",
+        "defaultValue": "30"
+      }
+    ]
+  }
+}

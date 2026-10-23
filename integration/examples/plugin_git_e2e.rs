@@ -89,7 +89,13 @@ fn main() {
         }],
     );
     assert_eq!(decorated.len(), 1, "{decorated:?}");
-    assert_eq!(decorated[0].badges[0].text, "M", "{decorated:?}");
+    // Badges live on the value cells since decorations can target columns; the
+    // filename cell keeps the legacy top-level meaning.
+    let name = decorated[0]
+        .fields
+        .get("name")
+        .expect("filename decoration");
+    assert_eq!(name.badges[0].text, "M", "{decorated:?}");
 
     plugin_host::global().stop(id);
     std::fs::remove_dir_all(&repo).ok();

@@ -1,0 +1,117 @@
+:root {
+  font:
+    13px -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #29313a;
+  background: #fafbfc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e8f1f8;
+    background: #18232d;
+  }
+  header,
+  section {
+    border-color: #415263 !important;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.app {
+  padding: 16px 18px 20px;
+}
+header,
+header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+header {
+  justify-content: space-between;
+  border-bottom: 1px solid #e4e9ef;
+  padding-bottom: 11px;
+}
+header strong {
+  font-size: 14px;
+}
+button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+  padding: 5px;
+  cursor: pointer;
+}
+button:hover {
+  background: #e9eff5;
+}
+@media (prefers-color-scheme: dark) {
+  button:hover {
+    background: #30404f;
+  }
+}
+section {
+  border-bottom: 1px solid #e4e9ef;
+  padding: 13px 0;
+}
+section h2 {
+  font-size: 13px;
+  margin: 0;
+  display: inline;
+}
+section small {
+  color: #98a3ad;
+  margin-left: 8px;
+  font-size: 10px;
+}
+dl {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 5px 9px;
+  margin: 10px 0;
+  font-size: 11px;
+}
+dt {
+  color: #7d8792;
+}
+dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.copy {
+  font-size: 11px;
+  border: 1px solid #d9e0e7;
+  padding: 4px 9px;
+  border-radius: 7px;
+}
+.hint {
+  color: #98a3ad;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.error {
+  color: #b4443d;
+  background: #fbeceb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin: 10px 0;
+  font-size: 11px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

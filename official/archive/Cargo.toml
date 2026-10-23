@@ -1,6 +1,6 @@
 [package]
 name="fiex-plugin-archive"
-version="0.1.0"
+version="0.2.0"
 edition="2021"
 rust-version="1.90"
 [dependencies]
@@ -13,4 +13,5 @@ flate2="1"
 bzip2="0.6"
 xz2={version="0.1",features=["static"]}
 sevenz-rust2="0.20"
+rars={version="0.11",default-features=false,features=["parallel","encryption","write"]}
 tempfile="3"

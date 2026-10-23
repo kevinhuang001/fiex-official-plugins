@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.checksum",
   "name": "校验和",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",
   "icon": "hash",
   "author": {
@@ -34,7 +34,14 @@
         "id": "checksum.calculate",
         "title": "查看校验和",
         "when": "context.selection.isFile",
-        "command": "checksum.calculate"
+        "panel": {
+          "title": "校验和",
+          "entry": "ui/dist/index.html",
+          "defaultSize": {
+            "width": 540,
+            "height": 520
+          }
+        }
       }
     ]
   }

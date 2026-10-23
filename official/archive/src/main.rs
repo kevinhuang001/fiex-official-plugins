@@ -49,6 +49,7 @@ fn run(method: &str, p: Value) -> Result<Value, RpcError> {
         "archive.extract" => Ok(json!(archives::extract(
             param(&p, "path")?,
             p.get("destination").and_then(Value::as_str),
+            p.get("password").and_then(Value::as_str),
             &cancel
         )
         .map_err(RpcError::internal)?)),

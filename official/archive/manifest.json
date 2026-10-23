@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "org.fiex.archive",
   "name": "压缩与解压",
-  "version": "0.1.0",
-  "description": "压缩与解压 ZIP、7z、TAR 等格式。",
+  "version": "0.2.0",
+  "description": "压缩与解压 ZIP、RAR、7z、TAR 等格式。",
   "icon": "archive",
   "author": {
     "name": "Fiex Contributors",
@@ -34,7 +34,14 @@
         "id": "archive.main",
         "title": "压缩与解压",
         "icon": "archive",
-        "command": "archive.compress"
+        "panel": {
+          "title": "压缩与解压",
+          "entry": "ui/dist/index.html",
+          "defaultSize": {
+            "width": 630,
+            "height": 520
+          }
+        }
       }
     ],
     "contextMenus": [
@@ -55,6 +62,22 @@
               "suggestedName": "Archive.zip",
               "extensions": [
                 "zip"
+              ],
+              "param": "destination"
+            }
+          },
+          {
+            "id": "archive.rar",
+            "title": "RAR",
+            "command": "archive.compress",
+            "args": {
+              "format": "rar"
+            },
+            "picker": {
+              "mode": "saveFile",
+              "suggestedName": "Archive.rar",
+              "extensions": [
+                "rar"
               ],
               "param": "destination"
             }
@@ -157,7 +180,7 @@
         "when": "context.selection.count > 0",
         "panel": {
           "title": "高级压缩",
-          "entry": "ui/index.html",
+          "entry": "ui/dist/index.html",
           "defaultSize": {
             "width": 630,
             "height": 520

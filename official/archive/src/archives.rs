@@ -4,7 +4,10 @@ use std::{
     fs,
     io::{self, Read, Write},
     path::{Component, Path},
-    sync::atomic::AtomicBool,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
 };
 const MAX_TOTAL: u64 = 20 * 1024 * 1024 * 1024;
 const MAX_ENTRIES: usize = 100_000;
@@ -43,9 +46,30 @@ fn copy_limited(
         *remaining -= n as u64;
     }
 }
+struct LimitedWriter {
+    inner: fs::File,
+    remaining: Arc<AtomicU64>,
+}
+
+impl Write for LimitedWriter {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let remaining = self.remaining.load(Ordering::Relaxed);
+        if buffer.len() as u64 > remaining {
+            return Err(io::Error::other("压缩包展开后超过 20 GiB 限制"));
+        }
+        let written = self.inner.write(buffer)?;
+        self.remaining.fetch_sub(written as u64, Ordering::Relaxed);
+        Ok(written)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 pub fn extract(
     source: &str,
     destination: Option<&str>,
+    password: Option<&str>,
     cancel: &AtomicBool,
 ) -> Result<String, String> {
     check_cancelled(cancel)?;
@@ -69,7 +93,39 @@ pub fn extract(
     let root = temp.path();
     let lower = name.to_lowercase();
     let mut remaining = MAX_TOTAL;
-    if lower.ends_with(".zip") {
+    if lower.ends_with(".rar") {
+        let archive = rars::ArchiveReader::read_path(src).map_err(|error| error.to_string())?;
+        let total = Arc::new(AtomicU64::new(remaining));
+        archive
+            .extract_to(password.map(str::as_bytes), |meta| {
+                check_cancelled(cancel)
+                    .map_err(|error| rars::Error::from(io::Error::other(error)))?;
+                let name = String::from_utf8_lossy(&meta.name).replace('\\', "/");
+                if meta.is_directory {
+                    let path = root.join(&name);
+                    fs::create_dir_all(path).map_err(rars::Error::from)?;
+                    return Ok(Box::new(io::sink()));
+                }
+                safe_name(Path::new(&name))
+                    .map_err(|error| rars::Error::from(io::Error::other(error)))?;
+                let path = root.join(&name);
+                fs::create_dir_all(
+                    path.parent()
+                        .ok_or_else(|| rars::Error::from(io::Error::other("压缩包包含无效路径")))?,
+                )
+                .map_err(rars::Error::from)?;
+                let file = fs::OpenOptions::new()
+                    .create_new(true)
+                    .write(true)
+                    .open(path)
+                    .map_err(rars::Error::from)?;
+                Ok(Box::new(LimitedWriter {
+                    inner: file,
+                    remaining: total.clone(),
+                }))
+            })
+            .map_err(|error| error.to_string())?;
+    } else if lower.ends_with(".zip") {
         let mut zip = zip::ZipArchive::new(fs::File::open(src).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         if zip.len() > MAX_ENTRIES {
@@ -207,14 +263,18 @@ pub fn compress(
     let ignore = IgnoreSet::new(ignores);
     let level = level.unwrap_or(6).min(9);
     let password = password.map(str::trim).filter(|value| !value.is_empty());
-    if password.is_some() && format != "zip" {
-        return Err("只有 ZIP 支持密码".into());
+    if password.is_some() && !matches!(format, "zip" | "rar") {
+        return Err("只有 ZIP 和 RAR 支持密码".into());
     }
     let temp = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
     match format {
         "zip" => {
             let file = temp.reopen().map_err(|e| e.to_string())?;
             write_zip(file, paths, &ignore, level, password, cancel)?;
+        }
+        "rar" => {
+            let file = temp.reopen().map_err(|e| e.to_string())?;
+            write_rar(file, paths, &ignore, level, password, cancel)?;
         }
         "7z" => {
             let file = temp.reopen().map_err(|e| e.to_string())?;
@@ -250,6 +310,36 @@ pub fn compress(
     check_cancelled(cancel)?;
     temp.persist_noclobber(dest).map_err(|e| e.to_string())?;
     Ok(destination.into())
+}
+
+fn write_rar(
+    mut file: fs::File,
+    paths: &[String],
+    ignore: &IgnoreSet,
+    level: u32,
+    password: Option<&str>,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    check_cancelled(cancel)?;
+    let mut builder = rars::Builder::new(rars::ArchiveVersion::Rar50);
+    builder = builder.compression_level(Some(level.min(5) as u8));
+    if let Some(password) = password {
+        builder = builder.password(Some(password.as_bytes().to_vec()));
+    }
+    for item in paths {
+        check_cancelled(cancel)?;
+        let src = Path::new(item);
+        let name = src.file_name().ok_or("不能压缩根目录")?;
+        if ignore.is_ignored(Path::new(name)) {
+            continue;
+        }
+        builder
+            .add_path(src, name.to_string_lossy().as_bytes())
+            .map_err(|error| error.to_string())?;
+    }
+    builder
+        .write_to(&mut file, &rars::WriterResources::default(), None)
+        .map_err(|error| error.to_string())
 }
 
 fn write_zip(
@@ -478,7 +568,7 @@ mod tests {
         .unwrap();
         let before = fs::read_dir(t.path()).unwrap().count();
         assert_eq!(
-            extract(zip.to_str().unwrap(), None, &AtomicBool::new(true)).unwrap_err(),
+            extract(zip.to_str().unwrap(), None, None, &AtomicBool::new(true)).unwrap_err(),
             CANCELLED
         );
         assert_eq!(fs::read_dir(t.path()).unwrap().count(), before);
@@ -498,7 +588,7 @@ mod tests {
             &AtomicBool::new(false),
         )
         .unwrap();
-        let out = extract(zip.to_str().unwrap(), None, &AtomicBool::new(false)).unwrap();
+        let out = extract(zip.to_str().unwrap(), None, None, &AtomicBool::new(false)).unwrap();
         assert_eq!(
             fs::read_to_string(Path::new(&out).join("hello.txt")).unwrap(),
             "hello"
@@ -530,7 +620,13 @@ mod tests {
                 &AtomicBool::new(false),
             )
             .unwrap();
-            let out = extract(archive.to_str().unwrap(), None, &AtomicBool::new(false)).unwrap();
+            let out = extract(
+                archive.to_str().unwrap(),
+                None,
+                None,
+                &AtomicBool::new(false),
+            )
+            .unwrap();
             assert!(Path::new(&out).join("bundle").join("keep.txt").exists());
             assert!(!Path::new(&out).join("bundle").join("node_modules").exists());
         }
@@ -550,9 +646,65 @@ mod tests {
             .unwrap();
         zip.write_all(b"do not extract").unwrap();
         zip.finish().unwrap();
-        assert!(extract(archive.to_str().unwrap(), None, &AtomicBool::new(false)).is_err());
+        assert!(extract(
+            archive.to_str().unwrap(),
+            None,
+            None,
+            &AtomicBool::new(false)
+        )
+        .is_err());
         assert!(!t.path().join("escaped.txt").exists());
         assert_eq!(fs::read_dir(t.path()).unwrap().count(), 1);
+    }
+    #[test]
+    fn rar_compress_and_extract() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("rar-source");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(source.join("hello.txt"), "hello compressed rar").unwrap();
+        let archive = temp.path().join("created.rar");
+        compress(
+            &[source.to_string_lossy().into_owned()],
+            archive.to_str().unwrap(),
+            "rar",
+            &[],
+            Some(5),
+            None,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let out = extract(
+            archive.to_str().unwrap(),
+            None,
+            None,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(out + "/rar-source/hello.txt").unwrap(),
+            "hello compressed rar"
+        );
+    }
+    #[test]
+    fn rar_roundtrip() {
+        let temp = tempfile::tempdir().unwrap();
+        let archive = temp.path().join("sample.rar");
+        let mut builder = rars::Builder::new(rars::ArchiveVersion::Rar50);
+        builder
+            .add_bytes(b"hello.txt".to_vec(), b"hello rar".to_vec(), None, None)
+            .unwrap();
+        builder.write_to_path(&archive, None).unwrap();
+        let out = extract(
+            archive.to_str().unwrap(),
+            None,
+            None,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(out + "/hello.txt").unwrap(),
+            "hello rar"
+        );
     }
     #[test]
     fn sevenz_roundtrip() {
@@ -561,7 +713,13 @@ mod tests {
         fs::write(&src, "hello 7z").unwrap();
         let archive = t.path().join("test.7z");
         sevenz_rust2::compress_to_path(&src, &archive).unwrap();
-        let out = extract(archive.to_str().unwrap(), None, &AtomicBool::new(false)).unwrap();
+        let out = extract(
+            archive.to_str().unwrap(),
+            None,
+            None,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
         assert_eq!(
             fs::read_to_string(Path::new(&out).join("hello.txt")).unwrap(),
             "hello 7z"

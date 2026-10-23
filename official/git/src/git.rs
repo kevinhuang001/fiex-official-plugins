@@ -1,5 +1,7 @@
-use crate::host::{git, text};
-use fiex_plugin_sdk::HostServices;
+use git2::{
+    build::CheckoutBuilder, IndexAddOption, Repository, RepositoryInitOptions, Status,
+    StatusOptions,
+};
 use serde::Serialize;
 use std::{collections::HashMap, path::Path};
 
@@ -10,17 +12,49 @@ pub struct GitStatus {
     pub entries: HashMap<String, String>,
 }
 
-fn output(host: &mut dyn HostServices, root: &Path, args: &[&str]) -> Option<String> {
-    let out = git(host, root, args).ok()?;
-    if out.code != Some(0) {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+fn open(path: &str) -> Option<Repository> {
+    Repository::discover(path).ok()
 }
 
-/// Returns branch and per-file status when the host can run `git` and `path`
-/// is in a work tree. Status keys are absolute canonical paths.
-pub fn status(host: &mut dyn HostServices, path: &str) -> Option<GitStatus> {
+fn status_code(status: Status) -> Option<String> {
+    if status.contains(Status::CONFLICTED) {
+        return Some("UU".into());
+    }
+    if status.contains(Status::WT_NEW) {
+        return Some("??".into());
+    }
+    let mut code = [' ', ' '];
+    let index = if status.contains(Status::INDEX_NEW) {
+        'A'
+    } else if status.contains(Status::INDEX_MODIFIED) {
+        'M'
+    } else if status.contains(Status::INDEX_DELETED) {
+        'D'
+    } else if status.contains(Status::INDEX_RENAMED) {
+        'R'
+    } else if status.contains(Status::INDEX_TYPECHANGE) {
+        'T'
+    } else {
+        ' '
+    };
+    let work = if status.contains(Status::WT_MODIFIED) {
+        'M'
+    } else if status.contains(Status::WT_DELETED) {
+        'D'
+    } else if status.contains(Status::WT_RENAMED) {
+        'R'
+    } else if status.contains(Status::WT_TYPECHANGE) {
+        'T'
+    } else {
+        ' '
+    };
+    code[0] = index;
+    code[1] = work;
+    (code != [' ', ' ']).then(|| code.iter().collect())
+}
+
+/// Returns branch and per-file status when `path` is inside a work tree.
+pub fn status(path: &str) -> Option<GitStatus> {
     if let Some(route) = crate::git_history::route(path) {
         return Some(GitStatus {
             root: route.root.to_string_lossy().into_owned(),
@@ -28,38 +62,37 @@ pub fn status(host: &mut dyn HostServices, path: &str) -> Option<GitStatus> {
             entries: HashMap::new(),
         });
     }
-    let root = output(host, Path::new(path), &["rev-parse", "--show-toplevel"])?;
-    let root = dunce::canonicalize(root).ok()?;
-    let mut branch =
-        output(host, &root, &["symbolic-ref", "--short", "HEAD"]).unwrap_or_else(|| "HEAD".into());
-    if branch == "HEAD" {
-        branch =
-            output(host, &root, &["rev-parse", "--short", "HEAD"]).unwrap_or_else(|| "HEAD".into());
-    }
-    let raw = git(
-        host,
-        &root,
-        &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-    )
-    .ok()?;
-    if raw.code != Some(0) {
-        return None;
-    }
+    let repo = open(path)?;
+    let root = repo.workdir()?.canonicalize().ok()?;
+    let branch = repo
+        .head()
+        .ok()
+        .and_then(|head| head.shorthand().ok().map(str::to_owned))
+        .filter(|name| !name.is_empty())
+        .or_else(|| {
+            repo.find_reference("HEAD")
+                .ok()
+                .and_then(|head| head.symbolic_target().ok().flatten().map(str::to_owned))
+                .map(|name| name.trim_start_matches("refs/heads/").to_owned())
+        })
+        .unwrap_or_else(|| "HEAD".into());
+    let mut options = StatusOptions::new();
+    options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .renames_head_to_index(true)
+        .renames_index_to_workdir(true)
+        .include_ignored(false);
+    let statuses = repo.statuses(Some(&mut options)).ok()?;
     let mut entries = HashMap::new();
-    let mut fields = raw.stdout.split(|byte| *byte == 0);
-    while let Some(field) = fields.next() {
-        if field.len() < 4 {
+    for entry in statuses.iter() {
+        let Some(code) = status_code(entry.status()) else {
             continue;
-        }
-        let xy = &field[..2];
-        let relative = String::from_utf8_lossy(&field[3..]).replace('\\', "/");
-        let code = String::from_utf8_lossy(xy).into_owned();
-        let absolute = root.join(relative).to_string_lossy().into_owned();
-        entries.insert(absolute, code);
-
-        if xy.contains(&b'R') || xy.contains(&b'C') {
-            let _ = fields.next();
-        }
+        };
+        let Some(path) = entry.path().ok() else {
+            continue;
+        };
+        entries.insert(root.join(path).to_string_lossy().into_owned(), code);
     }
     Some(GitStatus {
         root: root.to_string_lossy().into_owned(),
@@ -76,87 +109,68 @@ pub struct GitRefs {
     pub tags: Vec<String>,
 }
 
-pub fn refs(host: &mut dyn HostServices, root: &str) -> Result<GitRefs, String> {
-    let current = output(host, Path::new(root), &["symbolic-ref", "--short", "HEAD"])
+pub fn refs(root: &str) -> Result<GitRefs, String> {
+    let repo = open(root).ok_or("无法打开 Git 仓库")?;
+    let current = repo
+        .head()
+        .ok()
+        .and_then(|head| head.shorthand().ok().map(str::to_owned))
+        .filter(|name| !name.is_empty())
+        .or_else(|| {
+            repo.find_reference("HEAD")
+                .ok()
+                .and_then(|head| head.symbolic_target().ok().flatten().map(str::to_owned))
+                .map(|name| name.trim_start_matches("refs/heads/").to_owned())
+        })
         .unwrap_or_else(|| "HEAD".into());
-    let branches = output(
-        host,
-        Path::new(root),
-        &["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-    )
-    .unwrap_or_default()
-    .lines()
-    .map(str::to_string)
-    .filter(|value| !value.is_empty())
-    .collect::<Vec<_>>();
-    let tags = output(
-        host,
-        Path::new(root),
-        &["for-each-ref", "--format=%(refname:short)", "refs/tags"],
-    )
-    .unwrap_or_default()
-    .lines()
-    .map(str::to_string)
-    .filter(|value| !value.is_empty())
-    .collect::<Vec<_>>();
+    let head = repo
+        .head()
+        .ok()
+        .and_then(|head| head.peel_to_commit().ok())
+        .map(|commit| commit.id().to_string()[..7].to_string())
+        .unwrap_or_default();
+    let mut branches = Vec::new();
+    if let Ok(iter) = repo.branches(Some(git2::BranchType::Local)) {
+        for branch in iter.flatten() {
+            if let Some(name) = branch.0.name().ok().flatten() {
+                branches.push(name.to_string());
+            }
+        }
+    }
+    let mut tags = Vec::new();
+    if let Ok(names) = repo.tag_names(None) {
+        for name in names.iter() {
+            if let Ok(Some(name)) = name {
+                tags.push(name.to_owned());
+            }
+        }
+    }
+    branches.sort();
+    tags.sort();
     Ok(GitRefs {
-        head: output(host, Path::new(root), &["rev-parse", "--short", "HEAD"]).unwrap_or_default(),
+        head,
         current,
         branches,
         tags,
     })
 }
 
-pub(crate) fn run(
-    host: &mut dyn HostServices,
-    root: &Path,
-    args: &[&str],
-) -> Result<String, String> {
-    let mut args_with_literal = vec!["--literal-pathspecs"];
-    args_with_literal.extend_from_slice(args);
-    text(host, root, &args_with_literal)
-}
-
-pub fn init(host: &mut dyn HostServices, path: &str) -> Result<GitStatus, String> {
+pub fn init(path: &str) -> Result<GitStatus, String> {
     let path = dunce::canonicalize(path).map_err(|error| error.to_string())?;
     if !path.is_dir() {
         return Err("请选择本地文件夹来创建仓库".into());
     }
-    if let Some(existing) = status(host, &path.to_string_lossy()) {
-        return Ok(existing);
+    if Repository::discover(&path).is_ok() {
+        return status(&path.to_string_lossy()).ok_or_else(|| "无法读取仓库状态".into());
     }
-    run(host, &path, &["init", "--initial-branch=main"])?;
-    status(host, &path.to_string_lossy()).ok_or_else(|| "仓库已创建，但无法读取状态".into())
+    let mut options = RepositoryInitOptions::new();
+    options.initial_head("main");
+    Repository::init_opts(&path, &options).map_err(|error| error.to_string())?;
+    status(&path.to_string_lossy()).ok_or_else(|| "仓库已创建，但无法读取状态".into())
 }
 
-pub(crate) fn repository(
-    host: &mut dyn HostServices,
-    root: &str,
-) -> Result<std::path::PathBuf, String> {
-    let root = dunce::canonicalize(root).map_err(|error| error.to_string())?;
-    let found = run(host, &root, &["rev-parse", "--show-toplevel"])?;
-    dunce::canonicalize(found).map_err(|error| error.to_string())
-}
-
-pub fn stage(
-    host: &mut dyn HostServices,
-    root: &str,
-    paths: &[String],
-    all: bool,
-) -> Result<(), String> {
-    let root = repository(host, root)?;
-    if all {
-        run(host, &root, &["add", "--all", "--", "."])?;
-        return Ok(());
-    }
-    let paths = relative_paths(&root, paths)?;
-    if paths.is_empty() {
-        return Err("请选择要暂存的文件".into());
-    }
-    let mut args = vec!["add", "--all", "--"];
-    args.extend(paths.iter().map(String::as_str));
-    run(host, &root, &args)?;
-    Ok(())
+pub(crate) fn repository(root: &str) -> Result<Repository, String> {
+    Repository::discover(root).map_err(|error| error.to_string())
 }
 
 fn relative_paths(root: &Path, paths: &[String]) -> Result<Vec<String>, String> {
@@ -192,29 +206,57 @@ fn relative_paths(root: &Path, paths: &[String]) -> Result<Vec<String>, String> 
         .collect()
 }
 
-pub fn unstage(
-    host: &mut dyn HostServices,
-    root: &str,
-    paths: &[String],
-    all: bool,
-) -> Result<(), String> {
-    let root = repository(host, root)?;
-    let paths = relative_paths(&root, paths)?;
+pub fn stage(root: &str, paths: &[String], all: bool) -> Result<(), String> {
+    let repo = repository(root)?;
+    let workdir = repo.workdir().ok_or("仓库没有工作区")?.to_path_buf();
+    let mut index = repo.index().map_err(|error| error.to_string())?;
+    if all {
+        index
+            .add_all(["*"], IndexAddOption::DEFAULT, None)
+            .map_err(|error| error.to_string())?;
+    } else {
+        for path in relative_paths(&workdir, paths)? {
+            index
+                .add_path(Path::new(&path))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    index.write().map_err(|error| error.to_string())
+}
+
+pub fn unstage(root: &str, paths: &[String], all: bool) -> Result<(), String> {
+    let repo = repository(root)?;
+    let workdir = repo.workdir().ok_or("仓库没有工作区")?.to_path_buf();
+    let paths = relative_paths(&workdir, paths)?;
     if !all && paths.is_empty() {
         return Err("请选择要取消暂存的文件".into());
     }
-    let has_head = run(host, &root, &["rev-parse", "--verify", "HEAD"]).is_ok();
-    let mut args = if has_head {
-        vec!["reset", "--quiet", "HEAD", "--"]
+    let head = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+    if let Some(head) = head {
+        let mut checkout = CheckoutBuilder::new();
+        checkout.safe();
+        repo.reset_default(
+            Some(head.as_object()),
+            if all {
+                vec!["*"]
+            } else {
+                paths.iter().map(String::as_str).collect()
+            },
+        )
+        .map_err(|error| error.to_string())?;
     } else {
-        vec!["rm", "--cached", "-r", "--ignore-unmatch", "--"]
-    };
-    if all {
-        args.push(".");
-    } else {
-        args.extend(paths.iter().map(String::as_str));
+        let mut index = repo.index().map_err(|error| error.to_string())?;
+        if all {
+            index.clear().map_err(|error| error.to_string())?;
+        } else {
+            for path in &paths {
+                index
+                    .remove_path(Path::new(path))
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        index.write().map_err(|error| error.to_string())?;
     }
-    run(host, &root, &args)?;
     Ok(())
 }
 
@@ -223,22 +265,22 @@ pub struct GitIdentity {
     pub name: String,
     pub email: String,
 }
-pub fn identity(host: &mut dyn HostServices, root: &str) -> GitIdentity {
-    let root = Path::new(root);
+pub fn identity(root: &str) -> GitIdentity {
+    let repo = open(root);
+    let get = |key: &str| {
+        repo.as_ref()
+            .and_then(|repo| repo.config().ok())
+            .and_then(|config| config.get_string(key).ok())
+            .unwrap_or_default()
+    };
     GitIdentity {
-        name: output(host, root, &["config", "user.name"]).unwrap_or_default(),
-        email: output(host, root, &["config", "user.email"]).unwrap_or_default(),
+        name: get("user.name"),
+        email: get("user.email"),
     }
 }
 
-pub fn commit(
-    host: &mut dyn HostServices,
-    root: &str,
-    message: &str,
-    name: &str,
-    email: &str,
-) -> Result<String, String> {
-    let root = repository(host, root)?;
+pub fn commit(root: &str, message: &str, name: &str, email: &str) -> Result<String, String> {
+    let repo = repository(root)?;
     let message = message.trim();
     if message.is_empty() {
         return Err("请填写提交说明".into());
@@ -246,106 +288,74 @@ pub fn commit(
     if name.trim().is_empty() || email.trim().is_empty() {
         return Err("请填写提交者姓名和邮箱".into());
     }
-    run(
-        host,
-        &root,
-        &["config", "--local", "user.name", name.trim()],
-    )?;
-    run(
-        host,
-        &root,
-        &["config", "--local", "user.email", email.trim()],
-    )?;
-    run(host, &root, &["commit", "-m", message])?;
-    run(host, &root, &["rev-parse", "--short", "HEAD"])
+    {
+        let mut config = repo.config().map_err(|error| error.to_string())?;
+        config
+            .set_str("user.name", name.trim())
+            .map_err(|error| error.to_string())?;
+        config
+            .set_str("user.email", email.trim())
+            .map_err(|error| error.to_string())?;
+    }
+    let mut index = repo.index().map_err(|error| error.to_string())?;
+    let tree_id = index.write_tree().map_err(|error| error.to_string())?;
+    let tree = repo.find_tree(tree_id).map_err(|error| error.to_string())?;
+    let signature =
+        git2::Signature::now(name.trim(), email.trim()).map_err(|error| error.to_string())?;
+    let head = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+    let parents = head.iter().collect::<Vec<_>>();
+    let parent_refs = parents.to_vec();
+    let oid = repo
+        .commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            message,
+            &tree,
+            &parent_refs,
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(oid.to_string()[..7].to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fiex_plugin_sdk::RpcError;
-    use serde_json::{json, Value};
-    use std::process::Command;
-
-    struct LocalHost;
-    impl HostServices for LocalHost {
-        fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError> {
-            if method != "host.exec" {
-                return Err(RpcError::invalid_params("unexpected method"));
-            }
-            let out = Command::new(params["command"].as_str().unwrap_or("git"))
-                .args(
-                    params["args"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str),
-                )
-                .current_dir(params["cwd"].as_str().unwrap_or("."))
-                .output()
-                .map_err(|error| RpcError::internal(error.to_string()))?;
-            use base64::{engine::general_purpose::STANDARD, Engine};
-            Ok(json!({
-                "code": out.status.code(),
-                "stdout": String::from_utf8_lossy(&out.stdout),
-                "stdoutBase64": STANDARD.encode(&out.stdout),
-                "stderr": String::from_utf8_lossy(&out.stderr)
-            }))
-        }
-    }
 
     #[test]
     fn initialize_stage_unstage_first_commit_and_modify() {
         let temp = tempfile::tempdir().unwrap();
-        let mut host = LocalHost;
         let root = temp.path().to_str().unwrap();
         std::fs::write(temp.path().join("notes.txt"), "first").unwrap();
-        let initialized = init(&mut host, root).unwrap();
+        let initialized = init(root).unwrap();
         assert_eq!(initialized.branch, "main");
-        stage(&mut host, root, &[], true).unwrap();
-        unstage(&mut host, root, &[], true).unwrap();
+        stage(root, &[], true).unwrap();
+        unstage(root, &[], true).unwrap();
         assert!(temp.path().join("notes.txt").exists());
-        assert!(status(&mut host, root)
-            .unwrap()
-            .entries
-            .values()
-            .any(|v| v == "??"));
-        stage(&mut host, root, &[], true).unwrap();
-        assert!(!commit(
-            &mut host,
-            root,
-            "First commit",
-            "Fiex Test",
-            "fiex@example.com"
-        )
-        .unwrap()
-        .is_empty());
-        assert_eq!(
-            output(&mut host, temp.path(), &["config", "--local", "user.name"]).unwrap(),
-            "Fiex Test"
+        assert!(status(root).unwrap().entries.values().any(|v| v == "??"));
+        stage(root, &[], true).unwrap();
+        assert!(
+            !commit(root, "First commit", "Fiex Test", "fiex@example.com")
+                .unwrap()
+                .is_empty()
         );
-        assert!(status(&mut host, root).unwrap().entries.is_empty());
+        assert_eq!(identity(root).name, "Fiex Test");
+        assert!(status(root).unwrap().entries.is_empty());
         std::fs::write(temp.path().join("notes.txt"), "second").unwrap();
-        stage(&mut host, root, &[], true).unwrap();
-        unstage(&mut host, root, &[], true).unwrap();
-        assert!(status(&mut host, root)
-            .unwrap()
-            .entries
-            .values()
-            .any(|v| v == " M"));
+        stage(root, &[], true).unwrap();
+        unstage(root, &[], true).unwrap();
+        assert!(status(root).unwrap().entries.values().any(|v| v == " M"));
     }
 
     #[test]
     fn paths_are_literal_and_cannot_escape_repository() {
         let temp = tempfile::tempdir().unwrap();
-        let mut host = LocalHost;
         let root = temp.path().to_str().unwrap();
-        init(&mut host, root).unwrap();
+        init(root).unwrap();
         for name in ["[draft].txt", "draft.txt", "-option.txt"] {
             std::fs::write(temp.path().join(name), "x").unwrap();
         }
         stage(
-            &mut host,
             root,
             &[temp
                 .path()
@@ -355,7 +365,7 @@ mod tests {
             false,
         )
         .unwrap();
-        let state = status(&mut host, root).unwrap();
+        let state = status(root).unwrap();
         let canonical = dunce::canonicalize(temp.path()).unwrap();
         assert_eq!(
             state.entries[&canonical.join("[draft].txt").to_string_lossy().into_owned()],
@@ -366,7 +376,6 @@ mod tests {
             "??"
         );
         assert!(stage(
-            &mut host,
             root,
             &[temp
                 .path()
@@ -376,6 +385,6 @@ mod tests {
             false,
         )
         .is_err());
-        assert!(commit(&mut host, root, " ", "Test", "test@example.com").is_err());
+        assert!(commit(root, " ", "Test", "test@example.com").is_err());
     }
 }

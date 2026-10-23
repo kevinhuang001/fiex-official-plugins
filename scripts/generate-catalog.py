@@ -47,6 +47,7 @@ def main() -> None:
                 "name": manifest["name"],
                 "version": manifest["version"],
                 "description": manifest.get("description") or DESCRIPTIONS.get(slug, ""),
+                "icon": manifest.get("icon", "puzzle"),
                 "author": manifest.get("author"),
                 "permissions": permissions,
                 "networkDomains": manifest.get("permissions", {}).get("network", {}).get("domains", []),

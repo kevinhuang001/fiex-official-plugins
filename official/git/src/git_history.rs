@@ -1,12 +1,13 @@
-//! Read-only Git tree browsing. Never checks out or changes the user's work tree.
-use crate::{
-    files::{Entry, Listing},
-    host::git,
-};
+//! Read-only Git tree browsing backed by git2. Never checks out or changes the
+//! user's work tree.
+use crate::files::{Entry, Listing};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use fiex_plugin_sdk::HostServices;
+use git2::{ObjectType, Repository, Sort, Tree};
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 #[derive(Clone)]
 pub struct Route {
@@ -38,14 +39,21 @@ pub fn route(path: &str) -> Option<Route> {
         relative,
     })
 }
-fn output(host: &mut dyn HostServices, root: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
-    let result = git(host, root, args)?;
-    if result.code == Some(0) {
-        Ok(result.stdout)
-    } else {
-        Err(result.stderr.trim().into())
-    }
+
+fn repo(path: &Path) -> Result<Repository, String> {
+    Repository::discover(path).map_err(|error| error.to_string())
 }
+
+fn commit_tree<'a>(
+    repo: &'a Repository,
+    route: &Route,
+) -> Result<(git2::Commit<'a>, Tree<'a>), String> {
+    let oid = git2::Oid::from_str(&route.commit).map_err(|error| error.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+    let tree = commit.tree().map_err(|error| error.to_string())?;
+    Ok((commit, tree))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Commit {
@@ -56,114 +64,115 @@ pub struct Commit {
     pub timestamp: u64,
     pub refs: String,
 }
-pub fn history(
-    host: &mut dyn HostServices,
-    root: &str,
-    skip: usize,
-) -> Result<Vec<Commit>, String> {
-    // Sort lightweight IDs first so pagination is strictly chronological across
-    // every branch, even when a child has an earlier timestamp than its parent.
-    let ids = output(host, Path::new(root), &["rev-list", "--all", "--timestamp"])?;
-    let text = String::from_utf8_lossy(&ids);
-    let mut ids = text
-        .lines()
-        .filter_map(|line| {
-            let (stamp, id) = line.split_once(' ')?;
-            Some((stamp.parse::<u64>().ok()?, id))
-        })
-        .collect::<Vec<_>>();
-    ids.sort_unstable_by(|a, b| b.cmp(a));
-    let selected = ids
-        .iter()
-        .skip(skip)
-        .take(50)
-        .map(|(_, id)| *id)
-        .collect::<Vec<_>>();
-    if selected.is_empty() {
-        return Ok(vec![]);
+
+pub fn history(root: &str, skip: usize) -> Result<Vec<Commit>, String> {
+    let repo = Repository::discover(root).map_err(|error| error.to_string())?;
+    let mut walk = repo.revwalk().map_err(|error| error.to_string())?;
+    walk.set_sorting(Sort::TIME)
+        .map_err(|error| error.to_string())?;
+    let mut pushed = false;
+    for pattern in ["refs/heads/*", "refs/tags/*"] {
+        if walk.push_glob(pattern).is_ok() {
+            pushed = true;
+        }
     }
-    let mut args = vec![
-        "log",
-        "--no-walk=unsorted",
-        "--decorate=short",
-        "-z",
-        "--format=%H%x00%h%x00%s%x00%an%x00%ct%x00%D",
-    ];
-    args.extend(selected);
-    let raw = output(host, Path::new(root), &args)?;
-    let fields = raw.split(|b| *b == 0).collect::<Vec<_>>();
-    Ok(fields
-        .as_chunks::<6>()
-        .0
-        .iter()
-        .map(|f| Commit {
-            id: String::from_utf8_lossy(f[0]).into(),
-            short_id: String::from_utf8_lossy(f[1]).into(),
-            subject: String::from_utf8_lossy(f[2]).into(),
-            author: String::from_utf8_lossy(f[3]).into(),
-            timestamp: String::from_utf8_lossy(f[4]).parse().unwrap_or(0),
-            refs: String::from_utf8_lossy(f[5]).into(),
-        })
-        .collect())
+    if !pushed {
+        let _ = walk.push_head();
+    }
+    let mut seen = HashSet::new();
+    let mut commits = Vec::new();
+    for oid in walk.flatten() {
+        if !seen.insert(oid) {
+            continue;
+        }
+        let Ok(commit) = repo.find_commit(oid) else {
+            continue;
+        };
+        let timestamp = commit.time().seconds().max(0) as u64;
+        let author = commit.author().name().unwrap_or_default().to_owned();
+        let mut refs = Vec::new();
+        if let Ok(references) = repo.references() {
+            for reference in references.flatten() {
+                if reference.target() == Some(oid)
+                    || reference.peel_to_commit().ok().map(|c| c.id()) == Some(oid)
+                {
+                    if let Ok(name) = reference.shorthand() {
+                        refs.push(name.to_owned());
+                    }
+                }
+            }
+        }
+        refs.sort();
+        commits.push(Commit {
+            id: oid.to_string(),
+            short_id: oid.to_string()[..7].to_string(),
+            subject: commit.summary().ok().flatten().unwrap_or("").to_string(),
+            author,
+            timestamp,
+            refs: refs.join(", "),
+        });
+    }
+    commits.sort_by_key(|commit| std::cmp::Reverse(commit.timestamp));
+    Ok(commits.into_iter().skip(skip).take(50).collect())
 }
-pub fn browse(host: &mut dyn HostServices, root: &str, reference: &str) -> Result<String, String> {
+
+pub fn browse(root: &str, reference: &str) -> Result<String, String> {
     if reference.is_empty() || reference.starts_with('-') {
         return Err("请选择有效的版本".into());
     }
-    let root = dunce::canonicalize(root).map_err(|e| e.to_string())?;
-    let value = output(
-        host,
-        &root,
-        &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
-    )?;
-    let commit = String::from_utf8_lossy(&value).trim().to_string();
-    if ![40, 64].contains(&commit.len()) || !commit.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("无法解析提交".into());
-    }
+    let root = dunce::canonicalize(root).map_err(|error| error.to_string())?;
+    let repo = repo(&root)?;
+    let object = repo
+        .revparse_single(reference)
+        .map_err(|_| "无法解析提交".to_string())?;
+    let commit = object
+        .peel_to_commit()
+        .map_err(|_| "无法解析提交".to_string())?;
     let encoded = URL_SAFE_NO_PAD.encode(root.to_string_lossy().as_bytes());
-    Ok(format!("history://{encoded}/{commit}"))
+    Ok(format!("history://{encoded}/{}", commit.id()))
 }
-pub fn list(
-    host: &mut dyn HostServices,
-    path: &str,
-    hidden: bool,
-    ignores: &[String],
-) -> Result<Listing, String> {
+
+fn tree_entry<'a>(tree: &'a Tree<'a>, path: &str) -> Result<git2::TreeEntry<'a>, String> {
+    if path.is_empty() {
+        return Err("请选择文件".into());
+    }
+    tree.get_path(Path::new(path))
+        .map_err(|_| "历史文件不存在".into())
+}
+
+pub fn list(path: &str, hidden: bool, ignores: &[String]) -> Result<Listing, String> {
     let route = route(path).ok_or("历史版本路径无效")?;
-    let object = if route.relative.is_empty() {
-        route.commit.clone()
+    let repo = repo(&route.root)?;
+    let (commit, tree) = commit_tree(&repo, &route)?;
+    let tree = if route.relative.is_empty() {
+        tree
     } else {
-        format!("{}:{}", route.commit, route.relative)
+        tree_entry(&tree, &route.relative)?
+            .to_object(&repo)
+            .map_err(|error| error.to_string())?
+            .peel_to_tree()
+            .map_err(|error| error.to_string())?
     };
-    let raw = output(host, &route.root, &["ls-tree", "-z", "-l", &object])?;
     let ignored = crate::ignores::IgnoreSet::new(ignores);
-    let stamp = output(
-        host,
-        &route.root,
-        &["show", "-s", "--format=%ct", &route.commit],
-    )
-    .ok()
-    .and_then(|v| String::from_utf8_lossy(&v).trim().parse::<u64>().ok())
-    .unwrap_or(0);
-    let mut entries = vec![];
-    for field in raw.split(|b| *b == 0).filter(|f| !f.is_empty()) {
-        let Some(tab) = field.iter().position(|b| *b == b'\t') else {
+    let stamp = commit.time().seconds().max(0) as u64;
+    let mut entries = Vec::new();
+    for entry in tree.iter() {
+        let Some(name) = entry.name().ok() else {
             continue;
         };
-        let header = String::from_utf8_lossy(&field[..tab]);
-        let values = header.split_whitespace().collect::<Vec<_>>();
-        if values.len() < 4 {
+        if (!hidden && name.starts_with('.')) || ignored.is_ignored(Path::new(name)) {
             continue;
         }
-        let name = String::from_utf8_lossy(&field[tab + 1..]).into_owned();
-        if (!hidden && name.starts_with('.')) || ignored.is_ignored(Path::new(&name)) {
-            continue;
-        }
-        let dir = values[1] == "tree";
-        let extension = if dir {
+        let is_dir = entry.kind() == Some(ObjectType::Tree);
+        let size = entry
+            .to_object(&repo)
+            .ok()
+            .and_then(|object| object.as_blob().map(|blob| blob.size() as u64))
+            .unwrap_or(0);
+        let extension = if is_dir {
             String::new()
         } else {
-            Path::new(&name)
+            Path::new(name)
                 .extension()
                 .unwrap_or_default()
                 .to_string_lossy()
@@ -171,14 +180,14 @@ pub fn list(
         };
         entries.push(Entry {
             path: format!("{}/{}", path.trim_end_matches('/'), name),
-            name: name.clone(),
-            is_dir: dir,
-            is_symlink: values[0] == "120000",
-            size: values[3].parse().unwrap_or(0),
+            name: name.to_owned(),
+            is_dir,
+            is_symlink: entry.filemode() == 0o120000,
+            size,
             modified: stamp,
             created: stamp,
             extension,
-            mime: mime_guess::from_path(&name)
+            mime: mime_guess::from_path(name)
                 .first_or_octet_stream()
                 .to_string(),
             readonly: true,
@@ -187,6 +196,7 @@ pub fn list(
             sync: None,
         });
     }
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
     Ok(Listing {
         read_only: true,
         virtual_volume: false,
@@ -195,44 +205,40 @@ pub fn list(
         warnings: vec![],
     })
 }
-pub fn info(host: &mut dyn HostServices, path: &str) -> Result<Entry, String> {
+
+pub fn info(path: &str) -> Result<Entry, String> {
     let i = path.rfind('/').ok_or("无效路径")?;
-    list(host, &path[..i], true, &[])?
+    list(&path[..i], true, &[])?
         .entries
         .into_iter()
-        .find(|e| e.path == path)
+        .find(|entry| entry.path == path)
         .ok_or_else(|| "历史文件不存在".into())
 }
-fn bytes(host: &mut dyn HostServices, path: &str, limit: u64) -> Result<Vec<u8>, String> {
+
+fn blob(path: &str, limit: u64) -> Result<Vec<u8>, String> {
     let route = route(path).ok_or("历史版本路径无效")?;
-    if route.relative.is_empty() {
-        return Err("请选择文件".into());
-    }
-    let result = git(
-        host,
-        &route.root,
-        &["show", &format!("{}:{}", route.commit, route.relative)],
-    )?;
-    if result.code != Some(0) {
-        return Err(if result.stderr.trim().is_empty() {
-            "无法读取历史文件".into()
-        } else {
-            result.stderr.trim().into()
-        });
-    }
-    let mut data = result.stdout;
+    let repo = repo(&route.root)?;
+    let (_, tree) = commit_tree(&repo, &route)?;
+    let entry = tree_entry(&tree, &route.relative)?;
+    let object = entry.to_object(&repo).map_err(|error| error.to_string())?;
+    let blob = object
+        .peel_to_blob()
+        .map_err(|_| "历史文件不存在".to_string())?;
+    let mut data = blob.content().to_vec();
     data.truncate(limit as usize);
     Ok(data)
 }
-pub fn preview(host: &mut dyn HostServices, path: &str) -> Result<String, String> {
-    let data = bytes(host, path, 256 * 1024)?;
+
+pub fn preview(path: &str) -> Result<String, String> {
+    let data = blob(path, 256 * 1024)?;
     if data.contains(&0) {
         return Err("二进制文件，请使用对应的预览方式".into());
     }
     String::from_utf8(data).map_err(|_| "文本不是 UTF-8 编码".into())
 }
-pub fn asset(host: &mut dyn HostServices, path: &str) -> Result<String, String> {
-    let info = info(host, path)?;
+
+pub fn asset(path: &str) -> Result<String, String> {
+    let info = info(path)?;
     if info.is_symlink || info.is_dir {
         return Err("此类型不提供媒体预览".into());
     }
@@ -248,7 +254,7 @@ pub fn asset(host: &mut dyn HostServices, path: &str) -> Result<String, String> 
     let target = base.join(encoded).join(&route.commit).join(&route.relative);
     if !target.is_file() {
         std::fs::create_dir_all(target.parent().ok_or("无效文件名")?).map_err(|e| e.to_string())?;
-        std::fs::write(&target, bytes(host, path, 2 * 1024 * 1024)?).map_err(|e| e.to_string())?;
+        std::fs::write(&target, blob(path, 64 * 1024 * 1024 + 1)?).map_err(|e| e.to_string())?;
         let mut permissions = std::fs::metadata(&target)
             .map_err(|e| e.to_string())?
             .permissions();
@@ -257,18 +263,18 @@ pub fn asset(host: &mut dyn HostServices, path: &str) -> Result<String, String> 
     }
     Ok(target.to_string_lossy().into_owned())
 }
+
 pub fn search(
-    host: &mut dyn HostServices,
     path: &str,
     query: &str,
     hidden: bool,
     ignores: &[String],
 ) -> Result<Vec<Entry>, String> {
     let mut pending = vec![path.to_string()];
-    let mut matches = vec![];
+    let mut matches = Vec::new();
     let query = query.to_lowercase();
     while let Some(directory) = pending.pop() {
-        for entry in list(host, &directory, hidden, ignores)?.entries {
+        for entry in list(&directory, hidden, ignores)?.entries {
             if entry.is_dir {
                 pending.push(entry.path.clone());
             }
@@ -282,120 +288,87 @@ pub fn search(
     }
     Ok(matches)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fiex_plugin_sdk::RpcError;
-    use serde_json::{json, Value};
-    use std::process::Command;
-
-    struct LocalHost;
-    impl HostServices for LocalHost {
-        fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError> {
-            if method != "host.exec" {
-                return Err(RpcError::invalid_params("unexpected method"));
-            }
-            let out = Command::new(params["command"].as_str().unwrap_or("git"))
-                .args(
-                    params["args"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str),
-                )
-                .current_dir(params["cwd"].as_str().unwrap_or("."))
-                .output()
-                .map_err(|error| RpcError::internal(error.to_string()))?;
-            use base64::{engine::general_purpose::STANDARD, Engine};
-            Ok(json!({
-                "code": out.status.code(),
-                "stdoutBase64": STANDARD.encode(&out.stdout),
-                "stderr": String::from_utf8_lossy(&out.stderr)
-            }))
-        }
-    }
 
     #[test]
     fn history_merges_branches_in_timestamp_order_even_with_skewed_dates() {
         let temp = tempfile::tempdir().unwrap();
-        let mut host = LocalHost;
         let root = temp.path().to_str().unwrap();
-        crate::git::init(&mut host, root).unwrap();
-        assert!(super::history(&mut host, root, 0).unwrap().is_empty());
-        let commit = |message: &str, timestamp: &str| {
-            let result = std::process::Command::new("git")
-                .arg("-C")
-                .arg(root)
-                .args([
-                    "-c",
-                    "user.name=Test",
-                    "-c",
-                    "user.email=test@example.com",
-                    "commit",
-                    "--allow-empty",
-                    "-m",
-                    message,
-                ])
-                .env("GIT_AUTHOR_DATE", timestamp)
-                .env("GIT_COMMITTER_DATE", timestamp)
-                .output()
-                .unwrap();
-            assert!(
-                result.status.success(),
-                "{}",
-                String::from_utf8_lossy(&result.stderr)
-            );
+        crate::git::init(root).unwrap();
+        assert!(history(root, 0).unwrap().is_empty());
+        let commit = |message: &str, timestamp: i64| {
+            let repo = Repository::open(root).unwrap();
+            let mut index = repo.index().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let signature =
+                git2::Signature::new("Test", "test@example.com", &git2::Time::new(timestamp, 0))
+                    .unwrap();
+            let head = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+            let parents = head.iter().collect::<Vec<_>>();
+            let parent_refs = parents.to_vec();
+            repo.commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                message,
+                &tree,
+                &parent_refs,
+            )
+            .unwrap();
         };
-        commit("Base", "2001-09-09T01:46:40+0000");
-        let base = super::output(&mut host, temp.path(), &["rev-parse", "HEAD"]).unwrap();
-        let base = String::from_utf8_lossy(&base).trim().to_owned();
-        commit("Older child on main", "2000-09-09T01:46:40+0000");
-        super::output(&mut host, temp.path(), &["checkout", "-b", "dev", &base]).unwrap();
-        commit("Newer commit on dev", "2002-09-09T01:46:40+0000");
-        let history = super::history(&mut host, root, 0).unwrap();
+        commit("Base", 1_000_000_000);
+        let base = Repository::open(root)
+            .unwrap()
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id();
+        commit("Older child on main", 900_000_000);
+        let repo = Repository::open(root).unwrap();
+        repo.branch("dev", &repo.find_commit(base).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/dev").unwrap();
+        commit("Newer commit on dev", 1_100_000_000);
+        let commits = history(root, 0).unwrap();
         assert_eq!(
-            history
+            commits
                 .iter()
                 .map(|c| c.subject.as_str())
                 .collect::<Vec<_>>(),
             vec!["Newer commit on dev", "Base", "Older child on main"]
         );
-        assert!(history[0].refs.contains("dev"));
-        assert!(history[2].refs.contains("main"));
-        assert!(super::history(&mut host, root, 50).unwrap().is_empty());
+        assert!(commits[0].refs.contains("dev"));
+        assert!(history(root, 50).unwrap().is_empty());
     }
 
     #[test]
     fn browses_old_bytes_without_checking_out_or_modifying_worktree() {
         let temp = tempfile::tempdir().unwrap();
-        let mut host = LocalHost;
         let root = temp.path().to_str().unwrap();
-        crate::git::init(&mut host, root).unwrap();
+        crate::git::init(root).unwrap();
         let file = temp.path().join("hello.txt");
         std::fs::write(&file, "old version").unwrap();
-        crate::git::stage(&mut host, root, &[], true).unwrap();
-        let first =
-            crate::git::commit(&mut host, root, "First", "Test", "test@example.com").unwrap();
+        crate::git::stage(root, &[], true).unwrap();
+        let first = crate::git::commit(root, "First", "Test", "test@example.com").unwrap();
         std::fs::write(&file, "uncommitted version").unwrap();
-        let path = super::browse(&mut host, root, &first).unwrap();
+        let path = browse(root, &first).unwrap();
+        assert_eq!(list(&path, false, &[]).unwrap().entries.len(), 1);
         assert_eq!(
-            super::list(&mut host, &path, false, &[])
-                .unwrap()
-                .entries
-                .len(),
-            1
-        );
-        assert_eq!(
-            super::preview(&mut host, &format!("{path}/hello.txt")).unwrap(),
+            preview(&format!("{path}/hello.txt")).unwrap(),
             "old version"
         );
         assert_eq!(
             std::fs::read_to_string(&file).unwrap(),
             "uncommitted version"
         );
-        assert_eq!(super::history(&mut host, root, 0).unwrap().len(), 1);
-        assert!(super::route(&format!("{path}/../escape")).is_none());
-        assert!(super::route(&format!("{path}//absolute")).is_none());
-        assert_eq!(crate::git::status(&mut host, root).unwrap().branch, "main");
+        assert_eq!(history(root, 0).unwrap().len(), 1);
+        assert!(route(&format!("{path}/../escape")).is_none());
+        assert!(route(&format!("{path}//absolute")).is_none());
+        assert_eq!(crate::git::status(root).unwrap().branch, "main");
     }
 }

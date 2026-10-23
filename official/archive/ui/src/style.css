@@ -1,0 +1,133 @@
+:root {
+  font:
+    13px -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #29313a;
+  background: #fafbfc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e8f1f8;
+    background: #18232d;
+  }
+  header,
+  footer {
+    border-color: #415263 !important;
+  }
+  input,
+  select {
+    background: #22303c !important;
+    color: #e8f1f8 !important;
+    border-color: #415263 !important;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.app {
+  padding: 16px 18px 18px;
+}
+header,
+header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+header {
+  justify-content: space-between;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #e4e9ef;
+}
+header strong {
+  font-size: 14px;
+}
+button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+button:hover {
+  background: #e9eff5;
+}
+button.primary {
+  background: #387ca8;
+  color: #fff;
+  padding: 7px 13px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+label {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+label.checkbox {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+select,
+input[type='password'] {
+  width: 100%;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+  background: #fff;
+  padding: 7px 9px;
+  font: inherit;
+}
+input[type='range'] {
+  width: 100%;
+}
+.hint {
+  color: #7d8792;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.error,
+.done {
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 11px;
+  margin: 10px 0;
+}
+.error {
+  color: #b4443d;
+  background: #fbeceb;
+}
+.done {
+  color: #2f7d42;
+  background: #eaf6ec;
+  word-break: break-all;
+}
+footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #e4e9ef;
+  padding-top: 12px;
+  margin-top: 16px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

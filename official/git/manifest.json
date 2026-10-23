@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.git",
   "name": "Git",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "源代码管理、提交历史、远程仓库与只读历史浏览。",
   "icon": "git-branch",
   "author": {
@@ -28,12 +28,6 @@
       "domains": [
         "github.com"
       ]
-    },
-    "commands": {
-      "enabled": true,
-      "allow": [
-        "git"
-      ]
     }
   },
   "contributions": {
@@ -42,7 +36,14 @@
         "id": "git.main",
         "title": "源代码管理",
         "icon": "git-branch",
-        "command": "git.status",
+        "panel": {
+          "title": "源代码管理",
+          "entry": "ui/dist/index.html",
+          "defaultSize": {
+            "width": 560,
+            "height": 620
+          }
+        },
         "schemes": [
           "history"
         ]

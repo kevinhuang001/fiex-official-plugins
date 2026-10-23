@@ -38,3 +38,11 @@ environment, blocks shells/paths, and enforces a timeout and output cap. Users
 can add or remove allowed commands under **Settings → Plugins → Permissions**.
 
 ## Layout
+
+## UI builds
+
+Git, Archive and Checksum ship React/Vite panels under `official/<slug>/ui`.
+The built single-file HTML is committed as `official/<slug>/ui/dist/index.html`, so
+release packaging and CI need no Node.js. After changing UI source run
+`npm ci && npm run build` in that directory and commit `ui/dist`.
+

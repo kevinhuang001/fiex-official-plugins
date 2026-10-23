@@ -34,7 +34,7 @@ def main():
     with zipfile.ZipFile(archive_path,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         archive.write(manifest_path,"manifest.json")
         archive.write(binary,entry)
-        ui=root/"ui"
+        ui=root/"ui"/"dist" if (root/"ui"/"dist").is_dir() else root/"ui"
         if ui.is_dir():
             for file in sorted(ui.rglob("*")):
                 if file.is_file() and not file.is_symlink():

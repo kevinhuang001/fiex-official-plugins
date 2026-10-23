@@ -1,6 +1,6 @@
 [package]
 name = "fiex-plugin-git"
-version = "0.1.1"
+version="0.2.0"
 edition = "2021"
 rust-version = "1.90"
 license = "GPL-3.0-or-later"
@@ -15,6 +15,7 @@ dirs = "6"
 globset = "0.4"
 mime_guess = "2"
 url = "2"
+git2 = { version = "0.21", features = ["https", "ssh", "vendored-libgit2"] }
 
 [dev-dependencies]
 tempfile = "3"

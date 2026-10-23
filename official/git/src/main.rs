@@ -3,7 +3,6 @@ mod files;
 mod git;
 mod git_history;
 mod git_remote;
-mod host;
 mod ignores;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};
@@ -44,65 +43,57 @@ fn response<T: serde::Serialize>(result: Result<T, String>) -> Result<Value, Rpc
     serde_json::to_value(result.map_err(RpcError::internal)?)
         .map_err(|e| RpcError::internal(e.to_string()))
 }
-fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
     let root = || param(&p, "root");
     match method {
-        "git.status" => Ok(json!(git::status(host, root()?))),
-        "git.init" => response(git::init(host, root()?)),
-        "git.refs" => response(git::refs(host, root()?)),
-        "git.identity" => response(Ok(git::identity(host, root()?))),
+        "git.status" => Ok(json!(git::status(root()?))),
+        "git.init" => response(git::init(root()?)),
+        "git.refs" => response(git::refs(root()?)),
+        "git.identity" => response(Ok(git::identity(root()?))),
         "git.stage" => response(git::stage(
-            host,
             root()?,
             &string_list(&p, "paths")?,
             p.get("all").and_then(Value::as_bool).unwrap_or(false),
         )),
         "git.unstage" => response(git::unstage(
-            host,
             root()?,
             &string_list(&p, "paths")?,
             p.get("all").and_then(Value::as_bool).unwrap_or(false),
         )),
         "git.commit" => response(git::commit(
-            host,
             root()?,
             param(&p, "message")?,
             param(&p, "name")?,
             param(&p, "email")?,
         )),
         "git.history" => response(git_history::history(
-            host,
             root()?,
             p.get("skip").and_then(Value::as_u64).unwrap_or(0) as usize,
         )),
-        "git.browse" => response(git_history::browse(host, root()?, param(&p, "reference")?)),
-        "git.historyAsset" => response(git_history::asset(host, param(&p, "path")?)),
+        "git.browse" => response(git_history::browse(root()?, param(&p, "reference")?)),
+        "git.historyAsset" => response(git_history::asset(param(&p, "path")?)),
         "git.historyList" => response(git_history::list(
-            host,
             param(&p, "path")?,
             p.get("hidden").and_then(Value::as_bool).unwrap_or(false),
             &string_list(&p, "ignores")?,
         )),
-        "git.historyInfo" => response(git_history::info(host, param(&p, "path")?)),
-        "git.historyPreview" => response(git_history::preview(host, param(&p, "path")?)),
+        "git.historyInfo" => response(git_history::info(param(&p, "path")?)),
+        "git.historyPreview" => response(git_history::preview(param(&p, "path")?)),
         "git.historySearch" => response(git_history::search(
-            host,
             param(&p, "path")?,
             param(&p, "query")?,
             p.get("hidden").and_then(Value::as_bool).unwrap_or(false),
             &string_list(&p, "ignores")?,
         )),
-        "git.remoteStatus" => response(git_remote::status(host, root()?)),
+        "git.remoteStatus" => response(git_remote::status(root()?)),
         "git.remoteSave" => response(git_remote::save(
-            host,
             root()?,
             param(&p, "name")?,
             param(&p, "url")?,
             &domain_list(&p),
         )),
-        "git.remoteRemove" => response(git_remote::remove(host, root()?, param(&p, "name")?)),
+        "git.remoteRemove" => response(git_remote::remove(root()?, param(&p, "name")?)),
         "git.remoteSync" => response(git_remote::sync(
-            host,
             root()?,
             param(&p, "remote")?,
             p.get("push").and_then(Value::as_bool).unwrap_or(false),
@@ -125,8 +116,7 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let result =
-                git_history::list(host, path, hidden, &ignores).map_err(RpcError::internal)?;
+            let result = git_history::list(path, hidden, &ignores).map_err(RpcError::internal)?;
             let start = p
                 .get("cursor")
                 .and_then(Value::as_str)
@@ -150,11 +140,10 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
                 "warnings": result.warnings
             }))
         }
-        "vfs.stat" => response(git_history::info(host, param(&p, "nodeId")?)),
+        "vfs.stat" => response(git_history::info(param(&p, "nodeId")?)),
         "vfs.readSmall" => {
             use base64::Engine;
-            let text =
-                git_history::preview(host, param(&p, "nodeId")?).map_err(RpcError::internal)?;
+            let text = git_history::preview(param(&p, "nodeId")?).map_err(RpcError::internal)?;
             let bytes = text.into_bytes();
             let max = p
                 .get("maxBytes")
@@ -189,14 +178,9 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
                 .and_then(Value::as_u64)
                 .unwrap_or(500)
                 .clamp(1, 2000) as usize;
-            let mut entries = git_history::search(
-                host,
-                param(&p, "nodeId")?,
-                param(&p, "query")?,
-                hidden,
-                &ignores,
-            )
-            .map_err(RpcError::internal)?;
+            let mut entries =
+                git_history::search(param(&p, "nodeId")?, param(&p, "query")?, hidden, &ignores)
+                    .map_err(RpcError::internal)?;
             let truncated = entries.len() > limit;
             entries.truncate(limit);
             Ok(json!({"entries": entries, "truncated": truncated}))
@@ -205,7 +189,7 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve_with_host("org.fiex.git", dispatch) {
+    if let Err(e) = sdk::serve("org.fiex.git", dispatch) {
         eprintln!("Git plugin IPC error: {e}");
         std::process::exit(1);
     }

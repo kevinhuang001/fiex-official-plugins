@@ -51,7 +51,7 @@
           "entry": "ui/dist/index.html",
           "defaultSize": {
             "width": 540,
-            "height": 260
+            "height": 300
           }
         }
       }

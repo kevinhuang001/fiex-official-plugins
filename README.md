@@ -20,7 +20,7 @@ Release contract:
 
 - `fiex-catalog.json` — app-store catalog (`id`, `name`, `permissions`, `networkDomains`, per-platform assets).
 - `<slug>-<platform>.fiexplugin` — one package per plugin/platform.
-- `slug`: `git | webdav | smb | archive | checksum | everything`.
+- `slug`: `git | webdav | smb | archive | checksum | everything | gpg | vista | win11`.
 - `platform`: `linux-x86_64 | macos-aarch64 | macos-x86_64 | windows-x86_64`.
 
 Fiex Settings → Plugins reads the catalog from the latest release; there is no manual repository input.
@@ -38,10 +38,35 @@ Plugin processes cannot spawn programs. Approved external commands are resolved 
 
 ## UI builds
 
-Git, Archive and Checksum ship React/Vite panels under `official/<slug>/ui`.
-The built single-file HTML is committed as `official/<slug>/ui/dist/index.html`, so
-release packaging and CI need no Node.js. After changing UI source run
-`npm ci && npm run build` in that directory and commit `ui/dist`.
+Git, Archive, Checksum and GPG ship React/Vite panels under `official/<slug>/ui`.
+CI builds the panels once, uploads them as `plugin-panels`, and uses the same
+artifact in every platform package job. Generated `ui/dist` files are not source
+files. All panels consume the Host theme tokens through the UI SDK.
+
+## Themes
+
+Vista Aero and Windows 11 are declarative theme packages: no executable, no iframe,
+no permissions. Install and enable them, then select the theme in Appearance.
+`manifest.json` declares `contributions.themes: [{"path":"theme.json"}]`.
+The JSON theme contains `id`, `name`, `mode` (`light` or `dark`) and a `tokens`
+map. Core namespaces IDs by plugin and validates package-confined paths and token
+values. Tokens define colors, radii, shadows, gradients and fonts; raw CSS and
+scripts are not accepted. These themes preserve Fiex's layout.
+
+## GPG
+
+Install GnuPG and make `gpg` available on PATH. Activate the plugin and explicitly
+approve the generic `gpg` command grant. The panel supports encryption, decryption,
+detached signatures, verification, public-key import and export. It uses the
+existing keyring/Agent; private-key passphrases stay in pinentry, never in the
+panel or plugin settings. Select full fingerprints from the key list. Existing
+output files are not overwritten. Signature failure is reported as an error.
+Core's command runtime deadline applies; cancellation of a UI wait does not
+terminate an already-running GnuPG operation.
+
+CI's `plugin_gpg_e2e` creates an isolated temporary keyring and checks a binary
+round trip, valid and tampered signatures, overwrite refusal and theme loading
+through the real Core host. It never uses the runner's regular keyring.
 
 ## Integration ownership
 

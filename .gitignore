@@ -7,8 +7,6 @@ dist/
 
 node_modules/
 **/node_modules/
-!official/*/ui/dist/
-!official/*/ui/dist/**
 
 /core
 

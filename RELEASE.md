@@ -1,3 +1,8 @@
+# Fiex plugins 0.2.9
+
+- New SQLite viewer plugin: tables, columns, indexes, foreign keys and table data with paging and column sorting, read-only.
+- Plugin previewers now render inside the Quick Look preview sheet, not in a floating panel.
+
 # Fiex plugins 0.2.8
 
 - New OpenList plugin: native API client (login, directory listing, file reads), not WebDAV. The server address is a connection (so Core approves exactly that host); username, password and timeout live in the plugin settings.

@@ -19,7 +19,7 @@ const client = new FiexUiClient()
 const formats: Format[] = [
   { id: 'zip', label: 'ZIP', ext: 'zip', levelMax: 9, password: true, note: 'Deflate · 支持 AES-256 密码' },
   { id: 'rar', label: 'RAR', ext: 'rar', levelMax: 5, password: true, note: 'RAR5 · 支持密码' },
-  { id: '7z', label: '7z', ext: '7z', levelMax: 9, password: false, note: 'LZMA2 · 高压缩比' },
+  { id: '7z', label: '7Z', ext: '7z', levelMax: 9, password: false, note: 'LZMA2 · 高压缩比' },
   { id: 'tar', label: 'TAR', ext: 'tar', levelMax: 0, password: false, note: '仅打包，不压缩' },
   { id: 'tar.gz', label: 'TAR.GZ', ext: 'tar.gz', levelMax: 9, password: false, note: 'Gzip 压缩' },
   { id: 'tar.bz2', label: 'TAR.BZ2', ext: 'tar.bz2', levelMax: 9, password: false, note: 'Bzip2 压缩' },

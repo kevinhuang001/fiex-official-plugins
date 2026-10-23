@@ -372,3 +372,33 @@ footer button.archive-all:hover:not(:disabled) {
   font-size: 11.5px;
   line-height: 1.4;
 }
+.archive-check {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 7px;
+  padding: 2px 0;
+  color: var(--panel-muted);
+  font-size: 10.5px;
+}
+.archive-check:hover {
+  background: transparent;
+  color: var(--panel-text);
+}
+.archive-check-box {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  background: var(--panel-surface);
+  color: #fff;
+}
+.archive-check.checked .archive-check-box {
+  border-color: var(--panel-accent);
+  background: var(--panel-accent);
+}
+.archive-check.checked {
+  color: var(--panel-text);
+}

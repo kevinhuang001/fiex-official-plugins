@@ -101,6 +101,7 @@ export function App() {
   const [format, setFormat] = useState('zip')
   const [level, setLevel] = useState(6)
   const [password, setPassword] = useState('')
+  const [compressAll, setCompressAll] = useState(false)
   const [destination, setDestination] = useState('')
   const [editedDestination, setEditedDestination] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -150,7 +151,7 @@ export function App() {
       setError(String(cause))
     }
   }
-  const compress = async (all = false) => {
+  const compress = async () => {
     if (!paths.length) return
     if (!destination.trim()) {
       setError('请选择压缩到的位置')
@@ -172,7 +173,7 @@ export function App() {
           format: selected.id,
           level: password ? null : level,
           password: password || null,
-          ignoreSettings: !all,
+          ignoreSettings: !compressAll,
         },
       })
       setDone(created)
@@ -261,18 +262,20 @@ export function App() {
         </label>
       )}
 
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={compressAll}
+        className={`archive-check${compressAll ? ' checked' : ''}`}
+        onClick={() => setCompressAll(!compressAll)}
+      >
+        <span className="archive-check-box">{compressAll && <Check size={12} />}</span>
+        全部压缩
+      </button>
       {error && <div className="error">{error}</div>}
       {done && <div className="done">已创建 {done}</div>}
       <footer>
         <button onClick={() => void client.invoke('panel.close')}>取消</button>
-        <button
-          className="archive-all"
-          disabled={busy}
-          title="忽略设置中的忽略规则，压缩全部内容"
-          onClick={() => void compress(true)}
-        >
-          全部压缩
-        </button>
         <button className="primary" disabled={busy} onClick={() => void compress()}>
           {busy ? <LoaderCircle size={14} className="spin" /> : <Archive size={14} />}
           开始压缩

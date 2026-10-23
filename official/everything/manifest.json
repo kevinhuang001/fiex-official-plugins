@@ -3,7 +3,7 @@
   "id": "org.fiex.everything",
   "name": "Everything 搜索",
   "version": "0.2.7",
-  "description": "借用 Everything 的本地索引提供秒级文件名搜索（Windows）。",
+  "description": "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。",
   "icon": "magnifying-glass",
   "author": {
     "name": "Fiex Contributors",
@@ -20,7 +20,9 @@
       "read": {
         "enabled": true
       },
-      "write": false
+      "create": false,
+      "delete": false,
+      "rename": false
     },
     "files": {
       "read": true,
@@ -31,8 +33,10 @@
       "domains": []
     },
     "commands": {
-      "enabled": false,
-      "allow": []
+      "enabled": true,
+      "allow": [
+        "es"
+      ]
     }
   },
   "contributions": {

@@ -1,16 +1,13 @@
 mod archives;
-mod common;
 mod ignores;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-use std::sync::atomic::AtomicBool;
 fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
     p.get(k)
         .and_then(Value::as_str)
         .ok_or_else(|| RpcError::invalid_params(format!("missing {k}")))
 }
-fn run(method: &str, p: Value) -> Result<Value, RpcError> {
-    let cancel = AtomicBool::new(false);
+fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
     match method {
         "archive.compress" => {
             let paths = p
@@ -37,9 +34,8 @@ fn run(method: &str, p: Value) -> Result<Value, RpcError> {
             let format = param(&p, "format")?;
             let destination = match p.get("destination").and_then(Value::as_str) {
                 Some(value) => value.to_owned(),
-                None => {
-                    archives::default_destination(&paths, format).map_err(RpcError::internal)?
-                }
+                None => archives::default_destination(&paths, format, host)
+                    .map_err(RpcError::internal)?,
             };
             let result = archives::compress(
                 &paths,
@@ -48,7 +44,7 @@ fn run(method: &str, p: Value) -> Result<Value, RpcError> {
                 &ignores,
                 p.get("level").and_then(Value::as_u64).map(|n| n as u32),
                 p.get("password").and_then(Value::as_str),
-                &cancel,
+                host,
             )
             .map_err(RpcError::internal)?;
             Ok(json!(result))
@@ -57,14 +53,17 @@ fn run(method: &str, p: Value) -> Result<Value, RpcError> {
             param(&p, "path")?,
             p.get("destination").and_then(Value::as_str),
             p.get("password").and_then(Value::as_str),
-            &cancel
+            host
         )
         .map_err(RpcError::internal)?)),
         _ => Err(RpcError::method_not_found(method)),
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.archive", run) {
+    if let Err(e) = sdk::serve_with_host("org.fiex.archive", |method, p, host| {
+        let method = method.to_owned();
+        sdk::worker::with_host_worker(host, move |mut proxy| run(&method, p, &mut proxy))
+    }) {
         eprintln!("Archive plugin failed: {e}");
         std::process::exit(1);
     }

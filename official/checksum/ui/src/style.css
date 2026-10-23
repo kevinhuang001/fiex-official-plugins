@@ -115,3 +115,21 @@ dd {
     transform: rotate(360deg);
   }
 }
+
+/* Consistent standalone panel surface, readable in both color schemes. */
+:root { --panel-bg: #f7f9fc; --panel-surface: #fff; --panel-text: #182335; --panel-muted: #728096; --panel-line: #e5eaf1; --panel-accent: #3677d8; color: var(--panel-text); background: var(--panel-bg); color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --panel-bg: #141a23; --panel-surface: #1b2431; --panel-text: #e5ebf4; --panel-muted: #97a6bb; --panel-line: #2d394b; --panel-accent: #78a9f8; color-scheme: dark; } }
+body { min-width: 280px; font-size: 13px; line-height: 1.6; }
+.app { padding: 22px; max-width: 960px; margin: 0 auto; }
+header { padding-bottom: 18px; margin-bottom: 8px; border-color: var(--panel-line); }
+header strong, .brand strong { font-size: 16px; letter-spacing: -.3px; }
+section { padding: 16px; margin: 12px 0; border: 1px solid var(--panel-line); border-radius: 12px; background: var(--panel-surface); }
+button { min-height: 30px; transition: background .15s, opacity .15s; }
+button:hover { background: color-mix(in srgb, var(--panel-accent) 10%, transparent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--panel-accent); outline-offset: 3px; }
+button.primary { background: var(--panel-accent); color: var(--panel-bg); border-radius: 9px; min-height: 34px; padding: 7px 14px; font-weight: 600; }
+input, select, textarea { color: var(--panel-text); background: var(--panel-surface); border-color: var(--panel-line); font: inherit; }
+.hint, .section-title { color: var(--panel-muted); }
+.error { padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, #d75151 10%, var(--panel-surface)); color: #d75151; overflow-wrap: anywhere; }
+li:focus-within button { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

@@ -97,7 +97,7 @@ export function App() {
                 `MD5 ${row.md5}`,
                 `CRC32 ${row.crc32}`,
               ].join('\n')
-              void navigator.clipboard.writeText(text)
+              void client.invoke('clipboard.writeText', { text }).catch((cause) => setError(String(cause)))
             }}
           >
             复制全部

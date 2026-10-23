@@ -23,7 +23,9 @@
       "read": {
         "enabled": false
       },
-      "write": false
+      "create": false,
+      "delete": false,
+      "rename": false
     },
     "files": {
       "read": false,

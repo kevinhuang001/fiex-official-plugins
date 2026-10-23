@@ -12,6 +12,10 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+import socket
+import urllib.request
+import urllib.error
+import urllib.parse
 
 
 def write_frame(stream, value):
@@ -45,6 +49,8 @@ class Plugin:
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
         self.serial = 0
+        self.resources = {}
+        self.next_resource = 0
         info = self.rpc("plugin.initialize", {"protocolVersion": "2.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
@@ -52,17 +58,66 @@ class Plugin:
         self.serial += 1
         write_frame(self.child.stdin, {"jsonrpc": "2.0", "id": self.serial,
                                         "method": method, "params": params})
-        response = read_frame(self.child.stdout)
+        response = self.response()
         assert response.get("id") == self.serial, response
         assert "error" not in response, f"{method} failed: {response}"
         assert "result" in response, response
         return response["result"]
 
+    def response(self):
+        while True:
+            value = read_frame(self.child.stdout)
+            if not str(value.get("method", "")).startswith("host."):
+                return value
+            try:
+                result = self.host_call(value["method"], value.get("params", {}))
+                reply = {"jsonrpc": "2.0", "id": value["id"], "result": result}
+            except Exception as error:
+                reply = {"jsonrpc": "2.0", "id": value["id"], "error": {"code": -32001, "message": str(error)}}
+            write_frame(self.child.stdin, reply)
+
+    def host_call(self, method, params):
+        # Test fixture broker only. Production authorization is tested separately
+        # through the actual Core host in the core-integration job.
+        if method == "host.net.http.open":
+            url = params["url"]
+            assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}
+            request = urllib.request.Request(url, data=base64.b64decode(params.get("bodyBase64", "")) or None, headers=params.get("headers", {}), method=params.get("method", "GET"))
+            try:
+                response = urllib.request.urlopen(request, timeout=30)
+            except urllib.error.HTTPError as error:
+                response = error
+            self.next_resource += 1
+            key = str(self.next_resource)
+            self.resources[key] = response
+            return {"stream": key, "status": response.status, "headers": {k.lower(): v for k, v in response.headers.items()}}
+        if method == "host.net.tcp.open":
+            assert params["host"] in {"localhost", "127.0.0.1", "::1"}
+            connection = socket.create_connection((params["host"], params["port"]), timeout=30)
+            self.next_resource += 1
+            key = str(self.next_resource)
+            self.resources[key] = connection
+            peer = connection.getpeername()
+            return {"stream": key, "peerAddress": f"{peer[0]}:{peer[1]}"}
+        if method in {"host.net.http.read", "host.net.tcp.readBytes"}:
+            resource = self.resources[params["stream"]]
+            size = min(params.get("size", 65536), 262144)
+            data = resource.recv(size) if isinstance(resource, socket.socket) else resource.read(size)
+            return {"base64": base64.b64encode(data).decode("ascii"), "size": len(data), "eof": not data}
+        if method == "host.net.tcp.writeBytes":
+            data = base64.b64decode(params["base64"])
+            self.resources[params["stream"]].sendall(data)
+            return {"size": len(data)}
+        if method in {"host.net.http.close", "host.net.tcp.close"}:
+            self.resources.pop(params["stream"]).close()
+            return None
+        raise AssertionError("unexpected host method: " + method)
+
     def invalid(self, method, params):
         self.serial += 1
         write_frame(self.child.stdin, {"jsonrpc": "2.0", "id": self.serial,
                                         "method": method, "params": params})
-        response = read_frame(self.child.stdout)
+        response = self.response()
         assert response["id"] == self.serial, response
         assert response["error"]["code"] == -32602, response
 
@@ -75,6 +130,9 @@ class Plugin:
             if self.child.poll() is None:
                 self.child.kill()
                 self.child.wait(timeout=5)
+            for resource in self.resources.values():
+                resource.close()
+            self.resources.clear()
             if self.child.stderr is not None:
                 diagnostics = self.child.stderr.read()
                 if diagnostics:

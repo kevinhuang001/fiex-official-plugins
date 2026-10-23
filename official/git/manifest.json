@@ -31,7 +31,9 @@
           }
         }
       },
-      "write": true
+      "create": true,
+      "delete": true,
+      "rename": true
     },
     "files": {
       "read": true,

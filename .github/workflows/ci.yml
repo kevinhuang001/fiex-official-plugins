@@ -8,7 +8,26 @@ on:
 permissions:
   contents: read
 jobs:
+  ui:
+    name: Standalone plugin panels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Typecheck and rebuild self-contained panels
+        run: |
+          set -euo pipefail
+          for slug in git archive checksum; do
+            npm --prefix "official/$slug/ui" ci
+            npm --prefix "official/$slug/ui" run build
+          done
+          git diff --exit-code -- official/git/ui/dist official/archive/ui/dist official/checksum/ui/dist
   build:
+    needs: ui
     name: Plugin build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 80
@@ -75,8 +94,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          submodules: true
+      - uses: actions/checkout@v4
+        with:
           repository: kevinhuang001/fiex
-          ref: refactor/fiex-external-submodules
+          ref: 24b0bc65278452ac65cc826ec5ae738ee63f0af3
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -101,6 +123,8 @@ jobs:
           for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.archive org.fiex.checksum; do
             cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
           done
+          cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
+          cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
     needs: build

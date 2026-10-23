@@ -6,11 +6,18 @@ use fiex_plugin_sdk::HostServices;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-fn run(host: &mut dyn HostServices, args: &[&str]) -> Result<String, String> {
-    let args = args.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
+pub fn run(host: &mut dyn HostServices, root: &str, args: &[&str]) -> Result<String, String> {
+    let args = ["-C", root]
+        .into_iter()
+        .chain(args.iter().copied())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
     let result = host
         .process_run("git", &args, None)
         .map_err(|error| error.to_string())?;
+    if result.truncated {
+        return Err("命令输出超过限制，请缩小查询范围".into());
+    }
     if result.code != Some(0) {
         return Err(if result.stderr.trim().is_empty() {
             format!("git exited with {:?}", result.code)
@@ -22,35 +29,33 @@ fn run(host: &mut dyn HostServices, args: &[&str]) -> Result<String, String> {
 }
 
 pub fn status(root: &str, host: &mut dyn HostServices) -> Option<Value> {
-    let branch = run(host, &["rev-parse", "--abbrev-ref", "HEAD"])
-        .or_else(|_| run(host, &["symbolic-ref", "--short", "HEAD"]))
+    let branch = run(host, root, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .or_else(|_| run(host, root, &["symbolic-ref", "--short", "HEAD"]))
         .ok()?;
     let output = run(
         host,
+        root,
         &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
     )
     .ok()?;
     let mut entries = HashMap::new();
-    for item in output.split('\0').filter(|item| !item.is_empty()) {
-        let mut chars = item.chars();
-        let first = chars.next().unwrap_or(' ');
-        let second = chars.next().unwrap_or(' ');
-        let code = if first == '?' {
-            "??".to_string()
-        } else {
-            format!("{first}{second}")
-        };
-        let path = item.chars().skip(3).collect::<String>();
-        if path.is_empty() {
+    let mut records = output.split('\0').filter(|item| !item.is_empty());
+    while let Some(item) = records.next() {
+        if item.len() < 3 {
             continue;
         }
+        let code = &item[..2];
+        let path = &item[3..];
         entries.insert(
             std::path::Path::new(root)
-                .join(&path)
+                .join(path)
                 .to_string_lossy()
                 .into_owned(),
-            code,
+            code.to_owned(),
         );
+        if code.contains(['R', 'C']) {
+            records.next();
+        }
     }
     Some(json!({
         "root": root,
@@ -60,20 +65,21 @@ pub fn status(root: &str, host: &mut dyn HostServices) -> Option<Value> {
 }
 
 pub fn init(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
-    run(host, &["init", "-b", "main"])?;
+    run(host, root, &["init", "-b", "main"])?;
     status(root, host).ok_or("仓库已创建，但无法读取状态".into())
 }
 
-pub fn refs(_root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
-    let current = run(host, &["rev-parse", "--abbrev-ref", "HEAD"])?;
-    let head = run(host, &["rev-parse", "--short=7", "HEAD"]).unwrap_or_default();
-    let branches = run(host, &["branch", "--format=%(refname:short)"])?
+pub fn refs(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+    let current = run(host, root, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .or_else(|_| run(host, root, &["symbolic-ref", "--short", "HEAD"]))?;
+    let head = run(host, root, &["rev-parse", "--short=7", "HEAD"]).unwrap_or_default();
+    let branches = run(host, root, &["branch", "--format=%(refname:short)"])?
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    let tags = run(host, &["tag", "--list"])?
+    let tags = run(host, root, &["tag", "--list"])?
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
@@ -82,46 +88,53 @@ pub fn refs(_root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
     Ok(json!({"head": head.trim(), "current": current.trim(), "branches": branches, "tags": tags}))
 }
 
-pub fn identity(_root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
-    let name = run(host, &["config", "user.name"]).unwrap_or_default();
-    let email = run(host, &["config", "user.email"]).unwrap_or_default();
+pub fn identity(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+    let name = run(host, root, &["config", "user.name"]).unwrap_or_default();
+    let email = run(host, root, &["config", "user.email"]).unwrap_or_default();
     Ok(json!({"name": name.trim(), "email": email.trim()}))
 }
 
 pub fn stage(
-    _root: &str,
+    root: &str,
     paths: &[String],
     all: bool,
     host: &mut dyn HostServices,
 ) -> Result<Value, String> {
     if all {
-        run(host, &["add", "-A"])?;
+        run(host, root, &["add", "-A"])?;
     } else if !paths.is_empty() {
         let mut args = vec!["add", "--"];
         args.extend(paths.iter().map(String::as_str));
-        run(host, &args)?;
+        run(host, root, &args)?;
     }
     Ok(Value::Null)
 }
 
 pub fn unstage(
-    _root: &str,
+    root: &str,
     paths: &[String],
     all: bool,
     host: &mut dyn HostServices,
 ) -> Result<Value, String> {
+    let committed = run(host, root, &["rev-parse", "--verify", "HEAD"]).is_ok();
+    let mut args = if committed {
+        vec!["reset", "--"]
+    } else {
+        vec!["rm", "--cached", "-r", "--ignore-unmatch", "--"]
+    };
     if all {
-        run(host, &["reset"])?;
-    } else if !paths.is_empty() {
-        let mut args = vec!["reset", "--"];
+        args.push(".");
+    } else {
         args.extend(paths.iter().map(String::as_str));
-        run(host, &args)?;
+    }
+    if all || !paths.is_empty() {
+        run(host, root, &args)?;
     }
     Ok(Value::Null)
 }
 
 pub fn commit(
-    _root: &str,
+    root: &str,
     message: &str,
     name: &str,
     email: &str,
@@ -131,17 +144,9 @@ pub fn commit(
     let email = format!("user.email={email}");
     run(
         host,
-        &[
-            "-c",
-            &name,
-            "-c",
-            &email,
-            "commit",
-            "--no-verify",
-            "-m",
-            message,
-        ],
+        root,
+        &["-c", &name, "-c", &email, "commit", "-m", message],
     )?;
-    let hash = run(host, &["rev-parse", "--short=7", "HEAD"])?;
+    let hash = run(host, root, &["rev-parse", "--short=7", "HEAD"])?;
     Ok(json!(hash.trim()))
 }

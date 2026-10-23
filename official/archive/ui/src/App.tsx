@@ -44,10 +44,11 @@ export function App() {
     setDone('')
     const selected = formats.find((entry) => entry.id === format) || formats[0]
     const base = paths.length === 1 ? lastSegment(paths[0]).replace(/\.[^.]+$/, '') : 'Archive'
-    const task = await client.tasks.create(`正在压缩为 ${selected.label}`, {
+    let task: { taskId: string } | null = null
+    try {
+      task = await client.tasks.create(`正在压缩为 ${selected.label}`, {
       detail: `${paths.length} 个项目`,
     })
-    try {
       const destination = await client.invoke<string | null>('dialog.saveFile', {
         suggestedName: `${base}.${selected.ext}`,
         extensions: [selected.ext.split('.').pop() || 'zip'],
@@ -71,7 +72,7 @@ export function App() {
       await client.tasks.finish(task.taskId, { detail: created })
     } catch (cause) {
       setError(String(cause))
-      await client.tasks.finish(task.taskId, { error: String(cause) })
+      if (task) await client.tasks.finish(task.taskId, { error: String(cause) }).catch(() => {})
     } finally {
       setBusy(false)
     }

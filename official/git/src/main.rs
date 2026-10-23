@@ -1,11 +1,10 @@
 //! Fiex Git plugin runs as an independent process; never links to Fiex Core.
 mod decorations;
 mod files;
-mod git;
-mod git_history;
 mod git_host;
-mod git_remote;
+mod history_host;
 mod ignores;
+mod remote_host;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
@@ -14,18 +13,6 @@ fn param<'a>(p: &'a Value, name: &str) -> Result<&'a str, RpcError> {
     p.get(name)
         .and_then(Value::as_str)
         .ok_or_else(|| RpcError::invalid_params(format!("missing {name}")))
-}
-fn domain_list(p: &Value) -> Vec<String> {
-    p.get("networkDomains")
-        .and_then(Value::as_array)
-        .map(|values| {
-            values
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 fn string_list(p: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     let values = p
@@ -71,40 +58,43 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
             param(&p, "email")?,
             host,
         )),
-        "git.history" => response(git_history::history(
+        "git.history" => response(history_host::history(
             root()?,
             p.get("skip").and_then(Value::as_u64).unwrap_or(0) as usize,
+            host,
         )),
-        "git.browse" => response(git_history::browse(root()?, param(&p, "reference")?)),
-        "git.historyAsset" => response(git_history::asset(param(&p, "path")?)),
-        "git.historyList" => response(git_history::list(
+        "git.browse" => response(history_host::browse(root()?, param(&p, "reference")?, host)),
+        "git.historyAsset" => response(history_host::asset(param(&p, "path")?, host)),
+        "git.historyList" => response(history_host::list(
             param(&p, "path")?,
             p.get("hidden").and_then(Value::as_bool).unwrap_or(false),
             &string_list(&p, "ignores")?,
+            host,
         )),
-        "git.historyInfo" => response(git_history::info(param(&p, "path")?)),
-        "git.historyPreview" => response(git_history::preview(param(&p, "path")?)),
-        "git.historySearch" => response(git_history::search(
+        "git.historyInfo" => response(history_host::info(param(&p, "path")?, host)),
+        "git.historyPreview" => response(history_host::preview(param(&p, "path")?, host)),
+        "git.historySearch" => response(history_host::search(
             param(&p, "path")?,
             param(&p, "query")?,
             p.get("hidden").and_then(Value::as_bool).unwrap_or(false),
             &string_list(&p, "ignores")?,
+            host,
         )),
-        "git.remoteStatus" => response(git_remote::status(root()?)),
-        "git.remoteSave" => response(git_remote::save(
+        "git.remoteStatus" => response(remote_host::status(root()?, host)),
+        "git.remoteSave" => response(remote_host::save(
             root()?,
             param(&p, "name")?,
             param(&p, "url")?,
-            &domain_list(&p),
+            host,
         )),
-        "git.remoteRemove" => response(git_remote::remove(root()?, param(&p, "name")?)),
-        "decorations.list" => decorations::list(&p).map_err(RpcError::internal),
-        "git.remoteSync" => response(git_remote::sync(
+        "git.remoteRemove" => response(remote_host::remove(root()?, param(&p, "name")?, host)),
+        "decorations.list" => decorations::list(&p, host).map_err(RpcError::internal),
+        "git.remoteSync" => response(remote_host::sync(
             root()?,
             param(&p, "remote")?,
             p.get("push").and_then(Value::as_bool).unwrap_or(false),
             p.get("branch").and_then(Value::as_str),
-            &domain_list(&p),
+            host,
         )),
         // Core routes plugin-owned schemes (declared in contributes.vfs)
         // through the same generic VFS methods for every plugin.
@@ -122,7 +112,8 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let result = git_history::list(path, hidden, &ignores).map_err(RpcError::internal)?;
+            let result =
+                history_host::list(path, hidden, &ignores, host).map_err(RpcError::internal)?;
             let start = p
                 .get("cursor")
                 .and_then(Value::as_str)
@@ -146,10 +137,11 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
                 "warnings": result.warnings
             }))
         }
-        "vfs.stat" => response(git_history::info(param(&p, "nodeId")?)),
+        "vfs.stat" => response(history_host::info(param(&p, "nodeId")?, host)),
         "vfs.readSmall" => {
             use base64::Engine;
-            let text = git_history::preview(param(&p, "nodeId")?).map_err(RpcError::internal)?;
+            let text =
+                history_host::preview(param(&p, "nodeId")?, host).map_err(RpcError::internal)?;
             let bytes = text.into_bytes();
             let max = p
                 .get("maxBytes")
@@ -184,9 +176,14 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
                 .and_then(Value::as_u64)
                 .unwrap_or(500)
                 .clamp(1, 2000) as usize;
-            let mut entries =
-                git_history::search(param(&p, "nodeId")?, param(&p, "query")?, hidden, &ignores)
-                    .map_err(RpcError::internal)?;
+            let mut entries = history_host::search(
+                param(&p, "nodeId")?,
+                param(&p, "query")?,
+                hidden,
+                &ignores,
+                host,
+            )
+            .map_err(RpcError::internal)?;
             let truncated = entries.len() > limit;
             entries.truncate(limit);
             Ok(json!({"entries": entries, "truncated": truncated}))

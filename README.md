@@ -25,17 +25,14 @@ Release contract:
 
 Fiex Settings → Plugins reads the catalog from the latest release; there is no manual repository input.
 
-Permissions are limited to `filesystem.read`, `filesystem.write` and `network`. Git requests `github.com`; users can add their own Gitea/GitLab hosts in permission management. `localhost` and loopback addresses are always allowed.
+Permissions are reviewed individually at activation. Installation leaves the plugin disabled. File capabilities are `folders.read`, `folders.create`, `folders.delete`, `folders.rename`, `files.read` and `files.write`. `network` has one exact-host allowlist shared by HTTP and TCP, including localhost and IP literals. Valid ports on an approved host are available to both transports. Revoking a grant disables the plugin.
 
+Native plugin processes have no user-file access, direct network sockets or subprocess execution. Archive and Checksum use the high-level file SDK; WebDAV uses the HTTP SDK; SMB supplies its protocol over the SDK TCP stream. Git logic remains in this repository and invokes the user's PATH Git through the generic Host command runner. Everything similarly requires the optional ES command in PATH instead of contacting native window-message IPC directly.
 The **remote-integration** GitHub Actions job starts actual WebDAV and Samba servers and tests the released binaries' connection validation, directory listings, pagination, unsafe path rejection, and WebDAV file reads. Separate **core-integration** invokes the same optional packages through Fiex's real process host. Core CI does not run these protocol fixtures.
 
 ## Command execution
 
-Plugin processes cannot spawn programs. A plugin that needs Git, ffmpeg or
-another executable requests it in `permissions.commands` and calls the host's
-`host.exec` proxy. The host checks the user's per-command grants, strips the
-environment, blocks shells/paths, and enforces a timeout and output cap. Users
-can add or remove allowed commands under **Settings → Plugins → Permissions**.
+Plugin processes cannot spawn programs. Approved external commands are resolved through the host's PATH and run as the current user outside the plugin sandbox. Plugins supply argument arrays. These commands can access files outside SDK scopes, use the network and start other programs; the activation dialog explains this general risk without plugin-specific warnings. Timeouts and output limits apply, but command approval is an explicit trust decision.
 
 ## Layout
 
@@ -46,3 +43,11 @@ The built single-file HTML is committed as `official/<slug>/ui/dist/index.html`,
 release packaging and CI need no Node.js. After changing UI source run
 `npm ci && npm run build` in that directory and commit `ui/dist`.
 
+
+## Integration ownership
+
+Business-specific host integration fixtures live in `integration/examples`, not
+in the Core repository. Check out the matching Core revision under `core/`, then
+run `cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e`
+and `plugin_optional_e2e` with isolated `FIEX_PLUGIN_DIR` and `XDG_DATA_HOME`.
+Core's own CI uses the standalone SDK mock process.

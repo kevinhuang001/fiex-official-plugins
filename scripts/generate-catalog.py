@@ -31,11 +31,18 @@ def main() -> None:
         manifest_path = Path("official") / slug / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         permissions = []
-        filesystem = manifest.get("permissions", {}).get("filesystem", {})
-        if filesystem.get("read"):
-            permissions.append("filesystem.read")
-        if filesystem.get("write"):
-            permissions.append("filesystem.write")
+        requested = manifest.get("permissions", {})
+        folders = requested.get("folders", {})
+        if folders.get("read", {}).get("enabled"):
+            permissions.append("folders.read")
+        for action in ("create", "delete", "rename"):
+            if folders.get(action) or folders.get("write"):
+                permissions.append("folders." + action)
+        for action in ("read", "write"):
+            if requested.get("files", {}).get(action):
+                permissions.append("files." + action)
+        if requested.get("commands", {}).get("enabled"):
+            permissions.append("commands")
         network = manifest.get("permissions", {}).get("network", {})
         if network.get("enabled"):
             permissions.append("network")

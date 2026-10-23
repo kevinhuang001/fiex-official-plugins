@@ -22,18 +22,19 @@ fn normalize(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-pub fn list(params: &Value) -> Result<Value, String> {
+pub fn list(params: &Value, host: &mut dyn fiex_plugin_sdk::HostServices) -> Result<Value, String> {
     let directory = params
         .get("directory")
         .and_then(Value::as_str)
         .ok_or("missing directory")?;
-    let Some(status) = crate::git::status(directory) else {
+    let Some(status) = crate::git_host::status(directory, host) else {
         return Ok(json!({ "decorations": [] }));
     };
-    let statuses = status
-        .entries
-        .into_iter()
-        .map(|(path, code)| (normalize(&path), code))
+    let statuses = status["entries"]
+        .as_object()
+        .ok_or("invalid status response")?
+        .iter()
+        .filter_map(|(path, code)| code.as_str().map(|code| (normalize(path), code.to_owned())))
         .collect::<std::collections::HashMap<_, _>>();
     let mut decorations = Vec::new();
     if let Some(entries) = params.get("entries").and_then(Value::as_array) {

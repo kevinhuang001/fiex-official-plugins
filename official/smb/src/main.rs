@@ -1,16 +1,10 @@
-//! SMB network protocol adapter. Mount registry, cache and sync owned by host.
+//! SMB protocol implementation. All socket operations are brokered by Core.
+mod transport;
 use fiex_plugin_sdk::{self as sdk, RpcError};
-use futures_util::{pin_mut, StreamExt};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use smb::{GetLen, ReadAt};
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    rc::Rc,
-    str::FromStr,
-};
-use tokio::runtime::Builder;
+use std::{collections::HashMap, str::FromStr};
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,346 +18,212 @@ struct StoredConnection {
     #[serde(default)]
     password: String,
     port: Option<u16>,
-    #[serde(default)]
-    network_domains: Vec<String>,
 }
-struct RemoteFile {
-    name: String,
-    is_dir: bool,
-    size: u64,
-    modified: u64,
+#[derive(Clone)]
+struct ReadStream {
+    connection: StoredConnection,
+    path: String,
 }
-fn remote_join(base: &str, rel: &str) -> String {
-    [base.trim_matches('/'), rel.trim_matches('/')]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-fn trim_host(value: &str) -> String {
-    value
-        .trim()
-        .trim_start_matches('[')
-        .trim_end_matches(']')
-        .to_ascii_lowercase()
-}
-fn is_loopback(host: &str) -> bool {
-    let host = trim_host(host);
-    host == "localhost"
-        || host
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|address| address.is_loopback())
-}
-
-fn safe_relative(value: &str) -> Result<(), RpcError> {
-    if value.starts_with('/')
-        || value
-            .split('/')
-            .any(|p| p == "." || p == ".." || p.contains(['\\', '\0']))
+fn safe_relative(path: &str) -> Result<(), RpcError> {
+    if path.starts_with('/')
+        || path.contains(['\\', '\0'])
+        || path.split('/').any(|p| p == "." || p == "..")
     {
-        return Err(RpcError::invalid_params("invalid node ID"));
+        return Err(RpcError::invalid_params("invalid remote path"));
     }
     Ok(())
 }
-struct ReadStream {
-    // Drop the file/handle before the client connection: SMB close relies on
-    // the client still being alive, and Rust drops struct fields in order.
-    file: smb::File,
-    _client: smb::Client,
-    size: u64,
+fn smb_path(cfg: &StoredConnection, path: &str) -> String {
+    [cfg.base.trim_matches('/'), path.trim_matches('/')]
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("\\")
 }
-type Streams = Rc<RefCell<HashMap<String, ReadStream>>>;
-
-fn dispatch(
-    method: &str,
-    p: Value,
-    rt: &tokio::runtime::Runtime,
-    streams: &Streams,
-    next_stream: &Cell<u64>,
+fn remote(
+    host: sdk::worker::HostProxy,
+    cfg: StoredConnection,
+    path: String,
+    method: String,
+    params: Value,
 ) -> Result<Value, RpcError> {
-    if !matches!(
-        method,
-        "connection.validate"
-            | "fs.list"
-            | "fs.readSmall"
-            | "fs.openRead"
-            | "fs.readStream"
-            | "fs.closeRead"
-    ) {
-        return Err(RpcError::method_not_found(method));
-    }
-    // Stream reads are bound to an already-opened handle and never resend
-    // credentials. Only the methods that initiate a connection parse it.
-    let streaming = matches!(method, "fs.readStream" | "fs.closeRead");
-    let config: StoredConnection = if streaming {
-        StoredConnection::default()
-    } else {
-        serde_json::from_value(
-            p.get("connection")
-                .cloned()
-                .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+    let run = || -> Result<Value, String> {
+        let port = cfg.port.unwrap_or(445);
+        let transport =
+            transport::HostTransport::open(host, &cfg.host, port).map_err(|e| e.to_string())?;
+        let connection = smb::Connection::from_transport(
+            Box::new(transport),
+            &cfg.host,
+            smb::Guid::generate(),
+            smb::ConnectionConfig::default(),
         )
-        .map_err(|e| RpcError::invalid_params(e.to_string()))?
+        .map_err(|e| e.to_string())?;
+        let identity = sspi::AuthIdentity {
+            username: sspi::Username::parse(&cfg.username).map_err(|e| e.to_string())?,
+            password: sspi::Secret::from(cfg.password.clone()),
+        };
+        let session = connection
+            .authenticate(identity)
+            .map_err(|e| e.to_string())?;
+        let unc = smb::UncPath::from_str(&format!("\\\\{}\\{}", cfg.host, cfg.share))
+            .map_err(|e| e.to_string())?;
+        let tree = session.tree_connect(&unc).map_err(|e| e.to_string())?;
+        let path = smb_path(&cfg, &path);
+        let result = if matches!(method.as_str(), "connection.validate" | "fs.list") {
+            let dir = tree
+                .create(
+                    &path,
+                    &smb::FileCreateArgs::make_open_existing(
+                        smb::DirAccessMask::new()
+                            .with_list_directory(true)
+                            .with_synchronize(true)
+                            .into(),
+                    ),
+                )
+                .map_err(|e| e.to_string())?
+                .unwrap_dir();
+            let mut entries = Vec::new();
+            for item in dir
+                .query::<smb::FileFullDirectoryInformation>("*")
+                .map_err(|e| e.to_string())?
+            {
+                let item = item.map_err(|e| e.to_string())?;
+                let name = item.file_name.to_string();
+                if name == "." || name == ".." {
+                    continue;
+                }
+                if entries.len() >= 100000 {
+                    return Err("remote directory too large".into());
+                }
+                let node = if path.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}/{}", path.replace('\\', "/"), name)
+                };
+                entries.push(json!({"nodeId":node,"name":name,"kind":if item.file_attributes.directory(){"directory"}else{"file"},"size":item.end_of_file,"modified":0}));
+            }
+            let _ = dir.close();
+            entries.sort_by_key(|v| v["name"].as_str().unwrap_or("").to_owned());
+            if method == "connection.validate" {
+                json!({"valid":true})
+            } else {
+                let start = params
+                    .get("cursor")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0")
+                    .parse::<usize>()
+                    .map_err(|e| e.to_string())?;
+                if start > entries.len() {
+                    return Err("invalid pagination cursor".into());
+                }
+                let limit = params
+                    .get("limit")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(200)
+                    .clamp(1, 500) as usize;
+                let end = start.saturating_add(limit).min(entries.len());
+                json!({"entries":entries[start..end],"nextCursor":if end<entries.len(){Some(end.to_string())}else{None},"snapshotToken":null,"identityStability":"path"})
+            }
+        } else {
+            let file = tree
+                .create(
+                    &path,
+                    &smb::FileCreateArgs::make_open_existing(
+                        smb::FileAccessMask::new().with_generic_read(true),
+                    ),
+                )
+                .map_err(|e| e.to_string())?
+                .unwrap_file();
+            let total = file.get_len().map_err(|e| e.to_string())?;
+            let result = if method == "fs.openRead" {
+                json!({"size":total})
+            } else {
+                let max = params
+                    .get("maxBytes")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(262144)
+                    .clamp(1, 1048576) as usize;
+                let offset = params.get("offset").and_then(Value::as_u64).unwrap_or(0);
+                let mut bytes = vec![0; max];
+                let read = file
+                    .read_at(&mut bytes, offset)
+                    .map_err(|e| e.to_string())?;
+                bytes.truncate(read);
+                use base64::Engine;
+                json!({"base64":base64::engine::general_purpose::STANDARD.encode(bytes),"length":read,"bytesRead":read,"eof":offset.saturating_add(read as u64)>=total})
+            };
+            let _ = file.close();
+            result
+        };
+        let _ = tree.disconnect();
+        let _ = connection.close();
+        Ok(result)
     };
-    if !streaming {
-        let target = trim_host(&config.host);
-        if !is_loopback(&target)
-            && !config
-                .network_domains
-                .iter()
-                .any(|domain| trim_host(domain) == target)
-        {
-            return Err(RpcError::invalid_params("network domain not granted"));
+    run().map_err(RpcError::internal)
+}
+fn main() {
+    let mut streams: HashMap<String, ReadStream> = HashMap::new();
+    let mut sequence = 0u64;
+    let result = sdk::serve_with_host("org.fiex.smb", move |method, p, host| {
+        if !matches!(
+            method,
+            "connection.validate"
+                | "fs.list"
+                | "fs.readSmall"
+                | "fs.openRead"
+                | "fs.readStream"
+                | "fs.closeRead"
+        ) {
+            return Err(RpcError::method_not_found(method));
         }
-    }
-    let path = p
-        .get("directoryId")
-        .or_else(|| p.get("nodeId"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    safe_relative(path)?;
-    match method {
-        "connection.validate" => {
-            rt.block_on(smb_list(&config, ""))
-                .map_err(RpcError::internal)?;
-            Ok(json!({"valid":true}))
+        let stream_id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
+        if method == "fs.closeRead" {
+            streams.remove(stream_id);
+            return Ok(Value::Null);
         }
-        "fs.list" => {
-            let mut nodes = rt
-                .block_on(smb_list(&config, path))
-                .map_err(RpcError::internal)?;
-            nodes.sort_by(|a, b| a.name.cmp(&b.name));
-            let start = p
-                .get("cursor")
-                .and_then(Value::as_str)
-                .unwrap_or("0")
-                .parse::<usize>()
-                .map_err(|_| RpcError::invalid_params("invalid cursor"))?;
-            if start > nodes.len() {
-                return Err(RpcError::invalid_params("cursor out of range"));
-            }
-            let limit = p
-                .get("limit")
-                .and_then(Value::as_u64)
-                .unwrap_or(200)
-                .clamp(1, 500) as usize;
-            let end = (start + limit).min(nodes.len());
-            let entries=nodes[start..end].iter().map(|f|json!({
-                "nodeId":if path.is_empty(){f.name.clone()}else{format!("{path}/{}",f.name)},
-                "name":f.name,"kind":if f.is_dir{"directory"}else{"file"},
-                "size":f.size,"modified":f.modified
-            })).collect::<Vec<_>>();
-            Ok(
-                json!({"entries":entries,"nextCursor":if end<nodes.len(){Some(end.to_string())}else{None},
-                "snapshotToken":null,"identityStability":"path"}),
-            )
-        }
-        "fs.readSmall" => {
-            if path.is_empty() {
-                return Err(RpcError::invalid_params("missing node ID"));
-            }
-            let max = p
-                .get("maxBytes")
-                .and_then(Value::as_u64)
-                .unwrap_or(262144)
-                .clamp(1, 1048576) as usize;
-            let bytes = rt
-                .block_on(smb_read_small(&config, path, max))
-                .map_err(RpcError::internal)?;
-            use base64::Engine;
-            Ok(json!({
-                "base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
-                "length": bytes.len()
-            }))
-        }
-        "fs.openRead" => {
-            if path.is_empty() {
-                return Err(RpcError::invalid_params("missing node ID"));
-            }
-            let (client, unc) = rt
-                .block_on(smb_client(&config))
-                .map_err(RpcError::internal)?;
-            let smb_path = smb_path(&config, path);
-            let file = rt
-                .block_on(async {
-                    Ok::<_, String>(
-                        client
-                            .create_file(
-                                &unc.with_path(&smb_path),
-                                &smb::FileCreateArgs::make_open_existing(
-                                    smb::FileAccessMask::new().with_generic_read(true),
-                                ),
-                            )
-                            .await
-                            .map_err(|e| e.to_string())?
-                            .unwrap_file(),
-                    )
-                })
-                .map_err(RpcError::internal)?;
-            let size = rt
-                .block_on(file.get_len())
-                .map_err(|e| RpcError::internal(e.to_string()))?;
-            let stream_id = format!("stream-{}", next_stream.get() + 1);
-            next_stream.set(next_stream.get() + 1);
-            streams.borrow_mut().insert(
-                stream_id.clone(),
-                ReadStream {
-                    _client: client,
-                    file,
-                    size,
-                },
-            );
-            Ok(json!({"streamId": stream_id, "size": size}))
-        }
-        "fs.readStream" => {
-            let stream_id = p
-                .get("streamId")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
-            let offset = p
-                .get("offset")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| RpcError::invalid_params("missing offset"))?;
-            let max = p
-                .get("maxBytes")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| RpcError::invalid_params("missing maxBytes"))?;
-            if max == 0 || max > 256 * 1024 {
-                return Err(RpcError::invalid_params("invalid chunk size"));
-            }
-            let streams = streams.borrow();
+        let (cfg, path) = if method == "fs.readStream" {
             let stream = streams
                 .get(stream_id)
                 .ok_or_else(|| RpcError::invalid_params("unknown read stream"))?;
-            let mut bytes = vec![0u8; max as usize];
-            let read = rt
-                .block_on(stream.file.read_at(&mut bytes, offset))
-                .map_err(|e| RpcError::internal(e.to_string()))?;
-            bytes.truncate(read);
-            let eof = stream.size > 0 && offset.saturating_add(read as u64) >= stream.size;
-            use base64::Engine;
-            Ok(
-                json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),
-                "bytesRead":bytes.len(),"eof":eof}),
+            (stream.connection.clone(), stream.path.clone())
+        } else {
+            let cfg: StoredConnection = serde_json::from_value(
+                p.get("connection")
+                    .cloned()
+                    .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
             )
-        }
-        "fs.closeRead" => {
-            let stream_id = p
-                .get("streamId")
+            .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+            let path = p
+                .get("directoryId")
+                .or_else(|| p.get("nodeId"))
                 .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
-            // Dropping the stream releases the SMB handle and its client
-            // connection. The client's Drop spawns a Tokio task, so it must
-            // happen inside the runtime context; the control channel itself
-            // stays responsive because no network round-trip is awaited.
-            let stream = streams.borrow_mut().remove(stream_id);
-            if let Some(stream) = stream {
-                let _guard = rt.enter();
-                drop(stream);
+                .unwrap_or("")
+                .to_owned();
+            safe_relative(&path)?;
+            safe_relative(&cfg.base)?;
+            (cfg, path)
+        };
+        let stored = ReadStream {
+            connection: cfg.clone(),
+            path: path.clone(),
+        };
+        let method_owned = method.to_owned();
+        let mut value = sdk::worker::with_host_worker(host, move |proxy| {
+            remote(proxy, cfg, path, method_owned, p)
+        })?;
+        if method == "fs.openRead" {
+            if streams.len() >= 32 {
+                return Err(RpcError::internal("too many read streams"));
             }
-            Ok(Value::Null)
+            sequence += 1;
+            let id = format!("smb-read-{sequence}");
+            streams.insert(id.clone(), stored);
+            value["streamId"] = json!(id);
         }
-        _ => Err(RpcError::method_not_found(method)),
-    }
-}
-fn main() {
-    let rt = Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("SMB runtime");
-    let streams: Streams = Rc::new(RefCell::new(HashMap::new()));
-    let next_stream = Cell::new(0u64);
-    if let Err(e) = sdk::serve("org.fiex.smb", move |method, params| {
-        dispatch(method, params, &rt, &streams, &next_stream)
-    }) {
-        eprintln!("SMB plugin IPC error: {e}");
+        Ok(value)
+    });
+    if let Err(error) = result {
+        eprintln!("SMB plugin IPC failed: {error}");
         std::process::exit(1);
     }
-}
-
-async fn smb_client(conn: &StoredConnection) -> Result<(smb::Client, smb::UncPath), String> {
-    let mut config = smb::ClientConfig::default();
-    if let Some(port) = conn.port {
-        config.connection.port = Some(port);
-    }
-    let client = smb::Client::new(config);
-    let unc = smb::UncPath::from_str(&format!("\\\\{}\\{}", conn.host, conn.share))
-        .map_err(|e| e.to_string())?;
-    client
-        .share_connect(&unc, &conn.username, conn.password.clone())
-        .await
-        .map_err(|e| format!("SMB 连接失败：{e}"))?;
-    Ok((client, unc))
-}
-
-fn smb_path(conn: &StoredConnection, rel: &str) -> String {
-    let joined = remote_join(&conn.base, rel).replace('/', "\\");
-    joined.trim_matches('\\').to_string()
-}
-
-async fn smb_list(conn: &StoredConnection, rel: &str) -> Result<Vec<RemoteFile>, String> {
-    let (client, unc) = smb_client(conn).await?;
-    let path = smb_path(conn, rel);
-    let target = if path.is_empty() {
-        unc.clone()
-    } else {
-        unc.with_path(&path)
-    };
-    let dir = client
-        .create_file(
-            &target,
-            &smb::FileCreateArgs::make_open_existing(
-                smb::DirAccessMask::new()
-                    .with_list_directory(true)
-                    .with_synchronize(true)
-                    .into(),
-            ),
-        )
-        .await
-        .map_err(|e| e.to_string())?
-        .unwrap_dir();
-    let dir = std::sync::Arc::new(dir);
-    let stream =
-        smb::Directory::query_with_options::<smb::FileFullDirectoryInformation>(&dir, "*", 65536)
-            .await
-            .map_err(|e| e.to_string())?;
-    pin_mut!(stream);
-    let mut out = Vec::new();
-    while let Some(item) = stream.next().await {
-        let item = item.map_err(|e| e.to_string())?;
-        let name = item.file_name.to_string();
-        if name == "." || name == ".." {
-            continue;
-        }
-        out.push(RemoteFile {
-            name,
-            is_dir: item.file_attributes.directory(),
-            size: item.end_of_file,
-            modified: 0,
-        });
-    }
-    let _ = dir.close().await;
-    Ok(out)
-}
-
-/// Return at most max bytes. Preview content never escapes the plugin process
-/// as a raw host filesystem path.
-async fn smb_read_small(conn: &StoredConnection, rel: &str, max: usize) -> Result<Vec<u8>, String> {
-    let (client, unc) = smb_client(conn).await?;
-    let path = smb_path(conn, rel);
-    let file = client
-        .create_file(
-            &unc.with_path(&path),
-            &smb::FileCreateArgs::make_open_existing(
-                smb::FileAccessMask::new().with_generic_read(true),
-            ),
-        )
-        .await
-        .map_err(|e| e.to_string())?
-        .unwrap_file();
-    let mut bytes = vec![0u8; max];
-    let result = file.read_at(&mut bytes, 0).await.map_err(|e| e.to_string());
-    let _ = file.close().await;
-    bytes.truncate(result?);
-    Ok(bytes)
 }

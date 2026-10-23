@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -11,148 +11,156 @@ import {
   Minus,
   Plus,
   RefreshCw,
-} from 'lucide-react'
-import { FiexUiClient } from '../../../../sdk/ui/src/index'
+} from "lucide-react";
+import { FiexUiClient } from "../../../../sdk/ui/src/index";
 
 interface StatusEntry {
-  path: string
-  code: string
+  path: string;
+  code: string;
 }
 interface Status {
-  root: string
-  branch: string
-  entries: Record<string, string>
+  root: string;
+  branch: string;
+  entries: Record<string, string>;
 }
 interface Refs {
-  head: string
-  current: string
-  branches: string[]
-  tags: string[]
+  head: string;
+  current: string;
+  branches: string[];
+  tags: string[];
 }
 interface Commit {
-  id: string
-  shortId: string
-  subject: string
-  author: string
-  timestamp: number
-  refs: string
+  id: string;
+  shortId: string;
+  subject: string;
+  author: string;
+  timestamp: number;
+  refs: string;
 }
 interface Identity {
-  name: string
-  email: string
+  name: string;
+  email: string;
 }
 interface RemoteStatus {
-  remotes: { name: string; url: string }[]
-  branch: string
-  upstream: string
-  ahead: number
-  behind: number
+  remotes: { name: string; url: string }[];
+  branch: string;
+  upstream: string;
+  ahead: number;
+  behind: number;
 }
 interface Context {
-  directoryPath?: string
-  selectionPaths?: string[]
-  directory?: { nodeId: string }
+  directoryPath?: string;
+  selectionPaths?: string[];
+  directory?: { nodeId: string };
 }
 
-const client = new FiexUiClient()
+const client = new FiexUiClient();
 const changed = (code: string) => {
-  if (code === '??') return { letter: 'U', label: '未跟踪', staged: false, unstaged: true }
-  const index = code[0] ?? ' '
-  const work = code[1] ?? ' '
-  const staged = index !== ' ' && index !== '?'
-  const unstaged = work !== ' ' && work !== '?'
+  if (code === "??")
+    return { letter: "U", label: "未跟踪", staged: false, unstaged: true };
+  const index = code[0] ?? " ";
+  const work = code[1] ?? " ";
+  const staged = index !== " " && index !== "?";
+  const unstaged = work !== " " && work !== "?";
   const names: Record<string, string> = {
-    M: '修改',
-    A: '新增',
-    D: '删除',
-    R: '重命名',
-    C: '复制',
-    T: '类型变更',
-    U: '冲突',
-  }
-  const letter = unstaged ? work : index
-  if (letter === ' ') return null
-  const name = names[letter] ?? letter
+    M: "修改",
+    A: "新增",
+    D: "删除",
+    R: "重命名",
+    C: "复制",
+    T: "类型变更",
+    U: "冲突",
+  };
+  const letter = unstaged ? work : index;
+  if (letter === " ") return null;
+  const name = names[letter] ?? letter;
   return {
     letter,
-    label: staged && unstaged ? `已暂存并${name}` : staged ? `已暂存${name}` : `未暂存${name}`,
+    label:
+      staged && unstaged
+        ? `已暂存并${name}`
+        : staged
+          ? `已暂存${name}`
+          : `未暂存${name}`,
     staged,
     unstaged,
-  }
-}
+  };
+};
 
 export function App() {
-  const [context, setContext] = useState<Context>({})
-  const [status, setStatus] = useState<Status | null>(null)
-  const [refs, setRefs] = useState<Refs | null>(null)
-  const [history, setHistory] = useState<Commit[]>([])
-  const [identity, setIdentity] = useState<Identity>({ name: '', email: '' })
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [remote, setRemote] = useState<RemoteStatus | null>(null)
-  const [remoteOpen, setRemoteOpen] = useState(false)
-  const [remoteName, setRemoteName] = useState('origin')
-  const [remoteUrl, setRemoteUrl] = useState('')
+  const [context, setContext] = useState<Context>({});
+  const [status, setStatus] = useState<Status | null>(null);
+  const [refs, setRefs] = useState<Refs | null>(null);
+  const [history, setHistory] = useState<Commit[]>([]);
+  const [identity, setIdentity] = useState<Identity>({ name: "", email: "" });
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [remote, setRemote] = useState<RemoteStatus | null>(null);
+  const [remoteOpen, setRemoteOpen] = useState(false);
+  const [remoteName, setRemoteName] = useState("origin");
+  const [remoteUrl, setRemoteUrl] = useState("");
 
   const git = useCallback(
     <T,>(method: string, params: Record<string, unknown> = {}) =>
-      client.invoke<T>('plugin.invoke', { method, params }),
+      client.invoke<T>("plugin.invoke", { method, params }),
     [],
-  )
-  const root = context.directoryPath || ''
+  );
+  const root = context.directoryPath || "";
 
   const load = useCallback(async () => {
-    if (!root) return
-    setBusy(true)
-    setError('')
+    if (!root) return;
+    setBusy(true);
+    setError("");
     try {
-      const next = await git<Status | null>('git.status', { root })
-      setStatus(next)
+      const next = await git<Status | null>("git.status", { root });
+      setStatus(next);
       if (next) {
-        const [nextRefs, nextHistory, nextIdentity, nextRemote] = await Promise.all([
-          git<Refs>('git.refs', { root }),
-          git<Commit[]>('git.history', { root, skip: 0 }),
-          git<Identity>('git.identity', { root }),
-          git<RemoteStatus>('git.remoteStatus', { root }),
-        ])
-        setRefs(nextRefs)
-        setHistory(nextHistory)
-        setIdentity(nextIdentity)
-        setRemote(nextRemote)
+        const [nextRefs, nextHistory, nextIdentity, nextRemote] =
+          await Promise.all([
+            git<Refs>("git.refs", { root }),
+            git<Commit[]>("git.history", { root, skip: 0 }),
+            git<Identity>("git.identity", { root }),
+            git<RemoteStatus>("git.remoteStatus", { root }),
+          ]);
+        setRefs(nextRefs);
+        setHistory(nextHistory);
+        setIdentity(nextIdentity);
+        setRemote(nextRemote);
         if (nextRemote.remotes.length) {
           setRemoteName((old) =>
             nextRemote.remotes.some((item) => item.name === old)
               ? old
               : nextRemote.remotes[0].name,
-          )
+          );
           setRemoteUrl(
             (old) =>
               old ||
-              nextRemote.remotes.find((item) => item.name === remoteName)?.url ||
+              nextRemote.remotes.find((item) => item.name === remoteName)
+                ?.url ||
               nextRemote.remotes[0].url,
-          )
+          );
         }
       }
     } catch (cause) {
-      setError(String(cause))
+      setError(String(cause));
     } finally {
-      setBusy(false)
-      setLoaded(true)
+      setBusy(false);
+      setLoaded(true);
     }
-  }, [git, root])
+  }, [git, root]);
 
   useEffect(() => {
     void client
-      .invoke<Context>('context.get')
+      .invoke<Context>("context.get")
       .then((next) => setContext(next))
-      .catch((cause) => setError(String(cause)))
-  }, [])
+      .catch((cause) => setError(String(cause)));
+  }, []);
   useEffect(() => {
-    if (root) void load()
-  }, [root, load])
+    if (root) void load();
+  }, [root, load]);
 
   const changes = useMemo(
     () =>
@@ -160,110 +168,131 @@ export function App() {
         ? Object.entries(status.entries)
             .sort(([a], [b]) => a.localeCompare(b))
             .flatMap(([path, code]) => {
-              const state = changed(code)
-              return state ? [{ path, code, ...state }] : []
+              const state = changed(code);
+              return state ? [{ path, code, ...state }] : [];
             })
         : [],
     [status],
-  )
-  const staged = changes.filter((item) => item.staged)
-  const unstaged = changes.filter((item) => item.unstaged)
+  );
+  const staged = changes.filter((item) => item.staged);
+  const unstaged = changes.filter((item) => item.unstaged);
   const run = async (action: () => Promise<unknown>) => {
-    setBusy(true)
-    setError('')
+    setBusy(true);
+    setError("");
     try {
-      await action()
-      await load()
+      await action();
+      await load();
     } catch (cause) {
-      setError(String(cause))
+      setError(String(cause));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
   const runTask = async (
     title: string,
     detail: string,
     action: (taskId: string) => Promise<string | void>,
+    indeterminate = false,
   ) => {
-    const task = await client.tasks.create(title, { detail })
-    setBusy(true)
-    setError('')
+    const task = indeterminate
+      ? await client.tasks.spinner(title, { detail })
+      : await client.tasks.create(title, { detail });
+    setBusy(true);
+    setError("");
     try {
-      const result = await action(task.taskId)
+      const result = await action(task.taskId);
       await client.tasks.finish(task.taskId, {
-        detail: typeof result === 'string' ? result : undefined,
-      })
-      await load()
+        detail: typeof result === "string" ? result : undefined,
+      });
+      await load();
     } catch (cause) {
-      await client.tasks.finish(task.taskId, { error: String(cause) })
-      setError(String(cause))
+      await client.tasks.finish(task.taskId, { error: String(cause) });
+      setError(String(cause));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
   const toggle = (items: StatusEntry[], staged: boolean) => {
-    const paths = items.map((item) => item.path)
-    if (!paths.length) return
+    const paths = items.map((item) => item.path);
+    if (!paths.length) return;
     void run(() =>
-      git(staged ? 'git.unstage' : 'git.stage', { root, paths, all: false }),
-    )
-  }
+      git(staged ? "git.unstage" : "git.stage", { root, paths, all: false }),
+    );
+  };
   const commit = () => {
-    if (!message.trim()) return
-    void runTask('提交更改', message.split('\n')[0], async (taskId) => {
-      await client.tasks.update(taskId, { step: '写入提交' })
-      const hash = await git<string>('git.commit', {
-        root,
-        message,
-        name: identity.name,
-        email: identity.email,
-      })
-      setMessage('')
-      return `已提交 ${hash}`
-    })
-  }
+    if (!message.trim()) return;
+    void runTask(
+      "提交更改",
+      message.split("\n")[0],
+      async (taskId) => {
+        await client.tasks.update(taskId, { step: "写入提交" });
+        const hash = await git<string>("git.commit", {
+          root,
+          message,
+          name: identity.name,
+          email: identity.email,
+        });
+        setMessage("");
+        return `已提交 ${hash}`;
+      },
+      true,
+    );
+  };
   const init = () =>
-    void runTask('初始化 Git 仓库', root, async (taskId) => {
-      await client.tasks.update(taskId, { step: '创建 .git' })
-      await git('git.init', { root })
-      return '仓库已创建'
-    })
+    void runTask(
+      "初始化 Git 仓库",
+      root,
+      async (taskId) => {
+        await client.tasks.update(taskId, { step: "创建 .git" });
+        await git("git.init", { root });
+        return "仓库已创建";
+      },
+      true,
+    );
   const saveRemote = () => {
-    if (!remoteName.trim() || !remoteUrl.trim()) return
+    if (!remoteName.trim() || !remoteUrl.trim()) return;
     void run(async () => {
-      await git('git.remoteSave', {
+      await git("git.remoteSave", {
         root,
         name: remoteName.trim(),
         url: remoteUrl.trim(),
-      })
-    })
-  }
+      });
+    });
+  };
   const sync = (push: boolean) =>
     void runTask(
-      push ? '推送分支' : '拉取分支',
-      `${remoteName}/${remote?.branch || '当前分支'}`,
+      push ? "推送分支" : "拉取分支",
+      `${remoteName}/${remote?.branch || "当前分支"}`,
       async (taskId) => {
-        if (!remoteName.trim()) throw new Error('请先配置远程仓库')
-        await client.tasks.update(taskId, { step: '连接远程仓库', progress: 0.25 })
-        await git('git.remoteSync', {
+        if (!remoteName.trim()) throw new Error("请先配置远程仓库");
+        await client.tasks.update(taskId, {
+          step: "连接远程仓库",
+          progress: 0.25,
+        });
+        await git("git.remoteSync", {
           root,
           remote: remoteName,
           push,
           branch: remote?.branch || undefined,
-        })
-        await client.tasks.update(taskId, { step: '更新本地状态', progress: 0.9 })
-        return push ? '推送完成' : '拉取完成'
+        });
+        await client.tasks.update(taskId, {
+          step: "更新本地状态",
+          progress: 0.9,
+        });
+        return push ? "推送完成" : "拉取完成";
       },
-    )
+    );
   const openRoot = () => {
-    void client.invoke('navigation.open', { path: root }).then(() => client.invoke('panel.close'))
-  }
+    void client
+      .invoke("navigation.open", { path: root })
+      .then(() => client.invoke("panel.close"));
+  };
   const openCommit = (commit: Commit) => {
-    void git<string>('git.browse', { root, reference: commit.id })
-      .then((path) => client.invoke('navigation.open', { path }))
-      .then(() => client.invoke('panel.close'))
-      .catch((cause) => setError(String(cause)))
-  }
+    void git<string>("git.browse", { root, reference: commit.id })
+      .then((path) => client.invoke("navigation.open", { path }))
+      .then(() => client.invoke("panel.close"))
+      .catch((cause) => setError(String(cause)));
+  };
 
   return (
     <div className="app">
@@ -271,7 +300,7 @@ export function App() {
         <GitBranch size={15} />
         {refs && <span className="branch">{refs.current}</span>}
         <button aria-label="刷新" onClick={() => void load()} disabled={busy}>
-          <RefreshCw size={15} className={busy ? 'spin' : ''} />
+          <RefreshCw size={15} className={busy ? "spin" : ""} />
         </button>
       </div>
 
@@ -307,7 +336,7 @@ export function App() {
                 <li key={item.path}>
                   <span className="letter">{item.letter}</span>
                   <span className="path" title={item.path}>
-                    {item.path.split('/').pop()}
+                    {item.path.split("/").pop()}
                   </span>
                   <button
                     aria-label={`取消暂存 ${item.path}`}
@@ -340,7 +369,7 @@ export function App() {
                 <li key={item.path}>
                   <span className="letter">{item.letter}</span>
                   <span className="path" title={item.path}>
-                    {item.path.split('/').pop()}
+                    {item.path.split("/").pop()}
                   </span>
                   <button
                     aria-label={`暂存 ${item.path}`}
@@ -361,13 +390,17 @@ export function App() {
                 aria-label="提交者姓名"
                 value={identity.name}
                 placeholder="姓名"
-                onChange={(event) => setIdentity({ ...identity, name: event.target.value })}
+                onChange={(event) =>
+                  setIdentity({ ...identity, name: event.target.value })
+                }
               />
               <input
                 aria-label="提交者邮箱"
                 value={identity.email}
                 placeholder="邮箱"
-                onChange={(event) => setIdentity({ ...identity, email: event.target.value })}
+                onChange={(event) =>
+                  setIdentity({ ...identity, email: event.target.value })
+                }
               />
             </div>
             <textarea
@@ -382,18 +415,25 @@ export function App() {
               disabled={busy || !message.trim() || !staged.length}
               onClick={commit}
             >
-              {busy ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}
-              提交 {staged.length ? `(${staged.length})` : ''}
+              {busy ? (
+                <LoaderCircle size={14} className="spin" />
+              ) : (
+                <Check size={14} />
+              )}
+              提交 {staged.length ? `(${staged.length})` : ""}
             </button>
           </section>
 
           <section className="history">
             <div className="history-head">
-              <button className="section-title toggle" onClick={() => setHistoryOpen(!historyOpen)}>
+              <button
+                className="section-title toggle"
+                onClick={() => setHistoryOpen(!historyOpen)}
+              >
                 <span>
                   <GitCommitHorizontal size={14} /> 历史
                 </span>
-                <ChevronDown size={14} className={historyOpen ? 'open' : ''} />
+                <ChevronDown size={14} className={historyOpen ? "open" : ""} />
               </button>
               <button title="返回工作区" onClick={openRoot}>
                 工作区
@@ -403,7 +443,10 @@ export function App() {
               <ul>
                 {history.map((commit) => (
                   <li key={commit.id}>
-                    <button className="commit-row" onClick={() => openCommit(commit)}>
+                    <button
+                      className="commit-row"
+                      onClick={() => openCommit(commit)}
+                    >
                       <span className="hash">{commit.shortId}</span>
                       <span className="path" title={commit.subject}>
                         {commit.subject}
@@ -424,7 +467,7 @@ export function App() {
                 <Cloud size={14} /> 远程
                 {remote?.remotes.length ? <b>{remote.remotes.length}</b> : null}
               </span>
-              <ChevronDown size={14} className={remoteOpen ? 'open' : ''} />
+              <ChevronDown size={14} className={remoteOpen ? "open" : ""} />
             </button>
             {remoteOpen && (
               <div className="remote-editor">
@@ -433,10 +476,12 @@ export function App() {
                     aria-label="远程仓库"
                     value={remoteName}
                     onChange={(event) => {
-                      setRemoteName(event.target.value)
+                      setRemoteName(event.target.value);
                       setRemoteUrl(
-                        remote.remotes.find((item) => item.name === event.target.value)?.url || '',
-                      )
+                        remote.remotes.find(
+                          (item) => item.name === event.target.value,
+                        )?.url || "",
+                      );
                     }}
                   >
                     {remote.remotes.map((item) => (
@@ -458,22 +503,32 @@ export function App() {
                   placeholder="https://github.com/..."
                   onChange={(event) => setRemoteUrl(event.target.value)}
                 />
-                <button className="primary" disabled={busy} onClick={saveRemote}>
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={saveRemote}
+                >
                   保存远程
                 </button>
                 <div className="remote-actions">
-                  <button disabled={busy || !remoteName} onClick={() => sync(false)}>
+                  <button
+                    disabled={busy || !remoteName}
+                    onClick={() => sync(false)}
+                  >
                     <CloudDownload size={14} /> 拉取
                   </button>
-                  <button disabled={busy || !remoteName} onClick={() => sync(true)}>
+                  <button
+                    disabled={busy || !remoteName}
+                    onClick={() => sync(true)}
+                  >
                     <CloudUpload size={14} /> 推送
                   </button>
                 </div>
                 {remote?.upstream && (
                   <small>
                     {remote.upstream}
-                    {remote.ahead ? ` · 领先 ${remote.ahead}` : ''}
-                    {remote.behind ? ` · 落后 ${remote.behind}` : ''}
+                    {remote.ahead ? ` · 领先 ${remote.ahead}` : ""}
+                    {remote.behind ? ` · 落后 ${remote.behind}` : ""}
                   </small>
                 )}
               </div>
@@ -482,5 +537,5 @@ export function App() {
         </>
       )}
     </div>
-  )
+  );
 }

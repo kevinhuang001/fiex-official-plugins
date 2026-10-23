@@ -728,3 +728,16 @@ button.primary:hover:not(:disabled) {
   height: 34px;
   margin-top: 2px;
 }
+.git-history-item.active {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.git-head-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--panel-bg);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

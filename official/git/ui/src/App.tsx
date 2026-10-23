@@ -523,28 +523,37 @@ export function App() {
             </header>
             <div className="git-history-list">
               {!history.length && <p className="git-panel-empty">暂无提交记录</p>}
-              {history.map((item) => (
-                <button
-                  key={item.id}
-                  className="git-history-item"
-                  disabled={busy}
-                  onClick={() => {
-                    setPickerOpen(false)
-                    openCommit(item.id)
-                  }}
-                >
-                  <span className="git-history-marker">
-                    <GitCommitHorizontal size={17} />
-                  </span>
-                  <span>
-                    <strong>{item.subject}</strong>
-                    <small>
-                      {item.author} · {new Date(item.timestamp * 1000).toLocaleString('zh-CN')}
-                    </small>
-                    <code>{item.shortId}</code>
-                  </span>
-                </button>
-              ))}
+              {history.map((item) => {
+                const current =
+                  item.id === refs?.head ||
+                  item.shortId === refs?.head ||
+                  Boolean(refs?.head?.startsWith(item.shortId))
+                return (
+                  <button
+                    key={item.id}
+                    className={`git-history-item${current ? ' active' : ''}`}
+                    disabled={busy}
+                    onClick={() => {
+                      setPickerOpen(false)
+                      openCommit(item.id)
+                    }}
+                  >
+                    <span className="git-history-marker">
+                      <GitCommitHorizontal size={17} />
+                    </span>
+                    <span>
+                      <strong>{item.subject}</strong>
+                      <small>
+                        {item.author} · {new Date(item.timestamp * 1000).toLocaleString('zh-CN')}
+                      </small>
+                      <code>
+                        {item.shortId}
+                        {current && <span className="git-head-badge">当前</span>}
+                      </code>
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>

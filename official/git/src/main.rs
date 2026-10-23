@@ -3,6 +3,7 @@ mod decorations;
 mod files;
 mod git;
 mod git_history;
+mod git_host;
 mod git_remote;
 mod ignores;
 
@@ -44,28 +45,31 @@ fn response<T: serde::Serialize>(result: Result<T, String>) -> Result<Value, Rpc
     serde_json::to_value(result.map_err(RpcError::internal)?)
         .map_err(|e| RpcError::internal(e.to_string()))
 }
-fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
+fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
     let root = || param(&p, "root");
     match method {
-        "git.status" => Ok(json!(git::status(root()?))),
-        "git.init" => response(git::init(root()?)),
-        "git.refs" => response(git::refs(root()?)),
-        "git.identity" => response(Ok(git::identity(root()?))),
-        "git.stage" => response(git::stage(
+        "git.status" => Ok(json!(git_host::status(root()?, host))),
+        "git.init" => response(git_host::init(root()?, host)),
+        "git.refs" => response(git_host::refs(root()?, host)),
+        "git.identity" => response(git_host::identity(root()?, host)),
+        "git.stage" => response(git_host::stage(
             root()?,
             &string_list(&p, "paths")?,
             p.get("all").and_then(Value::as_bool).unwrap_or(false),
+            host,
         )),
-        "git.unstage" => response(git::unstage(
+        "git.unstage" => response(git_host::unstage(
             root()?,
             &string_list(&p, "paths")?,
             p.get("all").and_then(Value::as_bool).unwrap_or(false),
+            host,
         )),
-        "git.commit" => response(git::commit(
+        "git.commit" => response(git_host::commit(
             root()?,
             param(&p, "message")?,
             param(&p, "name")?,
             param(&p, "email")?,
+            host,
         )),
         "git.history" => response(git_history::history(
             root()?,
@@ -191,7 +195,7 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.git", dispatch) {
+    if let Err(e) = sdk::serve_with_host("org.fiex.git", dispatch) {
         eprintln!("Git plugin IPC error: {e}");
         std::process::exit(1);
     }

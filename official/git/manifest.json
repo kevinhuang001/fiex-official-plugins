@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.git",
   "name": "Git",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "源代码管理、提交历史、远程仓库与只读历史浏览。",
   "icon": "git-branch",
   "author": {
@@ -56,6 +56,14 @@
         "type": "number",
         "defaultValue": "50"
       }
-    ]
+    ],
+    "decorations": {
+      "mode": "dynamic",
+      "method": "decorations.list",
+      "priority": 50,
+      "scope": {
+        "marker": ".git"
+      }
+    }
   }
 }

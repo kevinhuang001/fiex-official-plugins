@@ -234,6 +234,44 @@ pub fn extract(
     fs::rename(root, &dest).map_err(|e| e.to_string())?;
     Ok(dest.to_string_lossy().into_owned())
 }
+/// Default archive path used by the one-click “压缩” context action.
+pub fn default_destination(paths: &[String], format: &str) -> Result<String, String> {
+    let extension = match format {
+        "zip" => "zip",
+        "rar" => "rar",
+        "7z" => "7z",
+        "tar" => "tar",
+        "tar.gz" => "tar.gz",
+        "tar.bz2" => "tar.bz2",
+        "tar.xz" => "tar.xz",
+        _ => return Err("不支持的压缩格式".into()),
+    };
+    let first = Path::new(paths.first().ok_or("请先选择文件")?);
+    let parent = first.parent().ok_or("没有父文件夹")?;
+    let stem = if paths.len() == 1 {
+        first
+            .file_stem()
+            .or_else(|| first.file_name())
+            .ok_or("无效文件名")?
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        "Archive".into()
+    };
+    for sequence in 0..1000 {
+        let name = if sequence == 0 {
+            format!("{stem}.{extension}")
+        } else {
+            format!("{stem} {}.{}", sequence + 1, extension)
+        };
+        let candidate = parent.join(name);
+        if fs::symlink_metadata(&candidate).is_err() {
+            return Ok(candidate.to_string_lossy().into_owned());
+        }
+    }
+    Err("无法生成不冲突的压缩包名称".into())
+}
+
 pub fn compress(
     paths: &[String],
     destination: &str,
@@ -655,6 +693,19 @@ mod tests {
         .is_err());
         assert!(!t.path().join("escaped.txt").exists());
         assert_eq!(fs::read_dir(t.path()).unwrap().count(), 1);
+    }
+    #[test]
+    fn default_destination_is_unique_and_uses_first_name() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("Report");
+        std::fs::create_dir(&source).unwrap();
+        let first =
+            default_destination(&[source.to_string_lossy().into_owned()], "tar.gz").unwrap();
+        assert!(first.ends_with("Report.tar.gz"));
+        std::fs::write(&first, b"existing").unwrap();
+        let second =
+            default_destination(&[source.to_string_lossy().into_owned()], "tar.gz").unwrap();
+        assert!(second.ends_with("Report 2.tar.gz"));
     }
     #[test]
     fn rar_compress_and_extract() {

@@ -1,7 +1,15 @@
+# Fiex plugins 0.2.4
+
+- Archive uses separate first-level context entries: “压缩”, “解压缩”, and “高级”; “压缩到…” lives inside “高级”.
+- Compression defaults to a unique archive name in the current folder; extraction defaults to the current folder.
+- Compression formats are shown only for non-archive selections, extraction only for archive files. Long nested format menus flip upward to stay inside the window.
+- Official panels no longer render title/close headers; Core provides the icon, title and close button.
+
 # Fiex plugins 0.2.3
 
 - Archive is context-menu only: compress, extract and advanced compression no longer appear as a toolbar tool.
-- All official plugin versions are 0.2.3; package and UI versions match.
+- All official plugin versions are 0.2.4; package and UI versions match.
+- Git declares dynamic file decorations for status badges; Archive declares static format badges. Checksum does not participate in decorations.
 - Official plugin panels no longer render their own title/close header; the Core iframe supplies icon, title and close.
 
 # Fiex plugins 0.2.2

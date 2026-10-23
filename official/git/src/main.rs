@@ -1,4 +1,5 @@
 //! Fiex Git plugin runs as an independent process; never links to Fiex Core.
+mod decorations;
 mod files;
 mod git;
 mod git_history;
@@ -93,6 +94,7 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
             &domain_list(&p),
         )),
         "git.remoteRemove" => response(git_remote::remove(root()?, param(&p, "name")?)),
+        "decorations.list" => decorations::list(&p).map_err(RpcError::internal),
         "git.remoteSync" => response(git_remote::sync(
             root()?,
             param(&p, "remote")?,

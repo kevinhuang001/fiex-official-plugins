@@ -34,10 +34,17 @@ fn run(method: &str, p: Value) -> Result<Value, RpcError> {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
+            let format = param(&p, "format")?;
+            let destination = match p.get("destination").and_then(Value::as_str) {
+                Some(value) => value.to_owned(),
+                None => {
+                    archives::default_destination(&paths, format).map_err(RpcError::internal)?
+                }
+            };
             let result = archives::compress(
                 &paths,
-                param(&p, "destination")?,
-                param(&p, "format")?,
+                &destination,
+                format,
                 &ignores,
                 p.get("level").and_then(Value::as_u64).map(|n| n as u32),
                 p.get("password").and_then(Value::as_str),

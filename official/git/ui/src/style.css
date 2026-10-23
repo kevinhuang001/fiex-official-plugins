@@ -226,6 +226,7 @@ li:hover button {
 .history-head > button:last-child {
   font-size: 10px;
   color: #387ca8;
+  white-space: nowrap;
 }
 .commit-row {
   flex: 1;
@@ -273,4 +274,14 @@ li:hover button {
 .remote-editor small {
   color: #98a3ad;
   font-size: 10px;
+}
+.repo-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 10px;
+  color: #7d8792;
+}
+.repo-line > button {
+  margin-left: auto;
 }

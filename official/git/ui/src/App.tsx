@@ -11,7 +11,6 @@ import {
   Minus,
   Plus,
   RefreshCw,
-  X,
 } from 'lucide-react'
 import { FiexUiClient } from '../../../../sdk/ui/src/index'
 
@@ -268,19 +267,13 @@ export function App() {
 
   return (
     <div className="app">
-      <header>
-        <div className="brand">
-          <GitBranch size={17} />
-          <strong>源代码管理</strong>
-          {refs && <span className="branch">{refs.current}</span>}
-        </div>
+      <div className="repo-line">
+        <GitBranch size={15} />
+        {refs && <span className="branch">{refs.current}</span>}
         <button aria-label="刷新" onClick={() => void load()} disabled={busy}>
           <RefreshCw size={15} className={busy ? 'spin' : ''} />
         </button>
-        <button aria-label="关闭" onClick={() => void client.invoke('panel.close')}>
-          <X size={16} />
-        </button>
-      </header>
+      </div>
 
       {error && <div className="error">{error}</div>}
       {!root && loaded && <p className="hint">当前没有可用的文件夹。</p>}

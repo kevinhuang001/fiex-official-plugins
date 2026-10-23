@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Hash, LoaderCircle, X } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import { FiexUiClient } from '../../../../sdk/ui/src/index'
 
 interface Context {
@@ -60,15 +60,6 @@ export function App() {
 
   return (
     <div className="app">
-      <header>
-        <div>
-          <Hash size={17} />
-          <strong>校验和</strong>
-        </div>
-        <button aria-label="关闭" onClick={() => void client.invoke('panel.close')}>
-          <X size={16} />
-        </button>
-      </header>
       {error && <div className="error">{error}</div>}
       {busy && (
         <p className="hint">

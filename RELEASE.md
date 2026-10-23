@@ -1,3 +1,9 @@
+# Fiex plugins 0.2.3
+
+- Archive is context-menu only: compress, extract and advanced compression no longer appear as a toolbar tool.
+- All official plugin versions are 0.2.3; package and UI versions match.
+- Official plugin panels no longer render their own title/close header; the Core iframe supplies icon, title and close.
+
 # Fiex plugins 0.2.2
 
 - Every released package is signed with the publisher Ed25519 key. Core verifies the manifest signature and every file digest.

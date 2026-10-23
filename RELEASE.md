@@ -1,3 +1,10 @@
+# Fiex plugins 0.2.8
+
+- New GPG plugin: right-click 加密 / 解密 / 签名 / 验证签名, plus a toolbar key manager. It drives the system GnuPG; private-key passphrases stay in pinentry.
+- New Vista Aero and Windows 11 theme packages. A theme is a declarative token set with no executable, iframe or permissions.
+- Official panels follow the host theme tokens and size themselves to their content.
+- Archive’s advanced-compression panel opens from its submenu entry again (requires Fiex 0.4.9).
+
 # Fiex plugins 0.2.7
 
 - Archive and Checksum wait for the bridge context before rendering their empty-selection hints, removing the “请选择…” flash when the panel opens.

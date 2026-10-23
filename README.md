@@ -2,7 +2,7 @@
 
 > License: GPL-3.0-or-later. These plugins are optional; nothing is bundled with Fiex.
 
-Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, OpenList, Office preview, Archive, Checksum and the Windows Everything search provider.
+Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, OpenList, Office preview, SQLite viewer, Archive, Checksum and the Windows Everything search provider.
 
 **No plugins ship inside the Fiex application.** All plugins, including these official examples, require the user to download, install and approve the declared permissions. Publishing here grants no special trust.
 
@@ -20,7 +20,7 @@ Release contract:
 
 - `fiex-catalog.json` — app-store catalog (`id`, `name`, `permissions`, `networkDomains`, per-platform assets).
 - `<slug>-<platform>.fiexplugin` — one package per plugin/platform.
-- `slug`: `git | webdav | smb | openlist | office-preview | archive | checksum | everything | gpg | vista | win11`.
+- `slug`: `git | webdav | smb | openlist | office-preview | sqlite-preview | archive | checksum | everything | gpg | vista | win11`.
 - `platform`: `linux-x86_64 | macos-aarch64 | macos-x86_64 | windows-x86_64`.
 
 Fiex Settings → Plugins reads the catalog from the latest release; there is no manual repository input.

@@ -15,12 +15,13 @@ PLATFORMS = [
     "macos-x86_64",
     "windows-x86_64",
 ]
-SLUGS = ["git", "webdav", "smb", "openlist", "office-preview", "archive", "checksum", "everything", "gpg", "vista", "win11"]
+SLUGS = ["git", "webdav", "smb", "openlist", "office-preview", "sqlite-preview", "archive", "checksum", "everything", "gpg", "vista", "win11"]
 DESCRIPTIONS = {
     "git": "源代码管理、提交历史、远程仓库与只读历史浏览。",
     "webdav": "通过独立进程连接 WebDAV 服务器，目录按需读取。",
     "openlist": "通过 OpenList 原生 API 连接服务器，账号密码在插件设置中配置。",
     "office-preview": "Word、Excel、PowerPoint 的只读预览（文本级）。",
+    "sqlite-preview": "只读浏览 SQLite：表、字段、索引、外键与数据，支持分页排序。",
     "smb": "通过独立进程连接 SMB / NAS 共享。",
     "archive": "压缩与解压 ZIP、7z、TAR 等格式。",
     "checksum": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",

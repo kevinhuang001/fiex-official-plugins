@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SQLite 查看器</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1d2430;
+        --muted: #6b7684;
+        --surface: #ffffff;
+        --canvas: #f6f7f9;
+        --hover: rgba(20, 30, 45, 0.06);
+        --line: rgba(20, 30, 45, 0.12);
+        --accent: #2f6fed;
+        --danger: #b4443d;
+        font: 12px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body { margin: 0; display: flex; color: var(--text); background: var(--surface); overflow: hidden; }
+      aside {
+        width: 190px; flex: 0 0 auto; display: flex; flex-direction: column;
+        border-right: 1px solid var(--line); background: var(--canvas); min-height: 0;
+      }
+      .search { padding: 8px; border-bottom: 1px solid var(--line); }
+      .search input {
+        width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+        background: var(--surface); color: var(--text); font: inherit; outline: none;
+      }
+      .search input:focus { border-color: var(--accent); }
+      .tables { flex: 1; overflow: auto; padding: 4px; }
+      .table-row {
+        display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 7px;
+        border: 0; border-radius: 5px; background: transparent; color: var(--text);
+        font: inherit; text-align: left; cursor: pointer;
+      }
+      .table-row:hover { background: var(--hover); }
+      .table-row[aria-selected="true"] { background: var(--hover); color: var(--accent); font-weight: 600; }
+      .table-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .badge {
+        flex: 0 0 auto; padding: 0 4px; border-radius: 3px; border: 1px solid var(--line);
+        color: var(--muted); font-size: 9px; font-weight: 500; text-transform: uppercase;
+      }
+      main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+      .head {
+        display: flex; align-items: center; gap: 10px; padding: 7px 12px;
+        border-bottom: 1px solid var(--line); min-height: 38px;
+      }
+      .head strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .head .muted { color: var(--muted); }
+      .tabs { display: flex; gap: 2px; margin-left: auto; }
+      .tabs button {
+        border: 0; background: transparent; color: var(--muted); font: inherit;
+        padding: 4px 9px; border-radius: 5px; cursor: pointer;
+      }
+      .tabs button[aria-selected="true"] { background: var(--hover); color: var(--text); font-weight: 600; }
+      .grid-host { flex: 1; overflow: auto; min-height: 0; }
+      table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 11px; }
+      th, td {
+        border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+        padding: 4px 8px; text-align: left; vertical-align: top; white-space: nowrap;
+        max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+      }
+      thead th {
+        position: sticky; top: 0; z-index: 1; background: var(--canvas);
+        font-weight: 600; cursor: pointer; user-select: none;
+      }
+      thead th .type { display: block; color: var(--muted); font-weight: 400; font-size: 9px; }
+      thead th[data-sort] { color: var(--accent); }
+      tbody tr:hover td { background: var(--hover); }
+      td.null { color: var(--muted); font-style: italic; }
+      td.blob { color: var(--muted); }
+      td.number { text-align: right; font-variant-numeric: tabular-nums; }
+      .pager {
+        display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+        border-top: 1px solid var(--line); color: var(--muted); font-size: 11px;
+      }
+      .pager button {
+        border: 1px solid var(--line); background: var(--surface); color: var(--text);
+        border-radius: 5px; padding: 2px 8px; font: inherit; cursor: pointer;
+      }
+      .pager button:disabled { opacity: 0.45; cursor: default; }
+      .pager select {
+        border: 1px solid var(--line); background: var(--surface); color: var(--text);
+        border-radius: 5px; padding: 2px 4px; font: inherit;
+      }
+      .pager[hidden] { display: none; }
+      .pager .grow { flex: 1; }
+      .hint { color: var(--muted); padding: 24px; text-align: center; }
+      .error { color: var(--danger); white-space: pre-wrap; padding: 16px; }
+      .schema { padding: 12px 14px; display: grid; gap: 14px; align-content: start; }
+      .schema h3 { margin: 0 0 6px; font-size: 11px; color: var(--muted); font-weight: 600; }
+      .schema table { width: 100%; }
+      .schema td, .schema th { white-space: normal; max-width: none; }
+      .pk { color: var(--accent); font-weight: 600; }
+      .empty-side { color: var(--muted); padding: 10px; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <div class="search"><input id="filter" type="search" placeholder="筛选表…" aria-label="筛选表" /></div>
+      <div class="tables" id="tables"><p class="empty-side">正在读取…</p></div>
+    </aside>
+    <main>
+      <div class="head">
+        <strong id="title">未选择表</strong>
+        <span class="muted" id="summary"></span>
+        <div class="tabs">
+          <button id="data-tab" type="button" aria-selected="true">数据</button>
+          <button id="schema-tab" type="button" aria-selected="false">结构</button>
+        </div>
+      </div>
+      <div class="grid-host" id="content"><p class="hint">选择左侧的表查看内容。</p></div>
+      <div class="pager" id="pager" hidden>
+        <button id="prev" type="button">上一页</button>
+        <span id="page-info"></span>
+        <button id="next" type="button">下一页</button>
+        <span class="grow"></span>
+        <label>每页
+          <select id="page-size">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </label>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const tablesHost = document.getElementById('tables')
+        const content = document.getElementById('content')
+        const title = document.getElementById('title')
+        const summary = document.getElementById('summary')
+        const pager = document.getElementById('pager')
+        const pageInfo = document.getElementById('page-info')
+        const prev = document.getElementById('prev')
+        const next = document.getElementById('next')
+        const pageSize = document.getElementById('page-size')
+        const filter = document.getElementById('filter')
+        const dataTab = document.getElementById('data-tab')
+        const schemaTab = document.getElementById('schema-tab')
+
+        let port = null
+        let sessionId = ''
+        let nonce = ''
+        let seq = 0
+        let path = ''
+        let tables = []
+        let selected = ''
+        let tab = 'data'
+        let rows = []
+        let columns = []
+        let total = 0
+        let offset = 0
+        let limit = 100
+        let order = null
+        let descending = false
+        const pending = new Map()
+
+        const setToken = (tokens) => {
+          for (const [key, value] of Object.entries(tokens || {})) {
+            if (key === 'mode' || !value) continue
+            document.documentElement.style.setProperty(`--${key}`, value)
+          }
+        }
+        const invoke = (method, params) =>
+          new Promise((resolve, reject) => {
+            if (!port) return reject(new Error('bridge not ready'))
+            const requestId = `sqlite-${++seq}`
+            const timer = setTimeout(() => {
+              pending.delete(requestId)
+              reject(new Error('请求超时'))
+            }, 20000)
+            pending.set(requestId, { resolve, reject, timer })
+            port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
+          })
+
+        const fail = (error) => {
+          content.innerHTML = ''
+          const line = document.createElement('p')
+          line.className = 'error'
+          line.textContent = String(error?.message || error)
+          content.append(line)
+        }
+
+        const renderTables = () => {
+          const query = filter.value.trim().toLowerCase()
+          const visible = tables.filter((table) => table.name.toLowerCase().includes(query))
+          tablesHost.innerHTML = ''
+          if (!visible.length) {
+            tablesHost.innerHTML = '<p class="empty-side">没有匹配的表。</p>'
+            return
+          }
+          for (const table of visible) {
+            const button = document.createElement('button')
+            button.type = 'button'
+            button.className = 'table-row'
+            button.setAttribute('aria-selected', String(table.name === selected))
+            const badge = document.createElement('span')
+            badge.className = 'badge'
+            badge.textContent = table.type === 'view' ? 'V' : 'T'
+            const label = document.createElement('span')
+            label.textContent = table.name
+            button.append(badge, label)
+            button.addEventListener('click', () => select(table.name))
+            tablesHost.append(button)
+          }
+        }
+
+        const cell = (value, column) => {
+          const td = document.createElement('td')
+          if (value === null) {
+            td.className = 'null'
+            td.textContent = 'NULL'
+          } else if (typeof value === 'object' && value.blob !== undefined) {
+            td.className = 'blob'
+            td.textContent = `BLOB (${value.blob} bytes)`
+          } else if (typeof value === 'number') {
+            td.className = 'number'
+            td.textContent = String(value)
+          } else {
+            td.textContent = String(value)
+            td.title = String(value)
+          }
+          td.dataset.column = column
+          return td
+        }
+
+        const renderData = () => {
+          content.innerHTML = ''
+          if (!selected) {
+            content.innerHTML = '<p class="hint">选择左侧的表查看内容。</p>'
+            return
+          }
+          if (!rows.length) {
+            content.innerHTML = '<p class="hint">这张表没有数据。</p>'
+            return
+          }
+          const table = document.createElement('table')
+          const head = document.createElement('thead')
+          const headRow = document.createElement('tr')
+          for (const column of columns) {
+            const th = document.createElement('th')
+            th.textContent = column.name
+            const type = document.createElement('span')
+            type.className = 'type'
+            type.textContent = column.type || 'ANY'
+            th.append(type)
+            if (order === column.name) th.dataset.sort = descending ? 'desc' : 'asc'
+            th.addEventListener('click', () => {
+              if (order === column.name) descending = !descending
+              else {
+                order = column.name
+                descending = false
+              }
+              void loadTable()
+            })
+            headRow.append(th)
+          }
+          head.append(headRow)
+          table.append(head)
+          const body = document.createElement('tbody')
+          for (const row of rows) {
+            const tr = document.createElement('tr')
+            row.forEach((value, index) => tr.append(cell(value, columns[index]?.name || '')))
+            body.append(tr)
+          }
+          table.append(body)
+          content.append(table)
+        }
+
+        const renderSchema = () => {
+          content.innerHTML = ''
+          const wrap = document.createElement('div')
+          wrap.className = 'schema'
+          for (const entry of buildSchema()) {
+            const section = document.createElement('section')
+            const heading = document.createElement('h3')
+            heading.textContent = entry.title
+            section.append(heading)
+            const table = document.createElement('table')
+            const head = document.createElement('thead')
+            const headRow = document.createElement('tr')
+            for (const name of entry.columns) {
+              const th = document.createElement('th')
+              th.textContent = name
+              headRow.append(th)
+            }
+            head.append(headRow)
+            table.append(head)
+            const body = document.createElement('tbody')
+            for (const row of entry.rows) {
+              const tr = document.createElement('tr')
+              for (const value of row) {
+                const td = document.createElement('td')
+                if (value === true) {
+                  td.className = 'pk'
+                  td.textContent = '✓'
+                } else if (value === false || value === null || value === undefined) {
+                  td.textContent = '—'
+                } else {
+                  td.textContent = String(value)
+                }
+                tr.append(td)
+              }
+              body.append(tr)
+            }
+            table.append(body)
+            section.append(table)
+            wrap.append(section)
+          }
+          content.append(wrap)
+        }
+
+        const buildSchema = () => [
+          {
+            title: '字段',
+            columns: ['名称', '类型', '非空', '默认值', '主键'],
+            rows: columns.map((column) => [
+              column.name,
+              column.type || 'ANY',
+              column.notNull ? '是' : '否',
+              column.default,
+              column.primaryKey,
+            ]),
+          },
+          {
+            title: '索引',
+            columns: ['名称', '唯一', '来源', '字段'],
+            rows: (current.indexes || []).map((index) => [
+              index.name,
+              index.unique ? '是' : '否',
+              index.origin || '',
+              (index.columns || []).join(', '),
+            ]),
+          },
+          {
+            title: '外键',
+            columns: ['字段', '引用表', '引用字段'],
+            rows: (current.foreignKeys || []).map((key) => [key.from, key.table, key.to || '']),
+          },
+        ]
+
+        let current = {}
+
+        const paint = () => {
+          dataTab.setAttribute('aria-selected', String(tab === 'data'))
+          schemaTab.setAttribute('aria-selected', String(tab === 'schema'))
+          summary.textContent = selected
+            ? `${total.toLocaleString()} 行 · ${columns.length} 列`
+            : ''
+          pager.hidden = tab !== 'data' || !selected
+          const pages = Math.max(1, Math.ceil(total / limit))
+          pageInfo.textContent = `第 ${Math.floor(offset / limit) + 1} / ${pages} 页`
+          prev.disabled = offset <= 0
+          next.disabled = offset + limit >= total
+          if (tab === 'schema') renderSchema()
+          else renderData()
+        }
+
+        const loadTable = async () => {
+          if (!selected) return
+          try {
+            const value = await invoke('plugin.invoke', {
+              method: 'sqlite.table',
+              params: { path, table: selected, limit, offset, order, descending },
+            })
+            current = value || {}
+            columns = current.columns || []
+            rows = current.rows || []
+            total = current.total || 0
+            title.textContent = selected
+            paint()
+          } catch (error) {
+            fail(error)
+          }
+        }
+
+        const select = (name) => {
+          selected = name
+          offset = 0
+          order = null
+          descending = false
+          title.textContent = name
+          renderTables()
+          void loadTable()
+        }
+
+        const start = async () => {
+          try {
+            setToken((await invoke('theme.get')).tokens)
+            const context = await invoke('context.get')
+            path = context.preview?.path || ''
+            if (!path) return fail(new Error('没有文件上下文'))
+            const value = await invoke('plugin.invoke', { method: 'sqlite.open', params: { path } })
+            tables = value?.tables || []
+            renderTables()
+            if (tables.length) select(tables[0].name)
+            else content.innerHTML = '<p class="hint">数据库里没有表。</p>'
+          } catch (error) {
+            fail(error)
+          }
+        }
+
+        filter.addEventListener('input', renderTables)
+        dataTab.addEventListener('click', () => {
+          tab = 'data'
+          paint()
+        })
+        schemaTab.addEventListener('click', () => {
+          tab = 'schema'
+          paint()
+        })
+        prev.addEventListener('click', () => {
+          offset = Math.max(0, offset - limit)
+          void loadTable()
+        })
+        next.addEventListener('click', () => {
+          offset += limit
+          void loadTable()
+        })
+        pageSize.addEventListener('change', () => {
+          limit = Number(pageSize.value) || 100
+          offset = 0
+          void loadTable()
+        })
+
+        window.addEventListener('message', (event) => {
+          if (event.source !== window.parent) return
+          const data = event.data
+          if (!data || data.type !== 'fiex.bridge.init' || event.ports.length !== 1) return
+          port = event.ports[0]
+          sessionId = data.sessionId
+          nonce = data.nonce
+          port.onmessage = (message) => {
+            const payload = message.data
+            if (payload?.type === 'response' && payload.requestId) {
+              const entry = pending.get(payload.requestId)
+              if (!entry) return
+              pending.delete(payload.requestId)
+              clearTimeout(entry.timer)
+              if (payload.error) entry.reject(new Error(payload.error.message || '请求失败'))
+              else entry.resolve(payload.result)
+              return
+            }
+            if (payload?.type === 'event' && payload.name === 'theme.changed')
+              setToken(payload.payload?.tokens)
+          }
+          port.start()
+          port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
+          start()
+        })
+        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+      })()
+    </script>
+  </body>
+</html>

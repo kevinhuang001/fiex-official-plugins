@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "org.fiex.sqlite-preview",
+  "name": "SQLite 查看器",
+  "version": "0.2.9",
+  "description": "只读浏览 SQLite 数据库：表、字段、索引、外键与表数据，支持分页和排序。",
+  "icon": "database",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-sqlite-preview.exe",
+      "macos-aarch64": "fiex-plugin-sqlite-preview",
+      "macos-x86_64": "fiex-plugin-sqlite-preview",
+      "linux-x86_64": "fiex-plugin-sqlite-preview"
+    }
+  },
+  "permissions": {
+    "folders": {
+      "read": {
+        "enabled": false
+      },
+      "create": false,
+      "delete": false,
+      "rename": false
+    },
+    "files": {
+      "read": true,
+      "write": false
+    },
+    "network": {
+      "enabled": false,
+      "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
+    }
+  },
+  "contributions": {
+    "preview": [
+      {
+        "id": "sqlite",
+        "title": "SQLite 查看器",
+        "extensions": [
+          "db",
+          "sqlite",
+          "sqlite3"
+        ],
+        "priority": 100,
+        "maxBytes": 268435456,
+        "panel": {
+          "entry": "ui/index.html",
+          "title": "SQLite 查看器",
+          "defaultSize": {
+            "width": 720,
+            "height": 640
+          }
+        }
+      }
+    ]
+  }
+}

@@ -273,6 +273,127 @@ mod tests {
         assert!(full.windows(2).any(|w| w == ["--trust-model", "always"]));
     }
     #[test]
+    fn encrypt_arguments_are_complete_and_ordered() {
+        let fpr = "A".repeat(40);
+        let args = args(
+            "gpg.encrypt",
+            &json!({"input":"in.txt","output":"out.gpg","fingerprint":fpr}),
+        )
+        .unwrap();
+        assert!(args.contains(&"--batch".to_string()));
+        assert!(args.contains(&"--no-tty".to_string()));
+        assert!(args.contains(&"--status-fd=2".to_string()));
+        assert!(args.windows(2).any(|w| w == ["--output", "out.gpg"]));
+        assert!(args.windows(2).any(|w| w == ["--recipient", fpr.as_str()]));
+        let encrypt = args.iter().position(|a| a == "--encrypt").unwrap();
+        let separator = args.iter().position(|a| a == "--").unwrap();
+        assert!(
+            encrypt < separator,
+            "options must precede the operand separator"
+        );
+        assert_eq!(&args[separator + 1..], &["in.txt"]);
+    }
+
+    #[test]
+    fn decrypt_never_requests_armor_even_if_asked() {
+        let args = args(
+            "gpg.decrypt",
+            &json!({"input":"in.gpg","output":"out","armor":true}),
+        )
+        .unwrap();
+        assert!(!args.contains(&"--armor".to_string()));
+        assert!(args.windows(2).any(|w| w == ["--output", "out"]));
+        assert_eq!(&args[args.len() - 2..], &["--", "in.gpg"]);
+    }
+
+    #[test]
+    fn signing_uses_the_selected_identity_and_optional_armor() {
+        let fpr = "B".repeat(40);
+        let plain = args(
+            "gpg.sign",
+            &json!({"input":"a","output":"a.sig","fingerprint":fpr}),
+        )
+        .unwrap();
+        assert!(plain
+            .windows(2)
+            .any(|w| w == ["--local-user", fpr.as_str()]));
+        assert!(plain.contains(&"--detach-sign".to_string()));
+        assert!(!plain.contains(&"--armor".to_string()));
+        let armored = args(
+            "gpg.sign",
+            &json!({"input":"a","output":"a.sig.asc","fingerprint":fpr,"armor":true}),
+        )
+        .unwrap();
+        assert!(armored.contains(&"--armor".to_string()));
+    }
+
+    #[test]
+    fn export_and_import_use_the_operand_separator() {
+        let fpr = "C".repeat(40);
+        let export = args(
+            "gpg.export",
+            &json!({"output":"pub.asc","fingerprint":fpr,"armor":true}),
+        )
+        .unwrap();
+        let separator = export.iter().position(|a| a == "--").unwrap();
+        assert_eq!(&export[separator + 1..], &[fpr.as_str()]);
+        let import = args("gpg.import", &json!({"input":"pub.asc"})).unwrap();
+        assert_eq!(&import[import.len() - 2..], &["--", "pub.asc"]);
+        let verify = args("gpg.verify", &json!({"signature":"a.sig","input":"a"})).unwrap();
+        assert_eq!(&verify[verify.len() - 3..], &["--", "a.sig", "a"]);
+        let info = args("gpg.info", &json!({})).unwrap();
+        assert!(info.contains(&"--version".to_string()));
+    }
+
+    #[test]
+    fn fingerprints_must_be_full_and_hexadecimal() {
+        let not_hex = "Z".repeat(40);
+        for bad in ["", "ABCDEF", "--recipient", not_hex.as_str()] {
+            assert!(
+                args(
+                    "gpg.encrypt",
+                    &json!({"input":"a","output":"b","fingerprint":bad})
+                )
+                .is_err(),
+                "fingerprint must be rejected: {bad:?}"
+            );
+        }
+        let hex = "0123456789abcdef".repeat(4);
+        for len in [40usize, 64] {
+            let fpr = &hex[..len];
+            assert!(args(
+                "gpg.encrypt",
+                &json!({"input":"a","output":"b","fingerprint":fpr})
+            )
+            .is_ok());
+        }
+    }
+
+    #[test]
+    fn failures_keep_the_last_human_line_and_stay_short() {
+        let status = "[GNUPG:] ERROR scdaemon 1\n[GNUPG:] FAILURE sign 1234\ngpg: signing failed: No secret key\ngpg: processing message failed\n";
+        assert_eq!(failure(status), "gpg: processing message failed");
+        assert!(!failure(status).contains("[GNUPG:]"));
+        let long = "x".repeat(400);
+        assert_eq!(failure(&long).chars().count(), 240);
+    }
+
+    #[test]
+    fn keys_skip_subkeys_and_orphans_and_keep_every_primary() {
+        let list = "pub:u:4096:1:AAAA0000AAAA0000:1:2::u:::scESC:::::::\nfpr:::::::::1111111111111111111111111111111111111111:\nuid:u::::1::H::First <a@x>::::::::::0:\nsub:u:4096:1:BBBB1111BBBB1111:1::::::e::::::\nfpr:::::::::2222222222222222222222222222222222222222:\npub:u:2048:1:CCCC2222CCCC2222:1:2::u:::scESC:::::::\nfpr:::::::::3333333333333333333333333333333333333333:\nuid:u::::1::H::Second <b@x>::::::::::0:\n";
+        let parsed = keys(list);
+        assert_eq!(parsed.len(), 2, "{parsed:?}");
+        assert_eq!(
+            parsed[0]["fingerprint"],
+            "1111111111111111111111111111111111111111"
+        );
+        assert_eq!(parsed[1]["email"], "b@x");
+        assert!(parsed
+            .iter()
+            .all(|k| k["fingerprint"] != "2222222222222222222222222222222222222222"));
+    }
+
+    #[test]
     fn parses_primary_keys_and_their_identity() {
         let list = "pub:u:4096:1:ABCDEF0123456789:1700000000:1800000000::u:::scESC:::::::\nfpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:\nuid:u::::1700000000::HASH::Ada Lovelace <ada@example.org>::::::::::0:\nsub:u:4096:1:1111222233334444:1700000000::::::e::::::\nfpr:::::::::9999888877776666555544443333222211110000:\n";
         let parsed = keys(list);

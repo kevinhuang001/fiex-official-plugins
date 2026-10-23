@@ -203,7 +203,7 @@
               "entry": "ui/dist/index.html",
               "title": "高级压缩",
               "defaultSize": {
-                "width": 460,
+                "width": 400,
                 "height": 420
               }
             }

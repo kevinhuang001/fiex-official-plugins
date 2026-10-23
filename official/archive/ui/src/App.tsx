@@ -138,7 +138,7 @@ export function App() {
     const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
     const gap = parseFloat(style.rowGap || style.gap) || 12
     const height = Math.ceil(padding + content.scrollHeight + gap + footer.offsetHeight)
-    void client.invoke('panel.resize', { width: 460, height: Math.max(260, height) }).catch(() => {})
+    void client.invoke('panel.resize', { width: 400, height: Math.max(260, height) }).catch(() => {})
   }, [paths, format, password, error, done, ready])
 
   const pickDestination = async () => {

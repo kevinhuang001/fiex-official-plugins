@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use git2::{
     build::CheckoutBuilder, IndexAddOption, Repository, RepositoryInitOptions, Status,
     StatusOptions,

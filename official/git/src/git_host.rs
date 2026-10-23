@@ -64,7 +64,7 @@ pub fn init(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
     status(root, host).ok_or("仓库已创建，但无法读取状态".into())
 }
 
-pub fn refs(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn refs(_root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
     let current = run(host, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     let head = run(host, &["rev-parse", "--short=7", "HEAD"]).unwrap_or_default();
     let branches = run(host, &["branch", "--format=%(refname:short)"])?

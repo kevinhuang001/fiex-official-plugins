@@ -235,9 +235,7 @@ export function App() {
 
       {selected.levelMax > 0 && (
         <div className="archive-field">
-          <span className="archive-label">
-            压缩级别 <b>{level}</b>
-          </span>
+          <span className="archive-label">压缩级别</span>
           <div className="archive-levels" role="radiogroup" aria-label="压缩级别">
             {Array.from({ length: selected.levelMax + 1 }, (_, value) => (
               <button

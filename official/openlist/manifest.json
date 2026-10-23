@@ -45,17 +45,18 @@
       {
         "id": "openlist",
         "title": "OpenList",
-        "fields": []
+        "fields": [
+          {
+            "id": "url",
+            "label": "服务器地址",
+            "type": "url",
+            "required": true,
+            "placeholder": "https://openlist.example.com"
+          }
+        ]
       }
     ],
     "settings": [
-      {
-        "id": "url",
-        "label": "服务器地址",
-        "type": "url",
-        "required": true,
-        "placeholder": "https://openlist.example.com"
-      },
       {
         "id": "username",
         "label": "用户名",

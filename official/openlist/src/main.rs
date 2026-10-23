@@ -40,8 +40,23 @@ fn text(value: Option<Value>) -> String {
         .to_string()
 }
 
-fn config(host: &mut dyn sdk::HostServices) -> Result<Config, RpcError> {
-    let url = text(stored(host, "url")).trim_end_matches('/').to_string();
+fn config(
+    host: &mut dyn sdk::HostServices,
+    connection: Option<&Value>,
+) -> Result<Config, RpcError> {
+    // The connection owns the server address so Core can approve exactly that
+    // host; the account itself comes from the plugin settings.
+    let from_connection = connection
+        .and_then(|value| value.get("url"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let url = if from_connection.trim().is_empty() {
+        text(stored(host, "url"))
+    } else {
+        from_connection.trim().to_string()
+    }
+    .trim_end_matches('/')
+    .to_string();
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(RpcError::internal("请在插件设置中填写 http(s) 服务器地址"));
     }
@@ -278,7 +293,7 @@ fn dispatch(
         state.reads.borrow_mut().remove(id);
         return Ok(Value::Null);
     }
-    let cfg = config(host)?;
+    let cfg = config(host, p.get("connection"))?;
     match method {
         "connection.validate" | "fs.list" => {
             let directory = p

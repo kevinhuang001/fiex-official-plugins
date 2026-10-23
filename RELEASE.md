@@ -1,6 +1,6 @@
 # Fiex plugins 0.2.8
 
-- New OpenList plugin: native API client (login, directory listing, file reads) with the account configured in the plugin settings, not WebDAV.
+- New OpenList plugin: native API client (login, directory listing, file reads), not WebDAV. The server address is a connection (so Core approves exactly that host); username, password and timeout live in the plugin settings.
 - Archive's ignore lists use the new list setting type: rows with add/remove instead of a comma-separated field.
 - New GPG plugin: right-click 加密 / 解密 / 签名 / 验证签名, plus a toolbar key manager. It drives the system GnuPG; private-key passphrases stay in pinentry.
 - New Vista Aero and Windows 11 theme packages. A theme is a declarative token set with no executable, iframe or permissions.

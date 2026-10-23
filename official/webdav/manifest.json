@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.webdav",
   "name": "WebDAV",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "通过独立进程连接 WebDAV 服务器，目录按需读取。",
   "icon": "cloud",
   "author": {

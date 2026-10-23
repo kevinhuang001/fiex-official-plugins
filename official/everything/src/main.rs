@@ -144,7 +144,9 @@ fn dispatch(method: &str, p: Value) -> Result<Value, RpcError> {
 }
 
 fn main() {
-    if let Err(error) = sdk::serve("org.fiex.everything", dispatch) {
+    if let Err(error) = sdk::serve_with_manifest(
+        "org.fiex.everything",
+        include_str!("../manifest.json"), dispatch) {
         eprintln!("Everything search plugin failed: {error}");
         std::process::exit(1);
     }

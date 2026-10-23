@@ -1,3 +1,9 @@
+# Fiex plugins 0.2.1
+
+- Every official plugin embeds its manifest with `include_str!` and returns it on `plugin.initialize`; Core verifies the embedded copy against the installed package.
+- The plugin package still carries `manifest.json` because Core must validate permissions and locate the executable before spawning anything; the embedded copy prevents a shipped binary from being paired with a different manifest later.
+- All plugins report 0.2.1. Git, Archive and Checksum keep their React single-file panels.
+
 # Fiex plugins 0.2.0
 
 - All six plugins report version 0.2.0.

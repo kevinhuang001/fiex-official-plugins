@@ -272,7 +272,9 @@ fn dispatch(
 fn main() {
     let streams: Streams = Rc::new(RefCell::new(HashMap::new()));
     let next_stream = Cell::new(0u64);
-    if let Err(e) = sdk::serve("org.fiex.webdav", move |method, params| {
+    if let Err(e) = sdk::serve_with_manifest(
+        "org.fiex.webdav",
+        include_str!("../manifest.json"), move |method, params| {
         dispatch(method, params, &streams, &next_stream)
     }) {
         eprintln!("WebDAV plugin IPC failed: {e}");

@@ -38,7 +38,6 @@ function FormatSelect({
   hero?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const [up, setUp] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
@@ -57,11 +56,7 @@ function FormatSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="压缩格式"
-        onClick={() => {
-          const rect = root.current?.getBoundingClientRect()
-          setUp(Boolean(rect && rect.bottom + 200 > window.innerHeight - 8))
-          setOpen(!open)
-        }}
+        onClick={() => setOpen(!open)}
       >
         {hero && (
           <span className="format-hero-icon">
@@ -74,11 +69,7 @@ function FormatSelect({
         <ChevronDown size={14} className={open ? 'open' : ''} />
       </button>
       {open && (
-        <div
-          className={`format-menu${up ? ' open-up' : ''}`}
-          role="listbox"
-          aria-label="压缩格式"
-        >
+        <div className="format-menu" role="listbox" aria-label="压缩格式">
           {formats.map((entry) => (
             <button
               type="button"
@@ -139,16 +130,17 @@ export function App() {
   useEffect(() => {
     const app = document.querySelector('.app') as HTMLElement | null
     if (!app) return
-    const height = Math.max(250, Math.ceil(app.scrollHeight))
+    const height = Math.max(320, Math.ceil(app.scrollHeight))
     void client.invoke('panel.resize', { width: 460, height }).catch(() => {})
   }, [paths, format, password, error, done, ready])
 
   const pickDestination = async () => {
     setError('')
     try {
-      const picked = await client.invoke<string | null>('dialog.saveFile', {
+      const picked = await client.dialog.saveFile({
         suggestedName: `${base}.${selected.ext}`,
         extensions: [selected.ext.split('.').pop() || 'zip'],
+        directory: directory || undefined,
       })
       if (picked) {
         setDestination(picked)

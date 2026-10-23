@@ -95,6 +95,7 @@ function FormatSelect({
 }
 
 export function App() {
+  const appRef = useRef<HTMLDivElement>(null)
   const [paths, setPaths] = useState<string[]>([])
   const [directory, setDirectory] = useState('')
   const [ready, setReady] = useState(false)
@@ -129,10 +130,15 @@ export function App() {
     setLevel((current) => Math.min(current, selected.levelMax))
   }, [selected.levelMax])
   useEffect(() => {
-    const app = document.querySelector('.app') as HTMLElement | null
-    if (!app) return
-    const height = Math.max(320, Math.ceil(app.scrollHeight))
-    void client.invoke('panel.resize', { width: 460, height }).catch(() => {})
+    const app = appRef.current
+    const content = app?.querySelector('.archive-content') as HTMLElement | null
+    const footer = app?.querySelector('footer') as HTMLElement | null
+    if (!app || !content || !footer) return
+    const style = getComputedStyle(app)
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+    const gap = parseFloat(style.rowGap || style.gap) || 12
+    const height = Math.ceil(padding + content.scrollHeight + gap + footer.offsetHeight)
+    void client.invoke('panel.resize', { width: 460, height: Math.max(260, height) }).catch(() => {})
   }, [paths, format, password, error, done, ready])
 
   const pickDestination = async () => {
@@ -204,8 +210,9 @@ export function App() {
   }
 
   return (
-    <div className="app">
-      <FormatSelect
+    <div className="app" ref={appRef}>
+      <div className="archive-content">
+        <FormatSelect
         hero
         value={format}
         onChange={(next) => {
@@ -262,18 +269,19 @@ export function App() {
         </label>
       )}
 
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={compressAll}
-        className={`archive-check${compressAll ? ' checked' : ''}`}
-        onClick={() => setCompressAll(!compressAll)}
-      >
-        <span className="archive-check-box">{compressAll && <Check size={12} />}</span>
-        全部压缩
-      </button>
-      {error && <div className="error">{error}</div>}
-      {done && <div className="done">已创建 {done}</div>}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={compressAll}
+          className={`archive-check${compressAll ? ' checked' : ''}`}
+          onClick={() => setCompressAll(!compressAll)}
+        >
+          <span className="archive-check-box">{compressAll && <Check size={12} />}</span>
+          全部压缩
+        </button>
+        {error && <div className="error">{error}</div>}
+        {done && <div className="done">已创建 {done}</div>}
+      </div>
       <footer>
         <button onClick={() => void client.invoke('panel.close')}>取消</button>
         <button className="primary" disabled={busy} onClick={() => void compress()}>

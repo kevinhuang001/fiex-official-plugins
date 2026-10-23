@@ -402,3 +402,18 @@ footer button.archive-all:hover:not(:disabled) {
 .archive-check.checked {
   color: var(--panel-text);
 }
+html,
+body {
+  height: 100%;
+}
+.app {
+  min-height: 100vh;
+}
+.archive-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+footer {
+  margin-top: auto;
+}

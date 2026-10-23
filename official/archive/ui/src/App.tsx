@@ -142,7 +142,7 @@ export function App() {
     const app = document.querySelector('.app') as HTMLElement | null
     if (!app) return
     const height = Math.max(250, Math.ceil(app.scrollHeight))
-    void client.invoke('panel.resize', { width: 520, height }).catch(() => {})
+    void client.invoke('panel.resize', { width: 460, height }).catch(() => {})
   }, [paths, format, password, error, done, ready])
 
   const pickDestination = async () => {

@@ -22,18 +22,21 @@ def main():
     manifest_path=root/"manifest.json"
     manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
     entry=manifest.get("runtime",{}).get("entrypoints",{}).get(platform)
-    if not entry:
+    theme = bool(manifest.get("contributions", {}).get("themes"))
+    if not entry and not theme:
         print("Skipping",args.slug,"for",platform,"(no entrypoint)")
         return
-    if Path(entry).name!=entry:parser.error("invalid plugin entrypoint")
-    binary=Path(args.target_dir)/args.target/"release"/entry
-    if not binary.is_file():parser.error("missing compiled binary: "+str(binary))
+    if entry and Path(entry).name!=entry:parser.error("invalid plugin entrypoint")
+    binary=Path(args.target_dir)/args.target/"release"/entry if entry else None
+    if binary and not binary.is_file():parser.error("missing compiled binary: "+str(binary))
     output=Path(args.output)
     output.mkdir(parents=True,exist_ok=True)
     archive_path=output/(args.slug+"-"+platform+".fiexplugin")
     with zipfile.ZipFile(archive_path,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         archive.write(manifest_path,"manifest.json")
-        archive.write(binary,entry)
+        if binary: archive.write(binary,entry)
+        for contribution in manifest.get("contributions", {}).get("themes", []):
+            archive.write(root/contribution["path"], contribution["path"])
         ui=root/"ui"/"dist" if (root/"ui"/"dist").is_dir() else root/"ui"
         if ui.is_dir():
             for file in sorted(ui.rglob("*")):

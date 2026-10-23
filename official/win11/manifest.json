@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "org.fiex.theme.win11",
+  "name": "Windows 11",
+  "version": "0.1.0",
+  "description": "Windows 11 视觉主题",
+  "icon": "palette",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "permissions": {},
+  "contributions": {
+    "themes": [
+      {
+        "path": "theme.json"
+      }
+    ]
+  }
+}

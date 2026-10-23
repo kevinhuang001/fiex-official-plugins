@@ -1,0 +1,21 @@
+{
+  "id": "win11",
+  "name": "Windows 11",
+  "mode": "light",
+  "tokens": {
+    "accent": "#0067c0",
+    "text": "#202020",
+    "muted": "#626262",
+    "surface": "#f3f3f3",
+    "canvas": "#ffffff",
+    "hover": "#e9e9e9",
+    "selected": "#e5f1fb",
+    "line": "#dedede",
+    "glass": "#f3f3f3ee",
+    "radius-control": "6px",
+    "radius-panel": "12px",
+    "sidebar-background": "#f3f3f3ee",
+    "toolbar-background": "#f9f9f9",
+    "shadow": "0 8px 28px #00000024"
+  }
+}

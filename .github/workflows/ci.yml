@@ -2,7 +2,7 @@ name: Build and test optional Fiex plugins
 on:
   push:
     branches: [main]
-    tags: ['plugins-v*']
+    tags: ["plugins-v*"]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -21,11 +21,15 @@ jobs:
       - name: Typecheck and rebuild self-contained panels
         run: |
           set -euo pipefail
-          for slug in git archive checksum; do
+          for slug in git archive checksum gpg; do
             npm --prefix "official/$slug/ui" ci
             npm --prefix "official/$slug/ui" run build
           done
-          git diff --exit-code -- official/git/ui/dist official/archive/ui/dist official/checksum/ui/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-panels
+          path: official/*/ui/dist
+
   build:
     needs: ui
     name: Plugin build (${{ matrix.target }})
@@ -48,6 +52,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-panels
+          path: official
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -59,7 +67,7 @@ jobs:
           cache-on-failure: true
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - name: Plugin unit tests and cross-platform packages
         shell: bash
         env:
@@ -67,13 +75,14 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
-          for slug in git webdav smb archive checksum everything; do
+          for slug in git webdav smb archive checksum everything gpg; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
             cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"
           done
+          for slug in vista win11; do python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"; done
           python scripts/generate-catalog.py
       - name: Real process handshake, ping, errors and shutdown
         shell: bash
@@ -98,7 +107,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: c64ea50918a63aff4b41bb6805ac1c50a2d6935c
+          ref: ec42a86fcfc3f5aed9dcbbcef648ad2784b22143
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -119,12 +128,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
-          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)==5; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
-          for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.archive org.fiex.checksum; do
+          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)==8; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.archive org.fiex.checksum org.fiex.gpg; do
             cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
           done
           cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
+          cargo run --manifest-path integration/Cargo.toml --example plugin_gpg_e2e
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
     needs: build
@@ -137,7 +147,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: c64ea50918a63aff4b41bb6805ac1c50a2d6935c
+          ref: ec42a86fcfc3f5aed9dcbbcef648ad2784b22143
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk
@@ -152,7 +162,7 @@ jobs:
           path: packages
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - name: Prepare isolated WebDAV fixture
         shell: bash
         run: |

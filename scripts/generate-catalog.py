@@ -15,7 +15,7 @@ PLATFORMS = [
     "macos-x86_64",
     "windows-x86_64",
 ]
-SLUGS = ["git", "webdav", "smb", "archive", "checksum", "everything"]
+SLUGS = ["git", "webdav", "smb", "archive", "checksum", "everything", "gpg", "vista", "win11"]
 DESCRIPTIONS = {
     "git": "源代码管理、提交历史、远程仓库与只读历史浏览。",
     "webdav": "通过独立进程连接 WebDAV 服务器，目录按需读取。",
@@ -36,7 +36,7 @@ def main() -> None:
         if folders.get("read", {}).get("enabled"):
             permissions.append("folders.read")
         for action in ("create", "delete", "rename"):
-            if folders.get(action) or folders.get("write"):
+            if folders.get(action):
                 permissions.append("folders." + action)
         for action in ("read", "write"):
             if requested.get("files", {}).get(action):
@@ -62,7 +62,7 @@ def main() -> None:
                 "assets": {
                     platform: f"{slug}-{platform}.fiexplugin"
                     for platform in PLATFORMS
-                    if platform in manifest.get("runtime", {}).get("entrypoints", {})
+                    if platform in manifest.get("runtime", {}).get("entrypoints", {}) or manifest.get("contributions", {}).get("themes")
                 },
             }
         )

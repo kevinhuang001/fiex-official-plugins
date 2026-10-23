@@ -1,0 +1,21 @@
+{
+  "id": "vista",
+  "name": "Vista Aero",
+  "mode": "light",
+  "tokens": {
+    "accent": "#2675ad",
+    "text": "#203b4e",
+    "muted": "#597181",
+    "surface": "#eff7fc",
+    "canvas": "#ffffff",
+    "hover": "#e1f0fa",
+    "selected": "#cce8ff",
+    "line": "#a4c6df",
+    "glass": "#cce8f0cc",
+    "radius-control": "4px",
+    "radius-panel": "8px",
+    "sidebar-background": "linear-gradient(135deg, #ffffffcc, #b4d8eaaa)",
+    "toolbar-background": "linear-gradient(#f7fcff, #c8e3f2)",
+    "shadow": "0 12px 40px #1b46644d"
+  }
+}

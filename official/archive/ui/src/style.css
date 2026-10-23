@@ -1,3 +1,4 @@
+@import "../../../panel.css";
 :root {
   --panel-bg: #f7f9fc;
   --panel-surface: #fff;
@@ -12,7 +13,7 @@
   font:
     13px -apple-system,
     BlinkMacSystemFont,
-    'Segoe UI',
+    "Segoe UI",
     sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -180,7 +181,7 @@ input:focus-visible {
   border: 1px solid var(--panel-line);
   border-radius: 9px;
   background: var(--panel-surface);
-  box-shadow: 0 12px 28px color-mix(in srgb, #0b1a2a 18%, transparent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .format-menu.open-up {
   top: auto;
@@ -236,7 +237,7 @@ input:focus-visible {
 }
 .archive-levels button.active {
   background: var(--panel-accent);
-  color: #fff;
+  color: var(--surface);
   font-weight: 600;
 }
 .archive-input {
@@ -271,12 +272,12 @@ input:focus-visible {
   word-break: break-word;
 }
 .error {
-  color: #b4443d;
-  background: color-mix(in srgb, #d75151 10%, var(--panel-surface));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel-surface));
 }
 .done {
-  color: #2f7d42;
-  background: color-mix(in srgb, #34c759 10%, var(--panel-surface));
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, var(--panel-surface));
 }
 footer {
   display: flex;
@@ -292,7 +293,7 @@ footer button {
 }
 footer button.primary {
   background: var(--panel-accent);
-  color: #fff;
+  color: var(--surface);
   font-weight: 600;
 }
 footer button.primary:hover:not(:disabled) {
@@ -382,7 +383,7 @@ footer button.archive-all:hover:not(:disabled) {
   border: 1px solid var(--panel-line);
   border-radius: 5px;
   background: var(--panel-surface);
-  color: #fff;
+  color: var(--surface);
 }
 .archive-check.checked .archive-check-box {
   border-color: var(--panel-accent);

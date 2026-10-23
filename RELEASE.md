@@ -1,3 +1,8 @@
+# Fiex plugins 0.2.6
+
+- Archive’s advanced-compression panel declares a compact 520×320 content size.
+- Plugin panel size is controlled by the plugin manifest instead of Core’s old fixed dimensions.
+
 # Fiex plugins 0.2.5
 
 - Git status badges now also color the filename: modified orange, added green, deleted red, renamed blue, untracked gray.

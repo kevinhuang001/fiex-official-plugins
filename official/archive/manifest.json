@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.archive",
   "name": "压缩与解压",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "压缩与解压 ZIP、RAR、7z、TAR 等格式。",
   "icon": "archive",
   "author": {
@@ -96,7 +96,11 @@
             "title": "高级压缩…",
             "panel": {
               "entry": "ui/dist/index.html",
-              "title": "高级压缩"
+              "title": "高级压缩",
+              "defaultSize": {
+                "width": 520,
+                "height": 320
+              }
             }
           }
         ]

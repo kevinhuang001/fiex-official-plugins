@@ -602,7 +602,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-smb"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",

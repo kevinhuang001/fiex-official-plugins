@@ -359,3 +359,9 @@ footer button.primary:hover:not(:disabled) {
 .app {
   height: auto;
 }
+footer button.archive-all {
+  color: var(--panel-accent);
+}
+footer button.archive-all:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--panel-accent) 9%, transparent);
+}

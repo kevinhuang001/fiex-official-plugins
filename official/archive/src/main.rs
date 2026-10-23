@@ -49,7 +49,15 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
                         .ok_or_else(|| RpcError::invalid_params("invalid path"))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let stored = stored_ignores(host, "compressIgnores");
+            let use_settings = p
+                .get("ignoreSettings")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            let stored = if use_settings {
+                stored_ignores(host, "compressIgnores")
+            } else {
+                Vec::new()
+            };
             let ignores = merge_ignores(&p, stored);
             let format = param(&p, "format")?;
             let destination = match p.get("destination").and_then(Value::as_str) {

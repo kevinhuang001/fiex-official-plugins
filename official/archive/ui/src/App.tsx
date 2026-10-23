@@ -59,7 +59,7 @@ function FormatSelect({
         aria-label="压缩格式"
         onClick={() => {
           const rect = root.current?.getBoundingClientRect()
-          setUp(Boolean(rect && rect.bottom + 280 > window.innerHeight - 8))
+          setUp(Boolean(rect && rect.bottom + 200 > window.innerHeight - 8))
           setOpen(!open)
         }}
       >
@@ -70,7 +70,6 @@ function FormatSelect({
         )}
         <span className="format-trigger-copy">
           <strong>{current.label}</strong>
-          {hero && <small>{current.note}</small>}
         </span>
         <ChevronDown size={14} className={open ? 'open' : ''} />
       </button>
@@ -94,7 +93,6 @@ function FormatSelect({
             >
               <span className="format-option-copy">
                 <strong>{entry.label}</strong>
-                <small>{entry.note}</small>
               </span>
               {entry.id === value && <Check size={13} />}
             </button>
@@ -160,7 +158,7 @@ export function App() {
       setError(String(cause))
     }
   }
-  const compress = async () => {
+  const compress = async (all = false) => {
     if (!paths.length) return
     if (!destination.trim()) {
       setError('请选择压缩到的位置')
@@ -182,6 +180,7 @@ export function App() {
           format: selected.id,
           level: password ? null : level,
           password: password || null,
+          ignoreSettings: !all,
         },
       })
       setDone(created)
@@ -270,11 +269,18 @@ export function App() {
         </label>
       )}
 
-      <p className="archive-note">忽略规则在插件设置中配置。</p>
       {error && <div className="error">{error}</div>}
       {done && <div className="done">已创建 {done}</div>}
       <footer>
         <button onClick={() => void client.invoke('panel.close')}>取消</button>
+        <button
+          className="archive-all"
+          disabled={busy}
+          title="忽略设置中的忽略规则，压缩全部内容"
+          onClick={() => void compress(true)}
+        >
+          全部压缩
+        </button>
         <button className="primary" disabled={busy} onClick={() => void compress()}>
           {busy ? <LoaderCircle size={14} className="spin" /> : <Archive size={14} />}
           开始压缩

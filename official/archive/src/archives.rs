@@ -300,6 +300,7 @@ pub fn extract(
     source: &str,
     destination: Option<&str>,
     password: Option<&str>,
+    ignores: &[String],
     host: &mut dyn HostServices,
 ) -> Result<String, String> {
     let proxy = host.worker_proxy();
@@ -318,6 +319,7 @@ pub fn extract(
         .as_nanos();
     let root = base.join(format!(".fiex-extract-{stamp:x}"));
     files.create_dir_all(&text(&root)).map_err(err)?;
+    let ignore = IgnoreSet::new(ignores);
     let result = (|| {
         let lower = source.to_lowercase();
         let mut remaining = MAX_TOTAL;
@@ -342,6 +344,9 @@ pub fn extract(
                 if input.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {
                     return Err("不解压符号链接".into());
                 }
+                if ignore.is_ignored(&name) {
+                    continue;
+                }
                 let dir = input.is_dir();
                 extract_file(&files, &root, &name, dir, &mut input, &mut remaining)?;
             }
@@ -359,6 +364,9 @@ pub fn extract(
                         return Err(sevenz_rust2::Error::from(io::Error::other(
                             "压缩包项目过多",
                         )));
+                    }
+                    if ignore.is_ignored(Path::new(&meta.name)) {
+                        return Ok(true);
                     }
                     extract_file(
                         &files,
@@ -423,6 +431,9 @@ pub fn extract(
                         .map_err(|e| rars::Error::from(io::Error::other(e)))?;
                     safe_name(Path::new(&name))
                         .map_err(|e| rars::Error::from(io::Error::other(e)))?;
+                    if ignore.is_ignored(Path::new(&name)) {
+                        return Ok(Box::new(io::sink()));
+                    }
                     let path = root.join(name);
                     if meta.is_directory {
                         files
@@ -483,6 +494,9 @@ pub fn extract(
                     let kind = input.header().entry_type();
                     if !kind.is_file() && !kind.is_dir() {
                         return Err("不解压链接或特殊文件".into());
+                    }
+                    if ignore.is_ignored(&name) {
+                        continue;
                     }
                     extract_file(
                         &files,

@@ -29,7 +29,9 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["zip"]
+                "extensions": [
+                  "zip"
+                ]
               },
               "badge": {
                 "text": "ZIP",
@@ -39,7 +41,9 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["rar"]
+                "extensions": [
+                  "rar"
+                ]
               },
               "badge": {
                 "text": "RAR",
@@ -49,7 +53,9 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["7z"]
+                "extensions": [
+                  "7z"
+                ]
               },
               "badge": {
                 "text": "7Z",
@@ -59,7 +65,9 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["tar"]
+                "extensions": [
+                  "tar"
+                ]
               },
               "badge": {
                 "text": "TAR",
@@ -69,7 +77,10 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["gz", "tgz"]
+                "extensions": [
+                  "gz",
+                  "tgz"
+                ]
               },
               "badge": {
                 "text": "TGZ",
@@ -79,7 +90,10 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["bz2", "tbz2"]
+                "extensions": [
+                  "bz2",
+                  "tbz2"
+                ]
               },
               "badge": {
                 "text": "TBZ",
@@ -89,7 +103,10 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": ["xz", "txz"]
+                "extensions": [
+                  "xz",
+                  "txz"
+                ]
               },
               "badge": {
                 "text": "TXZ",
@@ -198,6 +215,22 @@
         "title": "解压缩",
         "when": "context.selection.isArchive",
         "command": "archive.extract"
+      }
+    ],
+    "settings": [
+      {
+        "id": "compressIgnores",
+        "label": "压缩时忽略的文件或目录",
+        "type": "text",
+        "placeholder": ".git, node_modules, *.log",
+        "defaultValue": ".git, node_modules"
+      },
+      {
+        "id": "extractIgnores",
+        "label": "解压时忽略的文件或目录",
+        "type": "text",
+        "placeholder": "__MACOSX, *.tmp",
+        "defaultValue": "__MACOSX"
       }
     ]
   }

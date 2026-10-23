@@ -68,9 +68,7 @@ export function App() {
           <LoaderCircle size={14} className="spin" /> 正在计算…
         </p>
       )}
-      {ready && !busy && !error && !paths.length && (
-        <p className="hint">请选择一个或多个文件。</p>
-      )}
+      {ready && !busy && !error && !paths.length && <p className="hint">请选择一个或多个文件。</p>}
       {rows.map((row) => (
         <section key={row.path}>
           <h2 title={row.path}>{base(row.path)}</h2>
@@ -97,7 +95,9 @@ export function App() {
                 `MD5 ${row.md5}`,
                 `CRC32 ${row.crc32}`,
               ].join('\n')
-              void client.invoke('clipboard.writeText', { text }).catch((cause) => setError(String(cause)))
+              void client
+                .invoke('clipboard.writeText', { text })
+                .catch((cause) => setError(String(cause)))
             }}
           >
             复制全部

@@ -41,15 +41,11 @@
     },
     "network": {
       "enabled": true,
-      "domains": [
-        "github.com"
-      ]
+      "domains": ["github.com"]
     },
     "commands": {
       "enabled": true,
-      "allow": [
-        "git"
-      ]
+      "allow": ["git"]
     }
   },
   "contributions": {
@@ -66,9 +62,7 @@
             "height": 620
           }
         },
-        "schemes": [
-          "history"
-        ]
+        "schemes": ["history"]
       }
     ],
     "settings": [

@@ -43,7 +43,7 @@ fn main() {
     assert_eq!(hashes["md5"], "900150983cd24fb0d6963f7d28e17f72");
 
     approve("org.fiex.archive");
-    for format in ["zip", "tar.gz", "7z"] {
+    for format in ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "rar"] {
         let archive = root.join(format!("bundle.{format}"));
         let created = plugin_host::global()
             .invoke(

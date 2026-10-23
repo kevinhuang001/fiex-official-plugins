@@ -391,7 +391,6 @@ pub fn extract(
             let proxy = proxy.clone().ok_or("RAR requires a host worker session")?;
             let reader = fiex_plugin_sdk::files::OwnedFileReader::open(proxy.clone(), source)
                 .map_err(err)?;
-            let archive = rars::ArchiveReader::read_reader(reader).map_err(err)?;
             let mut pending: Option<Arc<Mutex<Option<fiex_plugin_sdk::files::OwnedFileWriter>>>> =
                 None;
             let mut count = 0;
@@ -399,6 +398,10 @@ pub fn extract(
             options.password = password.map(str::as_bytes);
             options.max_total_output_bytes = Some(MAX_TOTAL);
             options.max_reader_workspace_bytes = Some(256 * 1024 * 1024);
+            options.max_header_count = Some(MAX_ENTRIES as u64 + 1024);
+            options.max_header_bytes = Some(64 * 1024 * 1024);
+            let archive =
+                rars::ArchiveReader::read_reader_with_options(reader, options).map_err(err)?;
             archive
                 .extract_to_with_options(options, |meta| {
                     if let Some(previous) = pending.take() {

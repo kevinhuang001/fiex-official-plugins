@@ -29,9 +29,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "zip"
-                ]
+                "extensions": ["zip"]
               },
               "badge": {
                 "text": "ZIP",
@@ -41,9 +39,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "rar"
-                ]
+                "extensions": ["rar"]
               },
               "badge": {
                 "text": "RAR",
@@ -53,9 +49,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "7z"
-                ]
+                "extensions": ["7z"]
               },
               "badge": {
                 "text": "7Z",
@@ -65,9 +59,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "tar"
-                ]
+                "extensions": ["tar"]
               },
               "badge": {
                 "text": "TAR",
@@ -77,10 +69,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "gz",
-                  "tgz"
-                ]
+                "extensions": ["gz", "tgz"]
               },
               "badge": {
                 "text": "TGZ",
@@ -90,10 +79,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "bz2",
-                  "tbz2"
-                ]
+                "extensions": ["bz2", "tbz2"]
               },
               "badge": {
                 "text": "TBZ",
@@ -103,10 +89,7 @@
             {
               "match": {
                 "isDir": false,
-                "extensions": [
-                  "xz",
-                  "txz"
-                ]
+                "extensions": ["xz", "txz"]
               },
               "badge": {
                 "text": "TXZ",

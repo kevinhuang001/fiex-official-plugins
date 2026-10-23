@@ -34,9 +34,7 @@
     },
     "commands": {
       "enabled": true,
-      "allow": [
-        "es"
-      ]
+      "allow": ["es"]
     }
   },
   "contributions": {

@@ -43,7 +43,6 @@ The built single-file HTML is committed as `official/<slug>/ui/dist/index.html`,
 release packaging and CI need no Node.js. After changing UI source run
 `npm ci && npm run build` in that directory and commit `ui/dist`.
 
-
 ## Integration ownership
 
 Business-specific host integration fixtures live in `integration/examples`, not

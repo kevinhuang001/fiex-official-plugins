@@ -47,8 +47,8 @@ export function App() {
     let task: { taskId: string } | null = null
     try {
       task = await client.tasks.create(`正在压缩为 ${selected.label}`, {
-      detail: `${paths.length} 个项目`,
-    })
+        detail: `${paths.length} 个项目`,
+      })
       const destination = await client.invoke<string | null>('dialog.saveFile', {
         suggestedName: `${base}.${selected.ext}`,
         extensions: [selected.ext.split('.').pop() || 'zip'],
@@ -80,61 +80,66 @@ export function App() {
 
   return (
     <div className="app">
-      {ready && (paths.length > 0 ? (
-        <>
-          <p className="hint">
-            将压缩 {paths.length} 个项目：{paths.map(lastSegment).slice(0, 3).join('、')}
-            {paths.length > 3 ? '…' : ''}
-          </p>
-          <label>
-            压缩格式
-            <select value={format} onChange={(event) => setFormat(event.target.value)}>
-              {formats.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            压缩级别
-            <input
-              type="range"
-              min={0}
-              max={9}
-              value={level}
-              disabled={Boolean(password)}
-              onChange={(event) => setLevel(Number(event.target.value))}
-            />
-            <span>{level}</span>
-          </label>
-          <label>
-            ZIP / RAR 密码
-            <input
-              type="password"
-              value={password}
-              autoComplete="off"
-              placeholder="不设置则不加密"
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          <label className="checkbox">
-            <input type="checkbox" checked={full} onChange={(event) => setFull(event.target.checked)} />
-            包含被忽略的项目
-          </label>
-          {error && <div className="error">{error}</div>}
-          {done && <div className="done">已创建 {done}</div>}
-          <footer>
-            <button onClick={() => void client.invoke('panel.close')}>取消</button>
-            <button className="primary" disabled={busy} onClick={() => void compress()}>
-              {busy ? <LoaderCircle size={14} className="spin" /> : <Archive size={14} />}
-              开始压缩
-            </button>
-          </footer>
-        </>
-      ) : (
-        <p className="hint">请选择要压缩的文件或文件夹。</p>
-      ))}
+      {ready &&
+        (paths.length > 0 ? (
+          <>
+            <p className="hint">
+              将压缩 {paths.length} 个项目：{paths.map(lastSegment).slice(0, 3).join('、')}
+              {paths.length > 3 ? '…' : ''}
+            </p>
+            <label>
+              压缩格式
+              <select value={format} onChange={(event) => setFormat(event.target.value)}>
+                {formats.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              压缩级别
+              <input
+                type="range"
+                min={0}
+                max={9}
+                value={level}
+                disabled={Boolean(password)}
+                onChange={(event) => setLevel(Number(event.target.value))}
+              />
+              <span>{level}</span>
+            </label>
+            <label>
+              ZIP / RAR 密码
+              <input
+                type="password"
+                value={password}
+                autoComplete="off"
+                placeholder="不设置则不加密"
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={full}
+                onChange={(event) => setFull(event.target.checked)}
+              />
+              包含被忽略的项目
+            </label>
+            {error && <div className="error">{error}</div>}
+            {done && <div className="done">已创建 {done}</div>}
+            <footer>
+              <button onClick={() => void client.invoke('panel.close')}>取消</button>
+              <button className="primary" disabled={busy} onClick={() => void compress()}>
+                {busy ? <LoaderCircle size={14} className="spin" /> : <Archive size={14} />}
+                开始压缩
+              </button>
+            </footer>
+          </>
+        ) : (
+          <p className="hint">请选择要压缩的文件或文件夹。</p>
+        ))}
     </div>
   )
 }

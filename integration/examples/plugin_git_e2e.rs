@@ -11,8 +11,15 @@ fn main() {
         .find(|plugin| plugin.id == id)
         .expect("Git plugin must be installed in FIEX_PLUGIN_DIR");
     assert!(entry.backend_available);
-    let (manifest, _) = plugin_host::installed_manifests().into_iter().find(|(m,_)|m.id==id).unwrap();
-    plugin_host::activate(id, &plugin_host::activation_requirements(&manifest).unwrap()).unwrap();
+    let (manifest, _) = plugin_host::installed_manifests()
+        .into_iter()
+        .find(|(m, _)| m.id == id)
+        .unwrap();
+    plugin_host::activate(
+        id,
+        &plugin_host::activation_requirements(&manifest).unwrap(),
+    )
+    .unwrap();
 
     let repo = std::env::temp_dir().join(format!("fiex-git-e2e-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&repo);

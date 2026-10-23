@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import { Check, Copy, LoaderCircle } from 'lucide-react'
 import { FiexUiClient } from '../../../../sdk/ui/src/index'
 
 interface Context {
@@ -17,15 +17,20 @@ interface Hashes {
 }
 
 const client = new FiexUiClient()
-const base = (path: string) => path.split(/[/\\]/).pop() || path
-const short = (value: string) => `${value.slice(0, 16)}…${value.slice(-8)}`
+const algorithms = [
+  ['sha256', 'SHA-256'],
+  ['sha512', 'SHA-512'],
+  ['sha1', 'SHA-1'],
+  ['md5', 'MD5'],
+  ['crc32', 'CRC32'],
+] as const
 
 export function App() {
   const [paths, setPaths] = useState<string[]>([])
-  const [ready, setReady] = useState(false)
   const [rows, setRows] = useState<Hashes[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState('')
 
   useEffect(() => {
     void client
@@ -57,52 +62,47 @@ export function App() {
         }
       })
       .catch((cause) => setError(String(cause)))
-      .finally(() => setReady(true))
   }, [])
+
+  const copy = (key: string, text: string) => {
+    void client
+      .invoke('clipboard.writeText', { text })
+      .then(() => {
+        setCopied(key)
+        window.setTimeout(() => setCopied(''), 1200)
+      })
+      .catch((cause) => setError(String(cause)))
+  }
 
   return (
     <div className="app">
       {error && <div className="error">{error}</div>}
-      {busy && (
-        <p className="hint">
-          <LoaderCircle size={14} className="spin" /> 正在计算…
-        </p>
+      {busy && !rows.length && (
+        <div className="loading">
+          <LoaderCircle size={18} className="spin" />
+        </div>
       )}
-      {ready && !busy && !error && !paths.length && <p className="hint">请选择一个或多个文件。</p>}
+      {!busy && !error && !paths.length && <div className="loading" />}
       {rows.map((row) => (
-        <section key={row.path}>
-          <h2 title={row.path}>{base(row.path)}</h2>
-          <small>{row.size.toLocaleString()} 字节</small>
-          <dl>
-            <dt>SHA-256</dt>
-            <dd title={row.sha256}>{short(row.sha256)}</dd>
-            <dt>SHA-512</dt>
-            <dd title={row.sha512}>{short(row.sha512)}</dd>
-            <dt>SHA-1</dt>
-            <dd title={row.sha1}>{short(row.sha1)}</dd>
-            <dt>MD5</dt>
-            <dd title={row.md5}>{short(row.md5)}</dd>
-            <dt>CRC32</dt>
-            <dd title={row.crc32}>{row.crc32}</dd>
-          </dl>
-          <button
-            className="copy"
-            onClick={() => {
-              const text = [
-                `SHA-256 ${row.sha256}`,
-                `SHA-512 ${row.sha512}`,
-                `SHA-1 ${row.sha1}`,
-                `MD5 ${row.md5}`,
-                `CRC32 ${row.crc32}`,
-              ].join('\n')
-              void client
-                .invoke('clipboard.writeText', { text })
-                .catch((cause) => setError(String(cause)))
-            }}
-          >
-            复制全部
-          </button>
-        </section>
+        <dl className="hashes" key={row.path}>
+          {algorithms.map(([key, label]) => {
+            const id = `${row.path}:${key}`
+            return (
+              <div className="hash-row" key={key}>
+                <dt>{label}</dt>
+                <dd>{row[key]}</dd>
+                <button
+                  className="copy-one"
+                  aria-label={`复制 ${label}`}
+                  title={`复制 ${label}`}
+                  onClick={() => copy(id, row[key])}
+                >
+                  {copied === id ? <Check size={13} /> : <Copy size={13} />}
+                </button>
+              </div>
+            )
+          })}
+        </dl>
       ))}
     </div>
   )

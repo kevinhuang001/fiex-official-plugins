@@ -124,7 +124,9 @@ export function App() {
         setRemote(nextRemote)
         if (nextRemote.remotes.length) {
           setRemoteName((old) =>
-            nextRemote.remotes.some((item) => item.name === old) ? old : nextRemote.remotes[0].name,
+            nextRemote.remotes.some((item) => item.name === old)
+              ? old
+              : nextRemote.remotes[0].name,
           )
           setRemoteUrl(
             (old) =>
@@ -182,22 +184,18 @@ export function App() {
     title: string,
     detail: string,
     action: (taskId: string) => Promise<string | void>,
-    indeterminate = false,
   ) => {
+    const task = await client.tasks.create(title, { detail })
     setBusy(true)
     setError('')
-    let task: { taskId: string } | undefined
     try {
-      task = indeterminate
-        ? await client.tasks.spinner(title, { detail })
-        : await client.tasks.create(title, { detail })
       const result = await action(task.taskId)
       await client.tasks.finish(task.taskId, {
         detail: typeof result === 'string' ? result : undefined,
       })
       await load()
     } catch (cause) {
-      if (task) await client.tasks.finish(task.taskId, { error: String(cause) }).catch(() => {})
+      await client.tasks.finish(task.taskId, { error: String(cause) })
       setError(String(cause))
     } finally {
       setBusy(false)
@@ -206,38 +204,30 @@ export function App() {
   const toggle = (items: StatusEntry[], staged: boolean) => {
     const paths = items.map((item) => item.path)
     if (!paths.length) return
-    void run(() => git(staged ? 'git.unstage' : 'git.stage', { root, paths, all: false }))
+    void run(() =>
+      git(staged ? 'git.unstage' : 'git.stage', { root, paths, all: false }),
+    )
   }
   const commit = () => {
     if (!message.trim()) return
-    void runTask(
-      '提交更改',
-      message.split('\n')[0],
-      async (taskId) => {
-        await client.tasks.update(taskId, { step: '写入提交' })
-        const hash = await git<string>('git.commit', {
-          root,
-          message,
-          name: identity.name,
-          email: identity.email,
-        })
-        setMessage('')
-        return `已提交 ${hash}`
-      },
-      true,
-    )
+    void runTask('提交更改', message.split('\n')[0], async (taskId) => {
+      await client.tasks.update(taskId, { step: '写入提交' })
+      const hash = await git<string>('git.commit', {
+        root,
+        message,
+        name: identity.name,
+        email: identity.email,
+      })
+      setMessage('')
+      return `已提交 ${hash}`
+    })
   }
   const init = () =>
-    void runTask(
-      '初始化 Git 仓库',
-      root,
-      async (taskId) => {
-        await client.tasks.update(taskId, { step: '创建 .git' })
-        await git('git.init', { root })
-        return '仓库已创建'
-      },
-      true,
-    )
+    void runTask('初始化 Git 仓库', root, async (taskId) => {
+      await client.tasks.update(taskId, { step: '创建 .git' })
+      await git('git.init', { root })
+      return '仓库已创建'
+    })
   const saveRemote = () => {
     if (!remoteName.trim() || !remoteUrl.trim()) return
     void run(async () => {
@@ -254,20 +244,14 @@ export function App() {
       `${remoteName}/${remote?.branch || '当前分支'}`,
       async (taskId) => {
         if (!remoteName.trim()) throw new Error('请先配置远程仓库')
-        await client.tasks.update(taskId, {
-          step: '连接远程仓库',
-          progress: 0.25,
-        })
+        await client.tasks.update(taskId, { step: '连接远程仓库', progress: 0.25 })
         await git('git.remoteSync', {
           root,
           remote: remoteName,
           push,
           branch: remote?.branch || undefined,
         })
-        await client.tasks.update(taskId, {
-          step: '更新本地状态',
-          progress: 0.9,
-        })
+        await client.tasks.update(taskId, { step: '更新本地状态', progress: 0.9 })
         return push ? '推送完成' : '拉取完成'
       },
     )
@@ -432,7 +416,10 @@ export function App() {
             )}
           </section>
           <section className="remote-section">
-            <button className="section-title toggle" onClick={() => setRemoteOpen(!remoteOpen)}>
+            <button
+              className="section-title toggle"
+              onClick={() => setRemoteOpen(!remoteOpen)}
+            >
               <span>
                 <Cloud size={14} /> 远程
                 {remote?.remotes.length ? <b>{remote.remotes.length}</b> : null}

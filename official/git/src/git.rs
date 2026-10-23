@@ -63,7 +63,7 @@ pub fn status(path: &str) -> Option<GitStatus> {
         });
     }
     let repo = open(path)?;
-    let root = repo.workdir()?.canonicalize().ok()?;
+    let root = dunce::canonicalize(repo.workdir()?).ok()?;
     let branch = repo
         .head()
         .ok()

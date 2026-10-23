@@ -256,7 +256,9 @@ mod tests {
     fn push_pull_and_divergence_preserve_local_history() {
         let t = tempfile::tempdir().unwrap();
         let bare = t.path().join("remote.git");
-        Repository::init_bare(&bare).unwrap();
+        let mut options = git2::RepositoryInitOptions::new();
+        options.bare(true).initial_head("main");
+        Repository::init_opts(&bare, &options).unwrap();
         let a = t.path().join("a");
         fs::create_dir(&a).unwrap();
         let root = a.to_str().unwrap();

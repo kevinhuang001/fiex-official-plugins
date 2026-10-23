@@ -54,7 +54,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: official/git -> target
+          workspaces: official/git -> ../../target
           key: official-${{ matrix.target }}
           cache-on-failure: true
       - uses: actions/setup-python@v5
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 98475e944eccc0dcf8220ef4936a2a9957d3c88b
+          ref: d4790c3d0f1eae7931f6293b1adcf10418a8209b
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -132,6 +132,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/checkout@v4
+        with:
+          repository: kevinhuang001/fiex
+          ref: d4790c3d0f1eae7931f6293b1adcf10418a8209b
+          path: core
+      - name: Checkout Core SDK
+        run: git -C core submodule update --init sdk
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: integration -> target
+          key: real-network-broker
       - uses: actions/download-artifact@v4
         with:
           name: fiex-plugins-x86_64-unknown-linux-gnu
@@ -203,6 +217,18 @@ jobs:
           FIEX_TEST_SMB_PASSWORD: FiexCI-Test-Only-2026
         run: |
           timeout 240s python scripts/test-live-remotes.py --packages packages
+      - name: Real Core sandbox and resource broker against both servers
+        shell: bash
+        env:
+          FIEX_TEST_SMB_PASSWORD: FiexCI-Test-Only-2026
+          FIEX_PLUGIN_DIR: ${{ runner.temp }}/fiex-network-broker/plugins
+          XDG_DATA_HOME: ${{ runner.temp }}/fiex-network-broker/data
+        run: |
+          set -euo pipefail
+          mkdir -p "$FIEX_PLUGIN_DIR"
+          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=[p for p in pathlib.Path("packages").glob("*.fiexplugin") if p.name.startswith(("webdav-", "smb-"))]; assert len(packages)==2; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          cargo run --manifest-path integration/Cargo.toml --example plugin_network_e2e
+
       - name: Remote fixture diagnostics
         if: failure()
         run: |

@@ -1,10 +1,11 @@
 [package]
-name="fiex-official-integration"
-version="0.1.0"
-edition="2021"
-publish=false
+name = "fiex-official-integration"
+version = "0.1.0"
+edition = "2021"
+publish = false
 
 [dependencies]
-fiex={path="../core/src-tauri",default-features=false}
-serde_json="1"
-futures="0.3"
+fiex = { path = "../core/src-tauri", default-features = false }
+serde_json = "1"
+futures = "0.3"
+base64 = "0.22"

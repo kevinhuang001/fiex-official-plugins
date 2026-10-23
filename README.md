@@ -36,6 +36,15 @@ Plugin processes cannot spawn programs. Approved external commands are resolved 
 
 ## Layout
 
+## UI and theme guides
+
+The end-to-end guides live in the Core repository:
+
+- [Plugin panel UI](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/21-PANEL-UI-GUIDE.md)
+  — manifest entries, SDK, theme inheritance, local dev loop.
+- [Theme packages](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/22-THEME-AUTHORING.md)
+  — package shape, token reference, validation, review checklist.
+
 ## UI builds
 
 Git, Archive, Checksum and GPG ship React/Vite panels under `official/<slug>/ui`.

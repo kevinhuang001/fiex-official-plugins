@@ -1,5 +1,5 @@
 {
-  "name": "fiex-checksum-ui",
+  "name": "fiex-gpg-ui",
   "private": true,
   "version": "0.2.7",
   "type": "module",

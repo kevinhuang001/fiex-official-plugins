@@ -25,16 +25,75 @@
     }
   },
   "contributions": {
+    "contextMenus": [
+      {
+        "id": "gpg.menu",
+        "title": "GPG",
+        "when": "context.selection.count > 0",
+        "children": [
+          {
+            "id": "gpg.encrypt",
+            "title": "加密…",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "GPG 加密",
+              "defaultSize": {
+                "width": 560,
+                "height": 520
+              }
+            }
+          },
+          {
+            "id": "gpg.decrypt",
+            "title": "解密…",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "GPG 解密",
+              "defaultSize": {
+                "width": 520,
+                "height": 400
+              }
+            }
+          },
+          {
+            "id": "gpg.sign",
+            "title": "签名…",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "GPG 签名",
+              "defaultSize": {
+                "width": 540,
+                "height": 470
+              }
+            }
+          },
+          {
+            "id": "gpg.verify",
+            "title": "验证签名…",
+            "when": "context.selection.count == 1",
+            "panel": {
+              "entry": "ui/dist/index.html",
+              "title": "验证签名",
+              "defaultSize": {
+                "width": 520,
+                "height": 420
+              }
+            }
+          }
+        ]
+      }
+    ],
     "toolbar": [
       {
-        "id": "gpg.main",
-        "title": "GPG 加密与签名",
+        "id": "gpg.keys",
+        "title": "公钥管理",
         "icon": "key-round",
         "panel": {
           "entry": "ui/dist/index.html",
+          "title": "GPG 公钥管理",
           "defaultSize": {
-            "width": 560,
-            "height": 520
+            "width": 420,
+            "height": 460
           }
         }
       }

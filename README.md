@@ -56,11 +56,20 @@ scripts are not accepted. These themes preserve Fiex's layout.
 ## GPG
 
 Install GnuPG and make `gpg` available on PATH. Activate the plugin and explicitly
-approve the generic `gpg` command grant. The panel supports encryption, decryption,
-detached signatures, verification, public-key import and export. It uses the
-existing keyring/Agent; private-key passphrases stay in pinentry, never in the
-panel or plugin settings. Select full fingerprints from the key list. Existing
-output files are not overwritten. Signature failure is reported as an error.
+approve the generic `gpg` command grant. File actions are a right-click
+integration: select files, then use **GPG → 加密 / 解密 / 签名 / 验证签名**.
+**公钥管理** is a toolbar tool (`toolbar` contribution) so the keyring stays
+reachable without a selection. Every entry opens the same panel document with the
+clicked contribution id in `context.get().panelId`; the panel renders only that
+action instead of a tab switcher.
+
+The panel supports encryption, decryption, detached signatures, verification,
+public-key import and export. It uses the existing keyring/Agent; private-key
+passphrases stay in pinentry, never in the panel or plugin settings. Select full
+fingerprints from the key list. Existing output files are not overwritten, and
+unverified recipients require an explicit toggle (`--trust-model always` is only
+added when that toggle is on). Signature failure is reported as an error with the
+GnuPG status reason.
 Core's command runtime deadline applies; cancellation of a UI wait does not
 terminate an already-running GnuPG operation.
 

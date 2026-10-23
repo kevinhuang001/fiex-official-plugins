@@ -1,3 +1,11 @@
+# Fiex plugins 0.2.2
+
+- Every released package is signed with the publisher Ed25519 key. Core verifies the manifest signature and every file digest.
+- Git exposes remote configuration, pull and push in its React panel; init, commit, pull and push report task name, detail, step and progress to Status Center.
+- Archive reports compression tasks to Status Center.
+- Checksum remains a read-only view and does not create activity entries.
+- Plugin UI source uses the updated `fiex.tasks` API.
+
 # Fiex plugins 0.2.1
 
 - Every official plugin embeds its manifest with `include_str!` and returns it on `plugin.initialize`; Core verifies the embedded copy against the installed package.

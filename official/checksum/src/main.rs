@@ -16,9 +16,7 @@ fn run(method: &str, p: Value) -> Result<Value, RpcError> {
     }
 }
 fn main() {
-    if let Err(e) =
-        sdk::serve_with_manifest("org.fiex.checksum", include_str!("../manifest.json"), run)
-    {
+    if let Err(e) = sdk::serve("org.fiex.checksum", run) {
         eprintln!("Checksum plugin failed: {e}");
         std::process::exit(1);
     }

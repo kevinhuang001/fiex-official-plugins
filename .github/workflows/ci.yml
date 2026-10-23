@@ -191,6 +191,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: fiex-plugins-*
@@ -212,6 +213,17 @@ jobs:
               }
           target.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
           PY
+      - name: Sign plugin packages and catalog
+        env:
+          FIEX_SIGNING_KEY: ${{ secrets.FIEX_SIGNING_KEY }}
+        run: |
+          test -n "$FIEX_SIGNING_KEY"
+          printf '%s' "$FIEX_SIGNING_KEY" | base64 -d > "$RUNNER_TEMP/fiex-signing-key.pem"
+          chmod 600 "$RUNNER_TEMP/fiex-signing-key.pem"
+          python -m pip install --quiet cryptography
+          python scripts/sign-plugin-package.py dist/plugins/*.fiexplugin \
+            --key "$RUNNER_TEMP/fiex-signing-key.pem"
+          rm -f "$RUNNER_TEMP/fiex-signing-key.pem"
       - name: Publish optional GitHub plugin packages
         env:
           GH_TOKEN: ${{ github.token }}

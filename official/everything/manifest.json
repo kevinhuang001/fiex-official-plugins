@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.everything",
   "name": "Everything 搜索",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "借用 Everything 的本地索引提供秒级文件名搜索（Windows）。",
   "icon": "magnifying-glass",
   "author": {

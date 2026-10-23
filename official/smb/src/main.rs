@@ -273,11 +273,9 @@ fn main() {
         .expect("SMB runtime");
     let streams: Streams = Rc::new(RefCell::new(HashMap::new()));
     let next_stream = Cell::new(0u64);
-    if let Err(e) = sdk::serve_with_manifest(
-        "org.fiex.smb",
-        include_str!("../manifest.json"),
-        move |method, params| dispatch(method, params, &rt, &streams, &next_stream),
-    ) {
+    if let Err(e) = sdk::serve("org.fiex.smb", move |method, params| {
+        dispatch(method, params, &rt, &streams, &next_stream)
+    }) {
         eprintln!("SMB plugin IPC error: {e}");
         std::process::exit(1);
     }

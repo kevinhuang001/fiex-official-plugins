@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Check,
   ChevronDown,
+  Cloud,
+  CloudDownload,
+  CloudUpload,
   GitBranch,
   GitCommitHorizontal,
   LoaderCircle,
@@ -38,6 +41,13 @@ interface Commit {
 interface Identity {
   name: string
   email: string
+}
+interface RemoteStatus {
+  remotes: { name: string; url: string }[]
+  branch: string
+  upstream: string
+  ahead: number
+  behind: number
 }
 interface Context {
   directoryPath?: string
@@ -83,6 +93,10 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [remote, setRemote] = useState<RemoteStatus | null>(null)
+  const [remoteOpen, setRemoteOpen] = useState(false)
+  const [remoteName, setRemoteName] = useState('origin')
+  const [remoteUrl, setRemoteUrl] = useState('')
 
   const git = useCallback(
     <T,>(method: string, params: Record<string, unknown> = {}) =>
@@ -99,14 +113,29 @@ export function App() {
       const next = await git<Status | null>('git.status', { root })
       setStatus(next)
       if (next) {
-        const [nextRefs, nextHistory, nextIdentity] = await Promise.all([
+        const [nextRefs, nextHistory, nextIdentity, nextRemote] = await Promise.all([
           git<Refs>('git.refs', { root }),
           git<Commit[]>('git.history', { root, skip: 0 }),
           git<Identity>('git.identity', { root }),
+          git<RemoteStatus>('git.remoteStatus', { root }),
         ])
         setRefs(nextRefs)
         setHistory(nextHistory)
         setIdentity(nextIdentity)
+        setRemote(nextRemote)
+        if (nextRemote.remotes.length) {
+          setRemoteName((old) =>
+            nextRemote.remotes.some((item) => item.name === old)
+              ? old
+              : nextRemote.remotes[0].name,
+          )
+          setRemoteUrl(
+            (old) =>
+              old ||
+              nextRemote.remotes.find((item) => item.name === remoteName)?.url ||
+              nextRemote.remotes[0].url,
+          )
+        }
       }
     } catch (cause) {
       setError(String(cause))
@@ -152,6 +181,27 @@ export function App() {
       setBusy(false)
     }
   }
+  const runTask = async (
+    title: string,
+    detail: string,
+    action: (taskId: string) => Promise<string | void>,
+  ) => {
+    const task = await client.tasks.create(title, { detail })
+    setBusy(true)
+    setError('')
+    try {
+      const result = await action(task.taskId)
+      await client.tasks.finish(task.taskId, {
+        detail: typeof result === 'string' ? result : undefined,
+      })
+      await load()
+    } catch (cause) {
+      await client.tasks.finish(task.taskId, { error: String(cause) })
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
   const toggle = (items: StatusEntry[], staged: boolean) => {
     const paths = items.map((item) => item.path)
     if (!paths.length) return
@@ -161,17 +211,51 @@ export function App() {
   }
   const commit = () => {
     if (!message.trim()) return
-    void run(async () => {
-      await git('git.commit', {
+    void runTask('提交更改', message.split('\n')[0], async (taskId) => {
+      await client.tasks.update(taskId, { step: '写入提交' })
+      const hash = await git<string>('git.commit', {
         root,
         message,
         name: identity.name,
         email: identity.email,
       })
       setMessage('')
+      return `已提交 ${hash}`
     })
   }
-  const init = () => void run(() => git('git.init', { root }))
+  const init = () =>
+    void runTask('初始化 Git 仓库', root, async (taskId) => {
+      await client.tasks.update(taskId, { step: '创建 .git' })
+      await git('git.init', { root })
+      return '仓库已创建'
+    })
+  const saveRemote = () => {
+    if (!remoteName.trim() || !remoteUrl.trim()) return
+    void run(async () => {
+      await git('git.remoteSave', {
+        root,
+        name: remoteName.trim(),
+        url: remoteUrl.trim(),
+      })
+    })
+  }
+  const sync = (push: boolean) =>
+    void runTask(
+      push ? '推送分支' : '拉取分支',
+      `${remoteName}/${remote?.branch || '当前分支'}`,
+      async (taskId) => {
+        if (!remoteName.trim()) throw new Error('请先配置远程仓库')
+        await client.tasks.update(taskId, { step: '连接远程仓库', progress: 0.25 })
+        await git('git.remoteSync', {
+          root,
+          remote: remoteName,
+          push,
+          branch: remote?.branch || undefined,
+        })
+        await client.tasks.update(taskId, { step: '更新本地状态', progress: 0.9 })
+        return push ? '推送完成' : '拉取完成'
+      },
+    )
   const openRoot = () => {
     void client.invoke('navigation.open', { path: root }).then(() => client.invoke('panel.close'))
   }
@@ -336,6 +420,70 @@ export function App() {
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
+          <section className="remote-section">
+            <button
+              className="section-title toggle"
+              onClick={() => setRemoteOpen(!remoteOpen)}
+            >
+              <span>
+                <Cloud size={14} /> 远程
+                {remote?.remotes.length ? <b>{remote.remotes.length}</b> : null}
+              </span>
+              <ChevronDown size={14} className={remoteOpen ? 'open' : ''} />
+            </button>
+            {remoteOpen && (
+              <div className="remote-editor">
+                {remote?.remotes.length ? (
+                  <select
+                    aria-label="远程仓库"
+                    value={remoteName}
+                    onChange={(event) => {
+                      setRemoteName(event.target.value)
+                      setRemoteUrl(
+                        remote.remotes.find((item) => item.name === event.target.value)?.url || '',
+                      )
+                    }}
+                  >
+                    {remote.remotes.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <input
+                  aria-label="远程名称"
+                  value={remoteName}
+                  placeholder="origin"
+                  onChange={(event) => setRemoteName(event.target.value)}
+                />
+                <input
+                  aria-label="远程地址"
+                  value={remoteUrl}
+                  placeholder="https://github.com/..."
+                  onChange={(event) => setRemoteUrl(event.target.value)}
+                />
+                <button className="primary" disabled={busy} onClick={saveRemote}>
+                  保存远程
+                </button>
+                <div className="remote-actions">
+                  <button disabled={busy || !remoteName} onClick={() => sync(false)}>
+                    <CloudDownload size={14} /> 拉取
+                  </button>
+                  <button disabled={busy || !remoteName} onClick={() => sync(true)}>
+                    <CloudUpload size={14} /> 推送
+                  </button>
+                </div>
+                {remote?.upstream && (
+                  <small>
+                    {remote.upstream}
+                    {remote.ahead ? ` · 领先 ${remote.ahead}` : ''}
+                    {remote.behind ? ` · 落后 ${remote.behind}` : ''}
+                  </small>
+                )}
+              </div>
             )}
           </section>
         </>

@@ -239,3 +239,38 @@ li:hover button {
 .commit-row:hover {
   background: transparent;
 }
+.remote-editor {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.remote-editor input,
+.remote-editor select {
+  width: 100%;
+  border: 1px solid #d9e0e7;
+  border-radius: 7px;
+  background: #fff;
+  padding: 6px 8px;
+  font: inherit;
+}
+@media (prefers-color-scheme: dark) {
+  .remote-editor input,
+  .remote-editor select {
+    background: #22303c;
+    color: #e8f1f8;
+    border-color: #415263;
+  }
+}
+.remote-actions {
+  display: flex;
+  gap: 6px;
+}
+.remote-actions button {
+  flex: 1;
+  justify-content: center;
+  border: 1px solid #d9e0e7;
+}
+.remote-editor small {
+  color: #98a3ad;
+  font-size: 10px;
+}

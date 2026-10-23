@@ -40,14 +40,20 @@ export function App() {
     setBusy(true)
     setError('')
     setDone('')
+    const selected = formats.find((entry) => entry.id === format) || formats[0]
+    const base = paths.length === 1 ? lastSegment(paths[0]).replace(/\.[^.]+$/, '') : 'Archive'
+    const task = await client.tasks.create(`正在压缩为 ${selected.label}`, {
+      detail: `${paths.length} 个项目`,
+    })
     try {
-      const selected = formats.find((entry) => entry.id === format) || formats[0]
-      const base = paths.length === 1 ? lastSegment(paths[0]).replace(/\.[^.]+$/, '') : 'Archive'
       const destination = await client.invoke<string | null>('dialog.saveFile', {
         suggestedName: `${base}.${selected.ext}`,
         extensions: [selected.ext.split('.').pop() || 'zip'],
       })
-      if (!destination) return
+      if (!destination) {
+        await client.tasks.finish(task.taskId, { detail: '已取消' })
+        return
+      }
       const created = await client.invoke<string>('plugin.invoke', {
         method: 'archive.compress',
         params: {
@@ -60,8 +66,10 @@ export function App() {
         },
       })
       setDone(created)
+      await client.tasks.finish(task.taskId, { detail: created })
     } catch (cause) {
       setError(String(cause))
+      await client.tasks.finish(task.taskId, { error: String(cause) })
     } finally {
       setBusy(false)
     }

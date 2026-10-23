@@ -293,9 +293,9 @@ fn dispatch(
         state.reads.borrow_mut().remove(id);
         return Ok(Value::Null);
     }
-    let cfg = config(host, p.get("connection"))?;
     match method {
         "connection.validate" | "fs.list" => {
+            let cfg = config(host, p.get("connection"))?;
             let directory = p
                 .get("directoryId")
                 .or_else(|| p.get("nodeId"))
@@ -371,6 +371,7 @@ fn dispatch(
             }))
         }
         "fs.readSmall" | "fs.openRead" => {
+            let cfg = config(host, p.get("connection"))?;
             let relative = p
                 .get("nodeId")
                 .and_then(Value::as_str)

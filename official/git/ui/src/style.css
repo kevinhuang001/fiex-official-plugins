@@ -94,8 +94,7 @@ button.primary:hover:not(:disabled) {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  height: auto;
   padding: 12px;
 }
 .git-repository {
@@ -495,4 +494,174 @@ button.primary:hover:not(:disabled) {
     animation: none !important;
     transition: none !important;
   }
+}
+.git-remote-section {
+  padding: 2px 2px 0;
+}
+.git-remote-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 2px 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.git-remote-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+.git-remote-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+.git-remote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.git-remote-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px 2px 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+}
+.git-remote-row.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--canvas));
+}
+.git-remote-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 9px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--text);
+}
+.git-remote-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.git-remote-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--muted);
+}
+.git-remote-check {
+  color: var(--accent);
+}
+.git-remote-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  font-size: 11px;
+}
+.git-remote-confirm > span {
+  flex: 1;
+}
+.git-danger {
+  padding: 4px 9px;
+  border: 1px solid color-mix(in srgb, #c25353 30%, var(--line));
+  border-radius: 7px;
+  color: #c25353;
+  background: color-mix(in srgb, #c25353 7%, var(--surface));
+  font-size: 10.5px;
+}
+.git-remote-empty {
+  margin: 2px 2px 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.git-remote-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 2px 2px;
+  padding: 4px 2px;
+  color: var(--accent);
+  font-size: 11px;
+}
+.git-remote-sync {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.git-remote-branch {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.git-remote-branch select {
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+}
+.git-remote-sync > button {
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  font-size: 10.5px;
+}
+.git-remote-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.git-remote-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.git-remote-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+.git-remote-form-actions button:not(.primary) {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
 }

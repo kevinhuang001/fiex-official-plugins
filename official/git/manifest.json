@@ -41,11 +41,15 @@
     },
     "network": {
       "enabled": true,
-      "domains": ["github.com"]
+      "domains": [
+        "github.com"
+      ]
     },
     "commands": {
       "enabled": true,
-      "allow": ["git"]
+      "allow": [
+        "git"
+      ]
     }
   },
   "contributions": {
@@ -59,10 +63,12 @@
           "entry": "ui/dist/index.html",
           "defaultSize": {
             "width": 560,
-            "height": 620
+            "height": 300
           }
         },
-        "schemes": ["history"]
+        "schemes": [
+          "history"
+        ]
       }
     ],
     "settings": [

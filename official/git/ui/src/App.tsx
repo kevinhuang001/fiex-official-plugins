@@ -12,8 +12,10 @@ import {
   GitCommitHorizontal,
   LoaderCircle,
   Minus,
+  Pencil,
   Plus,
   RefreshCw,
+  Trash2,
   X,
 } from 'lucide-react'
 import { FiexUiClient } from '../../../../sdk/ui/src/index'
@@ -100,7 +102,13 @@ export function App() {
   const [remoteOpen, setRemoteOpen] = useState(false)
   const [remote, setRemote] = useState<RemoteStatus | null>(null)
   const [remoteName, setRemoteName] = useState('origin')
-  const [remoteUrl, setRemoteUrl] = useState('')
+  const [remoteEditing, setRemoteEditing] = useState<{
+    mode: 'new' | 'edit'
+    name: string
+    url: string
+  } | null>(null)
+  const [remotePendingRemove, setRemotePendingRemove] = useState<string | null>(null)
+  const [syncBranch, setSyncBranch] = useState('')
 
   const git = useCallback(
     <T,>(method: string, params: Record<string, unknown> = {}) =>
@@ -131,7 +139,6 @@ export function App() {
           setRemoteName((old) =>
             nextRemote.remotes.some((item) => item.name === old) ? old : nextRemote.remotes[0].name,
           )
-          setRemoteUrl((old) => old || nextRemote.remotes[0].url)
         }
       }
     } catch (cause) {
@@ -151,6 +158,21 @@ export function App() {
   useEffect(() => {
     if (root) void load()
   }, [root, load])
+  // The host caps the panel; the plugin asks for the height its content needs
+  // so short repositories do not leave a large empty sheet.
+  useEffect(() => {
+    if (!remoteOpen) return
+    setRemoteEditing(null)
+    setRemotePendingRemove(null)
+    setSyncBranch(refs?.current || '')
+  }, [remoteOpen, refs?.current])
+  useEffect(() => {
+    const app = document.querySelector('.app') as HTMLElement | null
+    if (!app) return
+    const minimum = commitOpen || pickerOpen || remoteOpen ? 430 : 240
+    const height = Math.max(minimum, Math.ceil(app.scrollHeight))
+    void client.invoke('panel.resize', { width: 560, height }).catch(() => {})
+  }, [status, error, busy, commitOpen, pickerOpen, remoteOpen])
 
   const changes = useMemo(
     () =>
@@ -225,25 +247,33 @@ export function App() {
       await git('git.init', { root })
       return '仓库已创建'
     })
-  const saveRemote = () => {
-    if (!remoteName.trim() || !remoteUrl.trim()) return
+  const saveRemote = (nextName: string, nextUrl: string) => {
+    if (!nextName.trim() || !nextUrl.trim()) return
     void run(async () => {
       await git('git.remoteSave', {
         root,
-        name: remoteName.trim(),
-        url: remoteUrl.trim(),
+        name: nextName.trim(),
+        url: nextUrl.trim(),
       })
+      setRemoteName(nextName.trim())
+      setRemoteEditing(null)
     })
   }
+  const removeRemote = (name: string) =>
+    void run(async () => {
+      await git('git.remoteRemove', { root, name })
+      setRemotePendingRemove(null)
+      if (remoteName === name) setRemoteName('origin')
+    })
   const sync = (push: boolean) =>
-    void runTask(push ? '推送分支' : '拉取分支', `${remoteName}/${remote?.branch || '当前分支'}`, async (taskId) => {
+    void runTask(push ? '推送分支' : '拉取分支', `${remoteName}/${syncBranch || remote?.branch || '当前分支'}`, async (taskId) => {
       if (!remoteName.trim()) throw new Error('请先配置远程仓库')
       await client.tasks.update(taskId, { step: '连接远程仓库', progress: 0.25 })
       await git('git.remoteSync', {
         root,
         remote: remoteName,
         push,
-        branch: remote?.branch || undefined,
+        branch: syncBranch || undefined,
       })
       await client.tasks.update(taskId, { step: '更新本地状态', progress: 0.9 })
       return push ? '推送完成' : '拉取完成'
@@ -507,60 +537,187 @@ export function App() {
 
       {remoteOpen && (
         <div className="git-sheet" role="dialog" aria-label="远程仓库">
-          <div className="git-sheet-card">
+          <div className="git-sheet-card git-remote-card">
             <header>
-              <strong>远程仓库</strong>
+              <strong>
+                {remoteEditing
+                  ? remoteEditing.mode === 'new'
+                    ? '添加远程仓库'
+                    : '编辑远程仓库'
+                  : '远程仓库'}
+              </strong>
               <button type="button" aria-label="关闭" onClick={() => setRemoteOpen(false)}>
                 <X size={16} />
               </button>
             </header>
-            {remote?.remotes.length ? (
-              <select
-                aria-label="远程仓库"
-                value={remoteName}
-                onChange={(event) => {
-                  setRemoteName(event.target.value)
-                  setRemoteUrl(
-                    remote.remotes.find((item) => item.name === event.target.value)?.url || '',
-                  )
+            {remoteEditing ? (
+              <form
+                className="git-remote-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  saveRemote(remoteEditing.name, remoteEditing.url)
                 }}
               >
-                {remote.remotes.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-            <input
-              aria-label="远程名称"
-              value={remoteName}
-              placeholder="origin"
-              onChange={(event) => setRemoteName(event.target.value)}
-            />
-            <input
-              aria-label="远程地址"
-              value={remoteUrl}
-              placeholder="https://github.com/..."
-              onChange={(event) => setRemoteUrl(event.target.value)}
-            />
-            <div className="git-remote-actions">
-              <button className="primary" disabled={busy} onClick={saveRemote}>
-                <Check size={14} /> 保存远程
-              </button>
-              <button disabled={busy || !remoteName} onClick={() => sync(false)}>
-                <CloudDownload size={14} /> 拉取
-              </button>
-              <button disabled={busy || !remoteName} onClick={() => sync(true)}>
-                <CloudUpload size={14} /> 推送
-              </button>
-            </div>
-            {remote?.upstream && (
-              <small className="git-remote-upstream">
-                {remote.upstream}
-                {remote.ahead ? ` · 领先 ${remote.ahead}` : ''}
-                {remote.behind ? ` · 落后 ${remote.behind}` : ''}
-              </small>
+                <label>
+                  名称
+                  <input
+                    aria-label="远程名称"
+                    value={remoteEditing.name}
+                    required
+                    placeholder="origin"
+                    onChange={(event) =>
+                      setRemoteEditing({ ...remoteEditing, name: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  仓库地址
+                  <input
+                    aria-label="仓库地址"
+                    value={remoteEditing.url}
+                    required
+                    placeholder="https://… / git@…"
+                    onChange={(event) =>
+                      setRemoteEditing({ ...remoteEditing, url: event.target.value })
+                    }
+                  />
+                </label>
+                <div className="git-remote-form-actions">
+                  <button type="button" disabled={busy} onClick={() => setRemoteEditing(null)}>
+                    返回
+                  </button>
+                  <button
+                    className="primary"
+                    type="submit"
+                    disabled={busy || !remoteEditing.name.trim() || !remoteEditing.url.trim()}
+                  >
+                    保存
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <section className="git-remote-section">
+                  <div className="git-remote-section-title">
+                    <span>已配置</span>
+                    <span className="git-remote-badge">{remote?.remotes.length || 0}</span>
+                    <span className="git-remote-count">
+                      ↓ {remote?.behind || 0} · ↑ {remote?.ahead || 0}
+                    </span>
+                  </div>
+                  {remote?.remotes.length ? (
+                    <ul className="git-remote-list" role="listbox" aria-label="远程仓库">
+                      {remote.remotes.map((item) => (
+                        <li
+                          key={item.name}
+                          className={`git-remote-row ${item.name === remoteName ? 'active' : ''}`}
+                        >
+                          {remotePendingRemove === item.name ? (
+                            <div className="git-remote-confirm">
+                              <span>移除 {item.name}？</span>
+                              <button onClick={() => setRemotePendingRemove(null)}>取消</button>
+                              <button
+                                className="git-danger"
+                                disabled={busy}
+                                onClick={() => removeRemote(item.name)}
+                              >
+                                移除
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                role="option"
+                                aria-selected={item.name === remoteName}
+                                className="git-remote-select"
+                                onClick={() => {
+                                  setRemoteName(item.name)
+                                }}
+                              >
+                                <Cloud size={14} />
+                                <span className="git-remote-name">{item.name}</span>
+                                <span className="git-remote-url" title={item.url}>
+                                  {item.url}
+                                </span>
+                                {item.name === remoteName && (
+                                  <Check size={13} className="git-remote-check" />
+                                )}
+                              </button>
+                              <button
+                                className="icon-button"
+                                title={`编辑 ${item.name}`}
+                                aria-label={`编辑 ${item.name}`}
+                                disabled={busy}
+                                onClick={() =>
+                                  setRemoteEditing({
+                                    mode: 'edit',
+                                    name: item.name,
+                                    url: item.url,
+                                  })
+                                }
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                className="icon-button"
+                                title={`移除 ${item.name}`}
+                                aria-label={`移除 ${item.name}`}
+                                disabled={busy}
+                                onClick={() => setRemotePendingRemove(item.name)}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="git-remote-empty">无远程仓库</p>
+                  )}
+                  <button
+                    className="git-remote-add"
+                    disabled={busy}
+                    onClick={() => setRemoteEditing({ mode: 'new', name: '', url: '' })}
+                  >
+                    <Plus size={13} /> 添加远程仓库
+                  </button>
+                </section>
+                <section className="git-remote-sync">
+                  <label className="git-remote-branch">
+                    分支
+                    <select
+                      aria-label="同步分支"
+                      value={syncBranch || refs?.current || ''}
+                      onChange={(event) => setSyncBranch(event.target.value)}
+                    >
+                      {(refs?.branches.length
+                        ? refs.branches
+                        : refs?.current
+                          ? [refs.current]
+                          : []
+                      ).map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button disabled={busy || !remoteName} onClick={() => sync(false)}>
+                    <CloudDownload size={14} /> 拉取
+                  </button>
+                  <button disabled={busy || !remoteName} onClick={() => sync(true)}>
+                    <CloudUpload size={14} /> 推送
+                  </button>
+                </section>
+                {remote?.upstream && (
+                  <small className="git-remote-upstream">
+                    {remote.upstream}
+                    {remote.ahead ? ` · 领先 ${remote.ahead}` : ''}
+                    {remote.behind ? ` · 落后 ${remote.behind}` : ''}
+                  </small>
+                )}
+              </>
             )}
           </div>
         </div>

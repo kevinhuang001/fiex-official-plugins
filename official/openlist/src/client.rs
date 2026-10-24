@@ -11,7 +11,7 @@ use std::{sync::Mutex, time::Duration};
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Config {
-    url: String,
+    pub(crate) url: String,
     username: String,
     password: String,
     timeout: u64,
@@ -130,7 +130,11 @@ fn login(host: &sdk::RequestContext, cfg: &Config) -> Result<String, RpcError> {
         .ok_or_else(|| RpcError::internal("登录失败：服务器未返回 token"))
 }
 
-fn token(host: &sdk::RequestContext, cfg: &Config, session: &Session) -> Result<String, RpcError> {
+pub(crate) fn token(
+    host: &sdk::RequestContext,
+    cfg: &Config,
+    session: &Session,
+) -> Result<String, RpcError> {
     if let Some(value) = session
         .token
         .lock()
@@ -168,27 +172,6 @@ pub(crate) fn authorized(
         }
         other => other,
     }
-}
-
-pub(crate) fn download(
-    host: &sdk::RequestContext,
-    cfg: &Config,
-    url: &str,
-) -> Result<(Vec<u8>, u64), RpcError> {
-    let client = host.http();
-    let response = client
-        .request("GET", url)
-        .timeout(Duration::from_secs(cfg.timeout.max(30)))
-        .send()
-        .map_err(|error| RpcError::internal(format!("下载失败: {error}")))?;
-    let status = response.status;
-    if status != 200 {
-        return Err(RpcError::internal(format!("下载失败: HTTP {status}")));
-    }
-    let bytes = response
-        .bytes()
-        .map_err(|error| RpcError::internal(format!("下载失败: {error}")))?;
-    Ok((bytes, status as u64))
 }
 
 #[cfg(test)]

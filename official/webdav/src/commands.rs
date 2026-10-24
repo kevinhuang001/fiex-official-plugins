@@ -11,6 +11,9 @@ pub(crate) fn dispatch(
     next: &AtomicU64,
 ) -> Result<Value, RpcError> {
     let method = ctx.method();
+    if matches!(method, "fs.stat" | "fs.writeFile") {
+        return super::sync::dispatch(&ctx);
+    }
     let p = ctx.params();
     if !matches!(
         method,

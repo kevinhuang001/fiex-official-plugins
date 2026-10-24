@@ -89,6 +89,9 @@ jobs:
         run: |
           python scripts/test-plugin-process.py --target "${{ matrix.platform }}" --binary-root "target/${{ matrix.target }}/release"
           python scripts/test-gdrive.py --binary "target/${{ matrix.target }}/release/fiex-plugin-gdrive${{ runner.os == 'Windows' && '.exe' || '' }}"
+          for slug in webdav openlist; do
+            python scripts/test-connection-sync.py --kind "$slug" --binary "target/${{ matrix.target }}/release/fiex-plugin-$slug${{ runner.os == 'Windows' && '.exe' || '' }}"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: fiex-plugins-${{ matrix.target }}
@@ -109,7 +112,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 6b0c9138960c78fcec78ba4be644b52c2d9de238
+          ref: 17eeee7faaa809957508147c907ab1638d428448
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -153,7 +156,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 6b0c9138960c78fcec78ba4be644b52c2d9de238
+          ref: 17eeee7faaa809957508147c907ab1638d428448
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk
@@ -195,6 +198,7 @@ jobs:
           printf 'hello smb\n' > /tmp/fiex-ci-smb/hello.txt
           printf 'another smb\n' > /tmp/fiex-ci-smb/another.txt
           chmod 755 /tmp/fiex-ci-smb
+          sudo chown -R fiex:fiex /tmp/fiex-ci-smb
           printf 'FiexCI-Test-Only-2026\nFiexCI-Test-Only-2026\n' | sudo smbpasswd -a fiex -s
           cat > .ci/smb.conf <<EOF
           [global]

@@ -5,6 +5,7 @@
 mod client;
 mod commands;
 mod fs;
+mod sync;
 
 use fiex_plugin_sdk as sdk;
 use std::sync::Arc;

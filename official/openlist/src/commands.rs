@@ -10,6 +10,9 @@ pub(crate) fn dispatch(
     reads: &Reads,
 ) -> Result<Value, RpcError> {
     let method = ctx.method();
+    if matches!(method, "fs.stat" | "fs.writeFile") {
+        return super::sync::dispatch(&ctx, session);
+    }
     let p = ctx.params();
     if method == "fs.closeRead" {
         fs::close_read(p, reads);
@@ -18,7 +21,7 @@ pub(crate) fn dispatch(
     match method {
         "connection.validate" | "fs.list" => fs::list(method, p, session, &ctx),
         "fs.readSmall" | "fs.openRead" => fs::read(method, p, session, reads, &ctx),
-        "fs.readStream" => fs::read_stream(p, reads),
+        "fs.readStream" => fs::read_stream(p, reads, &ctx),
         _ => Err(RpcError::method_not_found(method)),
     }
 }

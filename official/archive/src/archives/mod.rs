@@ -8,7 +8,8 @@ pub use compress::compress;
 pub use extract::extract;
 pub use paths::default_destination;
 
-const MAX_TOTAL: u64 = 20 * 1024 * 1024 * 1024;
+pub(crate) const DEFAULT_MAX_TOTAL_GIB: u64 = 20;
+pub(crate) const MAX_TOTAL_CAP_GIB: u64 = 1024;
 const MAX_ENTRIES: usize = 100000;
 
 use fiex_plugin_sdk::{Files, RequestContext, TaskContext};

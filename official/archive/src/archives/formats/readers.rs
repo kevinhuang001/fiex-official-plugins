@@ -3,7 +3,7 @@ use super::super::{
     err,
     extract::extract_file,
     paths::{safe_name, text},
-    ArchiveContext, CANCELLED, MAX_ENTRIES, MAX_TOTAL,
+    ArchiveContext, CANCELLED, MAX_ENTRIES,
 };
 use crate::ignores::IgnoreSet;
 use std::{
@@ -106,6 +106,7 @@ pub(crate) fn extract_rar(
     source: &str,
     password: Option<&str>,
     ignore: &IgnoreSet,
+    max_total: u64,
 ) -> Result<(), String> {
     use std::sync::{Arc, Mutex};
     struct Sink(Arc<Mutex<Option<fiex_plugin_sdk::FileWriter>>>);
@@ -128,7 +129,7 @@ pub(crate) fn extract_rar(
     let mut count = 0;
     let mut options = rars::ArchiveReadOptions::default();
     options.password = password.map(str::as_bytes);
-    options.max_total_output_bytes = Some(MAX_TOTAL);
+    options.max_total_output_bytes = Some(max_total);
     options.max_reader_workspace_bytes = Some(256 * 1024 * 1024);
     options.max_header_count = Some(MAX_ENTRIES as u64 + 1024);
     options.max_header_bytes = Some(64 * 1024 * 1024);

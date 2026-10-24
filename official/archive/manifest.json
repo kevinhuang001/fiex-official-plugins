@@ -232,6 +232,12 @@
         ]
       },
       {
+        "id": "extractMaxTotalGiB",
+        "label": "解压输出上限（GiB）",
+        "type": "number",
+        "defaultValue": 20
+      },
+      {
         "id": "extractIgnores",
         "label": "解压时忽略的文件或目录",
         "type": "list",

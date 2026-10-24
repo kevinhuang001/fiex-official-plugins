@@ -3,7 +3,7 @@
 use super::{
     err, formats,
     paths::{safe_name, text, unique},
-    ArchiveContext, MAX_TOTAL,
+    ArchiveContext,
 };
 use crate::ignores::IgnoreSet;
 use fiex_plugin_sdk::Files;
@@ -53,6 +53,7 @@ pub fn extract(
     destination: Option<&str>,
     password: Option<&str>,
     ignores: &[String],
+    max_total: u64,
     context: &dyn ArchiveContext,
 ) -> Result<String, String> {
     let files = context.files();
@@ -73,13 +74,13 @@ pub fn extract(
     let ignore = IgnoreSet::new(ignores);
     let result = (|| {
         let lower = source.to_lowercase();
-        let mut remaining = MAX_TOTAL;
+        let mut remaining = max_total;
         if lower.ends_with(".zip") {
             formats::extract_zip(context, &root, source, password, &ignore, &mut remaining)?;
         } else if lower.ends_with(".7z") {
             formats::extract_7z(context, &root, source, password, &ignore, &mut remaining)?;
         } else if lower.ends_with(".rar") {
-            formats::extract_rar(context, &root, source, password, &ignore)?;
+            formats::extract_rar(context, &root, source, password, &ignore, max_total)?;
         } else {
             formats::extract_stream(
                 context,

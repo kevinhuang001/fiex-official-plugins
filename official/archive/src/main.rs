@@ -43,6 +43,20 @@ fn merge_ignores(params: &Value, mut stored: Vec<String>) -> Vec<String> {
     values.append(&mut stored);
     values
 }
+fn max_total_bytes(ctx: &sdk::RequestContext, p: &Value) -> u64 {
+    const GIB: u64 = 1024 * 1024 * 1024;
+    let configured = ctx
+        .storage_get("global", "extractMaxTotalGiB")
+        .ok()
+        .and_then(|value| value.as_u64())
+        .unwrap_or(archives::DEFAULT_MAX_TOTAL_GIB);
+    let bytes = p
+        .get("maxTotalBytes")
+        .and_then(Value::as_u64)
+        .unwrap_or_else(|| configured.saturating_mul(GIB));
+    bytes.clamp(GIB, archives::MAX_TOTAL_CAP_GIB.saturating_mul(GIB))
+}
+
 fn archive_error(error: String) -> RpcError {
     if error == archives::CANCELLED {
         RpcError::cancelled()
@@ -114,7 +128,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
             let password = p.get("password").and_then(Value::as_str);
-            match archives::extract(path, None, password, &ignores, host) {
+            let max_total = max_total_bytes(host, p);
+            match archives::extract(path, None, password, &ignores, max_total, host) {
                 Ok(destination) => Ok(json!({ "handled": true, "destination": destination })),
                 Err(error) if listing::looks_encrypted(&error) => {
                     Ok(json!({ "handled": true, "preview": true }))
@@ -131,12 +146,14 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
+            let max_total = max_total_bytes(host, p);
             let task = ctx.spawn_task_with_label("正在解压", move |task| {
                 let result = archives::extract(
                     &path,
                     destination.as_deref(),
                     password.as_deref(),
                     &ignores,
+                    max_total,
                     &task,
                 )
                 .map_err(archive_error)?;

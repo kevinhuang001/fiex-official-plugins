@@ -61,25 +61,51 @@ fn sheet_table(range: &calamine::Range<Data>) -> Table {
     }
 }
 
+fn names_of(bytes: &[u8], extension: &str) -> Result<Vec<String>, String> {
+    if extension == "xls" {
+        let workbook = Xls::new(Cursor::new(bytes.to_vec())).map_err(|error| error.to_string())?;
+        Ok(workbook.sheet_names().to_vec())
+    } else {
+        let workbook = Xlsx::new(Cursor::new(bytes.to_vec())).map_err(|error| error.to_string())?;
+        Ok(workbook.sheet_names().to_vec())
+    }
+}
+
+/// Reads one sheet on demand; a workbook with many sheets only pays for the
+/// sheet the user opens.
+pub fn sheet(bytes: &[u8], extension: &str, name: &str) -> Result<Table, String> {
+    if extension == "xls" {
+        let mut workbook =
+            Xls::new(Cursor::new(bytes.to_vec())).map_err(|error| error.to_string())?;
+        let range = workbook
+            .worksheet_range(name)
+            .map_err(|error| error.to_string())?;
+        Ok(sheet_table(&range))
+    } else {
+        let mut workbook =
+            Xlsx::new(Cursor::new(bytes.to_vec())).map_err(|error| error.to_string())?;
+        let range = workbook
+            .worksheet_range(name)
+            .map_err(|error| error.to_string())?;
+        Ok(sheet_table(&range))
+    }
+}
+
+pub fn sheet_names(bytes: &[u8], extension: &str) -> Result<Vec<String>, String> {
+    let names = names_of(bytes, extension)?;
+    if names.is_empty() {
+        return Err("工作簿没有可见的工作表".into());
+    }
+    Ok(names)
+}
+
+#[allow(dead_code)]
 pub fn open(bytes: Vec<u8>, extension: &str) -> Result<BTreeMap<String, Table>, String> {
     let mut sheets = BTreeMap::new();
-    if extension == "xls" {
-        let mut workbook = Xls::new(Cursor::new(bytes)).map_err(|error| error.to_string())?;
-        for name in workbook.sheet_names().to_vec() {
-            if let Ok(range) = workbook.worksheet_range(&name) {
-                sheets.insert(name, sheet_table(&range));
-            }
+    for name in sheet_names(&bytes, extension)? {
+        if let Ok(table) = sheet(&bytes, extension, &name) {
+            sheets.insert(name, table);
         }
-    } else {
-        let mut workbook = Xlsx::new(Cursor::new(bytes)).map_err(|error| error.to_string())?;
-        for name in workbook.sheet_names().to_vec() {
-            if let Ok(range) = workbook.worksheet_range(&name) {
-                sheets.insert(name, sheet_table(&range));
-            }
-        }
-    }
-    if sheets.is_empty() {
-        return Err("工作簿没有可见的工作表".into());
     }
     Ok(sheets)
 }

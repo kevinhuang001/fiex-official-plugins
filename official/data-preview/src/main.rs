@@ -15,7 +15,12 @@ use std::collections::BTreeMap;
 
 enum Source {
     Sqlite(rusqlite::Connection),
-    Sheets(BTreeMap<String, table::Table>),
+    /// Workbook bytes plus a per-sheet cache: sheets parse only when opened.
+    Sheets {
+        bytes: Vec<u8>,
+        extension: String,
+        cache: RefCell<BTreeMap<String, table::Table>>,
+    },
     Single(table::Table),
 }
 
@@ -50,12 +55,18 @@ fn page_of(source: &Source, dataset: &str, p: &Value) -> Result<Value, String> {
         Source::Sqlite(connection) => {
             sqlite::page(connection, dataset, offset, limit, order, descending)
         }
-        Source::Sheets(sheets) => {
-            let sheet = sheets
-                .get(dataset)
-                .ok_or_else(|| "没有这个工作表".to_string())?;
+        Source::Sheets {
+            bytes,
+            extension,
+            cache,
+        } => {
+            let mut sheets = cache.borrow_mut();
+            if !sheets.contains_key(dataset) {
+                let parsed = sheet::sheet(bytes, extension, dataset)?;
+                sheets.insert(dataset.to_string(), parsed);
+            }
             Ok(table::page(
-                sheet,
+                sheets.get(dataset).unwrap(),
                 offset as usize,
                 limit as usize,
                 order,
@@ -104,13 +115,15 @@ fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String> {
             ))
         }
         "xlsx" | "xls" => {
-            let sheets = sheet::open(bytes, &extension)?;
-            let datasets = sheets
-                .keys()
+            let names = sheet::sheet_names(&bytes, &extension)?;
+            let datasets = names
+                .iter()
                 .map(|name| dataset(name, name, "sheet"))
                 .collect::<Vec<_>>();
-            let first = sheets.keys().next().cloned().unwrap_or_default();
-            let page = table::page(&sheets[&first], 0, 100, None, false);
+            let first = sheet::sheet(&bytes, &extension, &names[0])?;
+            let page = table::page(&first, 0, 100, None, false);
+            let mut cache = BTreeMap::new();
+            cache.insert(names[0].clone(), first);
             Ok((
                 json!({
                     "format": extension,
@@ -119,7 +132,11 @@ fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String> {
                 }),
                 Cache {
                     path: path.to_string(),
-                    source: Source::Sheets(sheets),
+                    source: Source::Sheets {
+                        bytes,
+                        extension,
+                        cache: RefCell::new(cache),
+                    },
                 },
             ))
         }

@@ -57,6 +57,28 @@
       .pk { color: var(--accent); font-weight: 600; }
       .empty-side { color: var(--muted); padding: 10px; font-size: 11px; }
       .note { padding: 4px 12px; color: var(--muted); font-size: 10px; border-bottom: 1px solid var(--line); }
+      .chip {
+        padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line);
+        color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em;
+      }
+      .chip[hidden] { display: none; }
+      thead th .type.number { color: #2f7d42; }
+      thead th .type.boolean { color: #7d4fa8; }
+      thead th .type.text { color: var(--muted); }
+      td.row-number, th.corner {
+        width: 40px; min-width: 40px; text-align: right; color: var(--muted);
+        font-variant-numeric: tabular-nums; background: var(--canvas);
+        position: sticky; left: 0; z-index: 1;
+      }
+      thead th.corner { z-index: 3; cursor: default; }
+      tbody tr:nth-child(even) td:not(.row-number) { background: color-mix(in srgb, var(--canvas) 45%, transparent); }
+      tbody tr:hover td { background: var(--hover); }
+      td.row-number { background: var(--canvas); }
+      .empty {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        padding: 40px 20px; color: var(--muted); font-size: 11px;
+      }
+      .empty strong { color: var(--text); font-size: 12px; }
     </style>
   </head>
   <body>
@@ -67,6 +89,7 @@
     <main>
       <div class="head">
         <strong id="title">未选择数据集</strong>
+        <span class="chip" id="format" hidden></span>
         <span class="muted" id="summary"></span>
         <div class="tabs">
           <button id="data-tab" type="button" aria-selected="true">数据</button>
@@ -76,9 +99,11 @@
       <div class="note" id="note" hidden></div>
       <div class="grid-host" id="content"><p class="hint">选择左侧的数据集查看内容。</p></div>
       <div class="pager" id="pager" hidden>
+        <button id="first" type="button" aria-label="第一页">«</button>
         <button id="prev" type="button">上一页</button>
         <span id="page-info"></span>
         <button id="next" type="button">下一页</button>
+        <button id="last" type="button" aria-label="最后一页">»</button>
         <span class="grow"></span>
         <label>每页
           <select id="page-size">
@@ -97,6 +122,9 @@
         const title = document.getElementById('title')
         const summary = document.getElementById('summary')
         const pager = document.getElementById('pager')
+        const first = document.getElementById('first')
+        const last = document.getElementById('last')
+        const formatChip = document.getElementById('format')
         const pageInfo = document.getElementById('page-info')
         const prev = document.getElementById('prev')
         const next = document.getElementById('next')
@@ -161,14 +189,21 @@
         const renderData = () => {
           content.innerHTML = ''
           if (!selected) { content.innerHTML = '<p class="hint">选择左侧的数据集查看内容。</p>'; return }
-          if (!rows.length) { content.innerHTML = '<p class="hint">没有数据。</p>'; return }
+          if (!rows.length) { content.innerHTML = '<div class="empty"><strong>没有数据</strong><span>这张表是空的。</span></div>'; return }
           const table = document.createElement('table')
           const head = document.createElement('thead')
           const headRow = document.createElement('tr')
+          const corner = document.createElement('th')
+          corner.className = 'corner'
+          corner.textContent = '#'
+          headRow.append(corner)
           for (const column of columns) {
             const th = document.createElement('th')
             th.textContent = column.name
-            const type = document.createElement('span'); type.className = 'type'; type.textContent = column.kind || 'text'
+            th.title = `${column.name} · ${column.kind || 'text'}`
+            const type = document.createElement('span')
+            type.className = `type ${column.kind || 'text'}`
+            type.textContent = column.kind || 'text'
             th.append(type)
             if (order === column.name) th.dataset.sort = descending ? 'desc' : 'asc'
             th.addEventListener('click', () => {
@@ -180,11 +215,15 @@
           }
           head.append(headRow); table.append(head)
           const body = document.createElement('tbody')
-          for (const row of rows) {
+          rows.forEach((row, rowIndex) => {
             const tr = document.createElement('tr')
+            const number = document.createElement('td')
+            number.className = 'row-number'
+            number.textContent = String(offset + rowIndex + 1)
+            tr.append(number)
             row.forEach((value, index) => tr.append(cell(value, columns[index]?.name || '')))
             body.append(tr)
-          }
+          })
           table.append(body); content.append(table)
         }
 
@@ -252,6 +291,10 @@
           pageInfo.textContent = `第 ${Math.floor(offset / limit) + 1} / ${pages} 页`
           prev.disabled = offset <= 0
           next.disabled = offset + limit >= total
+          first.disabled = offset <= 0
+          last.disabled = offset + limit >= total
+          formatChip.hidden = !format
+          formatChip.textContent = format
           note.hidden = !current.note
           note.textContent = current.note || ''
           if (tab === 'schema') renderSchema()
@@ -307,8 +350,13 @@
         filter.addEventListener('input', renderDatasets)
         dataTab.addEventListener('click', () => { tab = 'data'; paint() })
         schemaTab.addEventListener('click', () => { tab = 'schema'; paint() })
+        first.addEventListener('click', () => { offset = 0; void loadPage() })
         prev.addEventListener('click', () => { offset = Math.max(0, offset - limit); void loadPage() })
         next.addEventListener('click', () => { offset += limit; void loadPage() })
+        last.addEventListener('click', () => {
+          offset = Math.max(0, (Math.ceil(total / limit) - 1) * limit)
+          void loadPage()
+        })
         pageSize.addEventListener('change', () => { limit = Number(pageSize.value) || 100; offset = 0; void loadPage() })
 
         window.addEventListener('message', (event) => {

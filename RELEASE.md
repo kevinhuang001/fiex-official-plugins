@@ -2,6 +2,7 @@
 
 - New data-preview plugin (replaces sqlite-preview): paged, sortable tables for SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro.
 - Excel previews use data-preview (priority 110) over office-preview (100); DOCX/PPTX still use office-preview.
+- data-preview and office-preview entry files are split into open/dispatch and sanitize/render modules.
 
 # Fiex plugins 0.3.0
 

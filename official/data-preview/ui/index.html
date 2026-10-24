@@ -16,6 +16,7 @@
       html, body { height: 100%; }
       body { margin: 0; display: flex; color: var(--text); background: var(--surface); overflow: hidden; }
       aside { width: 190px; flex: 0 0 auto; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--canvas); min-height: 0; }
+      body.single aside { display: none; }
       .search { padding: 8px; border-bottom: 1px solid var(--line); }
       .search input { width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; outline: none; }
       .search input:focus { border-color: var(--accent); }
@@ -330,10 +331,14 @@
             const value = await invoke('plugin.invoke', { method: 'data.open', params: { path } })
             format = value.format || ''
             datasets = value.datasets || []
+            const single = datasets.length <= 1
+            document.body.classList.toggle('single', single)
             renderDatasets()
             if (!datasets.length) { content.innerHTML = '<p class="hint">没有可显示的数据集。</p>'; return }
             selected = datasets[0].id
-            title.textContent = selected
+            title.textContent = single
+              ? path.split(/[/\\]/).pop() || selected
+              : selected
             renderDatasets()
             if (value.page) {
               current = value.page || {}

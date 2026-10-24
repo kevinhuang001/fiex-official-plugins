@@ -340,7 +340,7 @@ fn main() {
         if method == "fs.openRead" {
             let (init_sender, init_receiver) = mpsc::channel();
             let (sender, receiver) = mpsc::channel();
-            let task = ctx.spawn_task_with_label("SMB 读取流", move |task| {
+            let task = ctx.spawn_internal_task("SMB 读取流", move |task| {
                 let tcp = task.tcp();
                 let stream = match open_stream(&tcp, &cfg, &path) {
                     Ok(stream) => stream,

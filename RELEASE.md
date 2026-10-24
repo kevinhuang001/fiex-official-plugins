@@ -1,3 +1,9 @@
+# Fiex plugins 0.4.0
+
+- New data-preview plugin (replaces sqlite-preview): paged, sortable tables for SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro.
+- Excel previews use data-preview (priority 110) over office-preview (100); DOCX/PPTX still use office-preview.
+- data-preview and office-preview entry files are split into open/dispatch and sanitize/render modules.
+
 # Fiex plugins 0.3.0
 
 - Archive registers a `beforeOpen` hook: double-clicking an archive extracts it into the archive's folder (conflict-safe folder names) instead of opening the system app. Password-protected archives hand off to the preview.

@@ -8,8 +8,10 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let metadata = host.fs_stat(path)?;
             let files = host.files();
+            let metadata = files
+                .metadata(path)
+                .map_err(|e| RpcError::internal(e.to_string()))?;
             let reader = files
                 .open_read(path)
                 .map_err(|e| RpcError::internal(e.to_string()))?;

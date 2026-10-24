@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "org.fiex.data-preview",
+  "name": "数据预览",
+  "version": "0.4.0",
+  "description": "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。",
+  "icon": "database",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-data-preview.exe",
+      "macos-aarch64": "fiex-plugin-data-preview",
+      "macos-x86_64": "fiex-plugin-data-preview",
+      "linux-x86_64": "fiex-plugin-data-preview"
+    }
+  },
+  "permissions": {
+    "folders": {
+      "read": { "enabled": false },
+      "create": false,
+      "delete": false,
+      "rename": false
+    },
+    "files": { "read": true, "write": false },
+    "network": { "enabled": false, "domains": [] },
+    "commands": { "enabled": false, "allow": [] }
+  },
+  "contributions": {
+    "preview": [
+      {
+        "id": "data",
+        "title": "数据预览",
+        "extensions": [
+          "db",
+          "sqlite",
+          "sqlite3",
+          "csv",
+          "tsv",
+          "xlsx",
+          "xls",
+          "parquet",
+          "arrow",
+          "feather",
+          "ipc",
+          "avro"
+        ],
+        "priority": 110,
+        "maxBytes": 268435456,
+        "panel": {
+          "entry": "ui/index.html",
+          "title": "数据预览",
+          "defaultSize": { "width": 720, "height": 640 }
+        }
+      }
+    ]
+  }
+}

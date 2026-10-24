@@ -88,11 +88,15 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             if datasets.is_empty() {
                 return Err("数据库里没有表".into());
             }
+            let summary = sqlite::summary(&connection)?;
             let cache = Cache {
                 path: path.to_string(),
                 source: Source::Sqlite(connection),
             };
-            Ok((json!({ "format": "sqlite", "datasets": datasets }), cache))
+            Ok((
+                json!({ "format": "sqlite", "datasets": datasets, "summary": summary }),
+                cache,
+            ))
         }
         "csv" | "tsv" => {
             let table = tabular::csv(bytes, path)?;

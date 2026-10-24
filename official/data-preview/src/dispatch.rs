@@ -32,8 +32,18 @@ pub(crate) fn dispatch(
                 .get("columns")
                 .and_then(Value::as_array)
                 .map(|items| items.len())
+                .or_else(|| {
+                    value
+                        .pointer("/summary/columns")
+                        .and_then(Value::as_u64)
+                        .map(|count| count as usize)
+                })
                 .unwrap_or(0);
-            let rows = page.get("total").and_then(Value::as_u64).unwrap_or(0);
+            let rows = page
+                .get("total")
+                .and_then(Value::as_u64)
+                .or_else(|| value.pointer("/summary/rows").and_then(Value::as_u64))
+                .unwrap_or(0);
             Ok(serde_json::json!({"rows": [
                 {"label":"格式","value":value.get("format").and_then(Value::as_str).unwrap_or("").to_ascii_uppercase()},
                 {"label":"数据集","value":datasets.len().to_string()},

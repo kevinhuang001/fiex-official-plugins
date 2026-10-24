@@ -31,15 +31,11 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
             let files = ctx.files();
-            let metadata = files
-                .metadata(path)
-                .map_err(|error| RpcError::internal(error.to_string()))?;
             let reader = files
                 .open_read(path)
                 .map_err(|error| RpcError::internal(error.to_string()))?;
             let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
-            let mut rows =
-                vec![serde_json::json!({"label":"大小","value":metadata.size.to_string()})];
+            let mut rows = Vec::new();
             for hash in hashes {
                 rows.push(serde_json::json!({
                     "label": hash.algorithm.to_ascii_uppercase(),

@@ -1,3 +1,8 @@
+# Fiex plugins 0.2.10
+
+- Office preview now parses DOCX/XLSX/PPTX with the `office_oxide` Office library instead of hand-written XML walks: headings, lists, tables, sheet boundaries and slide boundaries are rendered as structured HTML.
+- The plugin sanitizes the generated HTML (no scripts, handlers or javascript: URLs) before rendering it.
+
 # Fiex plugins 0.2.9
 
 - New SQLite viewer plugin: tables, columns, indexes, foreign keys and table data with paging and column sorting, read-only.

@@ -10,37 +10,42 @@
         --text: #1d2430;
         --muted: #6b7684;
         --surface: #ffffff;
-        --canvas: #f4f5f7;
+        --canvas: #f6f7f9;
         --line: rgba(20, 30, 45, 0.12);
         --accent: #2f6fed;
-        font: 13px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font: 13px/1.7 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", serif;
       }
       * { box-sizing: border-box; }
       body { margin: 0; color: var(--text); background: var(--surface); }
       header {
         position: sticky; top: 0; z-index: 1;
         display: flex; align-items: baseline; gap: 8px;
-        padding: 10px 14px; border-bottom: 1px solid var(--line);
+        padding: 8px 16px; border-bottom: 1px solid var(--line);
         background: color-mix(in srgb, var(--surface) 92%, transparent);
         backdrop-filter: blur(8px);
       }
       header strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       header span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
-      main { padding: 14px; }
+      main { padding: 18px 22px 32px; max-width: 860px; margin: 0 auto; }
       .hint { color: var(--muted); text-align: center; padding: 28px 0; }
       .error { color: var(--danger, #b4443d); white-space: pre-wrap; }
-      article p { margin: 0 0 8px; }
-      table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
-      th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+      h1, h2, h3, h4 { line-height: 1.35; margin: 0.9em 0 0.45em; font-weight: 600; }
+      h1 { font-size: 20px; }
+      h2 { font-size: 16px; }
+      h3 { font-size: 14px; }
+      p { margin: 0 0 0.7em; }
+      ul, ol { margin: 0 0 0.9em; padding-left: 1.4em; }
+      li { margin: 0.15em 0; }
+      table { border-collapse: collapse; margin: 0 0 1.1em; font-size: 12px; min-width: 60%; }
+      th, td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
       th { background: var(--canvas); font-weight: 600; }
-      .tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
-      .tabs button {
-        border: 1px solid var(--line); background: var(--canvas); color: var(--text);
-        border-radius: 6px; padding: 4px 9px; font: inherit; font-size: 11px; cursor: pointer;
+      td p, th p { margin: 0; }
+      img { max-width: 100%; height: auto; }
+      hr {
+        border: 0; height: 1px; margin: 22px 0;
+        background: var(--line);
       }
-      .tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-      .slide { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
-      .slide small { color: var(--muted); display: block; margin-bottom: 6px; }
+      .document { overflow-wrap: anywhere; }
     </style>
   </head>
   <body>
@@ -63,8 +68,6 @@
             document.documentElement.style.setProperty(`--${key}`, value)
           }
         }
-        const text = (value) => document.createTextNode(String(value ?? ''))
-
         const invoke = (method, params) =>
           new Promise((resolve, reject) => {
             if (!port) return reject(new Error('bridge not ready'))
@@ -72,90 +75,17 @@
             const timer = setTimeout(() => {
               pending.delete(requestId)
               reject(new Error('请求超时'))
-            }, 15000)
+            }, 20000)
             pending.set(requestId, { resolve, reject, timer })
             port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
           })
 
-        const showError = (error) => {
+        const fail = (error) => {
           content.innerHTML = ''
           const line = document.createElement('p')
           line.className = 'error'
           line.textContent = String(error?.message || error)
           content.append(line)
-        }
-
-        const render = (value) => {
-          content.innerHTML = ''
-          kind.textContent = value.kind || ''
-          if (value.kind === 'docx') {
-            const article = document.createElement('article')
-            for (const line of value.lines || []) {
-              const paragraph = document.createElement('p')
-              paragraph.append(text(line))
-              article.append(paragraph)
-            }
-            content.append(article)
-            if (!article.children.length) content.innerHTML = '<p class="hint">文档没有可提取的文本。</p>'
-            return
-          }
-          if (value.kind === 'xlsx') {
-            const sheets = value.sheets || []
-            if (!sheets.length) return (content.innerHTML = '<p class="hint">工作簿没有内容。</p>')
-            const tabs = document.createElement('div')
-            tabs.className = 'tabs'
-            const tableHost = document.createElement('div')
-            const draw = (index) => {
-              for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.index === String(index)))
-              tableHost.innerHTML = ''
-              const rows = sheets[index].rows || []
-              if (!rows.length) {
-                tableHost.innerHTML = '<p class="hint">这张工作表没有内容。</p>'
-                return
-              }
-              const table = document.createElement('table')
-              rows.forEach((cells, rowIndex) => {
-                const tr = document.createElement('tr')
-                cells.forEach((cell) => {
-                  const td = document.createElement(rowIndex === 0 ? 'th' : 'td')
-                  td.append(text(cell))
-                  tr.append(td)
-                })
-                table.append(tr)
-              })
-              tableHost.append(table)
-            }
-            sheets.forEach((sheet, index) => {
-              const button = document.createElement('button')
-              button.type = 'button'
-              button.dataset.index = String(index)
-              button.textContent = sheet.name
-              button.addEventListener('click', () => draw(index))
-              tabs.append(button)
-            })
-            content.append(tabs, tableHost)
-            draw(0)
-            return
-          }
-          if (value.kind === 'pptx') {
-            const slides = value.slides || []
-            if (!slides.length) return (content.innerHTML = '<p class="hint">演示文稿没有内容。</p>')
-            for (const slide of slides) {
-              const section = document.createElement('section')
-              section.className = 'slide'
-              const label = document.createElement('small')
-              label.textContent = `第 ${slide.index} 页`
-              section.append(label)
-              for (const line of slide.lines || []) {
-                const paragraph = document.createElement('p')
-                paragraph.append(text(line))
-                section.append(paragraph)
-              }
-              content.append(section)
-            }
-            return
-          }
-          content.innerHTML = '<p class="hint">不支持的内容。</p>'
         }
 
         const start = async () => {
@@ -168,9 +98,18 @@
               method: 'office.render',
               params: { path: preview.path },
             })
-            render(value)
+            kind.textContent = value.kind || ''
+            if (!value.html) {
+              content.innerHTML = '<p class="hint">文档没有可提取的内容。</p>'
+              return
+            }
+            const documentView = document.createElement('div')
+            documentView.className = 'document'
+            // The plugin sanitizes this HTML on the Rust side before it arrives.
+            documentView.innerHTML = value.html
+            content.replaceChildren(documentView)
           } catch (error) {
-            showError(error)
+            fail(error)
           }
         }
 
@@ -192,7 +131,8 @@
               else entry.resolve(payload.result)
               return
             }
-            if (payload?.type === 'event' && payload.name === 'theme.changed') setToken(payload.payload?.tokens)
+            if (payload?.type === 'event' && payload.name === 'theme.changed')
+              setToken(payload.payload?.tokens)
           }
           port.start()
           port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })

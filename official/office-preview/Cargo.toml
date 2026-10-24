@@ -1,6 +1,6 @@
 [package]
 name = "fiex-plugin-office-preview"
-version="0.2.8"
+version="0.2.10"
 edition = "2021"
 rust-version = "1.90"
 license = "GPL-3.0-or-later"
@@ -8,5 +8,4 @@ license = "GPL-3.0-or-later"
 [dependencies]
 fiex-plugin-sdk = { path = "../../sdk/rust" }
 serde_json = "1"
-quick-xml = "0.37"
-zip = { version = "4", default-features = false, features = ["deflate"] }
+office_oxide = "0.1"

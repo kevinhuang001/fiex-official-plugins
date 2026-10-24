@@ -1,8 +1,8 @@
 //! Compression entry point: collect the sources to store, then hand them to the
 //! writer for the requested format.
-use super::{err, formats, paths::text, MAX_ENTRIES};
+use super::{err, formats, paths::text, ArchiveContext, MAX_ENTRIES};
 use crate::ignores::IgnoreSet;
-use fiex_plugin_sdk::{files::FileSystem, HostServices};
+use fiex_plugin_sdk::Files;
 use std::path::Path;
 
 pub(crate) struct Source {
@@ -13,12 +13,12 @@ pub(crate) struct Source {
 }
 
 pub(crate) fn sources(
-    files: &FileSystem<'_>,
+    files: &Files,
     paths: &[String],
     ignore: &IgnoreSet,
 ) -> Result<Vec<Source>, String> {
     fn visit(
-        files: &FileSystem<'_>,
+        files: &Files,
         path: &str,
         name: &Path,
         ignore: &IgnoreSet,
@@ -62,13 +62,12 @@ pub fn compress(
     ignores: &[String],
     level: Option<u32>,
     password: Option<&str>,
-    host: &mut dyn HostServices,
+    context: &dyn ArchiveContext,
 ) -> Result<String, String> {
     if paths.is_empty() {
         return Err("请选择文件".into());
     }
-    let proxy = host.worker_proxy();
-    let files = host.files();
+    let files = context.files();
     let sources = sources(&files, paths, &IgnoreSet::new(ignores))?;
     let writer = files.begin_write(destination, true).map_err(err)?;
     let level = level.unwrap_or(6).min(9);
@@ -77,13 +76,13 @@ pub fn compress(
         return Err("只有 ZIP 和 RAR 支持密码".into());
     }
     let writer = match format {
-        "zip" => formats::write_zip(&files, &sources, writer, level, password)?,
-        "tar" => formats::write_tar(&files, &sources, writer)?,
-        "tar.gz" => formats::write_tar_gz(&files, &sources, writer, level)?,
-        "tar.bz2" => formats::write_tar_bz2(&files, &sources, writer, level)?,
-        "tar.xz" => formats::write_tar_xz(&files, &sources, writer, level)?,
-        "7z" => formats::write_7z(&files, &sources, writer)?,
-        "rar" => formats::write_rar(&sources, writer, level, password, proxy)?,
+        "zip" => formats::write_zip(context, &sources, writer, level, password)?,
+        "tar" => formats::write_tar(context, &sources, writer)?,
+        "tar.gz" => formats::write_tar_gz(context, &sources, writer, level)?,
+        "tar.bz2" => formats::write_tar_bz2(context, &sources, writer, level)?,
+        "tar.xz" => formats::write_tar_xz(context, &sources, writer, level)?,
+        "7z" => formats::write_7z(context, &sources, writer)?,
+        "rar" => formats::write_rar(context, &sources, writer, level, password)?,
         _ => return Err("不支持的压缩格式".into()),
     };
     writer.commit().map_err(err)?;

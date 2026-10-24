@@ -232,6 +232,12 @@
         ]
       },
       {
+        "id": "extractMaxTotalGiB",
+        "label": "解压输出上限（GiB）",
+        "type": "number",
+        "defaultValue": 20
+      },
+      {
         "id": "extractIgnores",
         "label": "解压时忽略的文件或目录",
         "type": "list",
@@ -286,6 +292,26 @@
             "height": 520
           }
         }
+      }
+    ],
+    "info": [
+      {
+        "id": "archive.info",
+        "title": "压缩包",
+        "command": "archive.info",
+        "extensions": [
+          "zip",
+          "7z",
+          "rar",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ],
+        "priority": 100
       }
     ]
   }

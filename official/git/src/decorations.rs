@@ -1,3 +1,4 @@
+use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 
 fn badge(code: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
@@ -22,7 +23,7 @@ fn normalize(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-pub fn list(params: &Value, host: &mut dyn fiex_plugin_sdk::HostServices) -> Result<Value, String> {
+pub fn list(params: &Value, host: &sdk::RequestContext) -> Result<Value, String> {
     let directory = params
         .get("directory")
         .and_then(Value::as_str)

@@ -6,7 +6,7 @@
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{cell::RefCell, time::Duration};
+use std::{sync::Mutex, time::Duration};
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,10 +20,10 @@ pub(crate) struct Config {
 /// Cached login token for one plugin instance.
 #[derive(Default)]
 pub(crate) struct Session {
-    token: RefCell<Option<String>>,
+    token: Mutex<Option<String>>,
 }
 
-fn stored(host: &mut dyn sdk::HostServices, key: &str) -> Option<Value> {
+fn stored(host: &sdk::RequestContext, key: &str) -> Option<Value> {
     host.storage_get("global", key).ok()
 }
 
@@ -37,7 +37,7 @@ fn text(value: Option<Value>) -> String {
 }
 
 pub(crate) fn config(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     connection: Option<&Value>,
 ) -> Result<Config, RpcError> {
     // The connection owns the server address so Core can approve exactly that
@@ -74,7 +74,7 @@ pub(crate) fn config(
 }
 
 fn post(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     cfg: &Config,
     token: Option<&str>,
     endpoint: &str,
@@ -114,7 +114,7 @@ fn post(
     Ok(parsed)
 }
 
-fn login(host: &mut dyn sdk::HostServices, cfg: &Config) -> Result<String, RpcError> {
+fn login(host: &sdk::RequestContext, cfg: &Config) -> Result<String, RpcError> {
     let parsed = post(
         host,
         cfg,
@@ -130,21 +130,25 @@ fn login(host: &mut dyn sdk::HostServices, cfg: &Config) -> Result<String, RpcEr
         .ok_or_else(|| RpcError::internal("登录失败：服务器未返回 token"))
 }
 
-fn token(
-    host: &mut dyn sdk::HostServices,
-    cfg: &Config,
-    session: &Session,
-) -> Result<String, RpcError> {
-    if let Some(value) = session.token.borrow().clone() {
+fn token(host: &sdk::RequestContext, cfg: &Config, session: &Session) -> Result<String, RpcError> {
+    if let Some(value) = session
+        .token
+        .lock()
+        .map_err(|_| RpcError::internal("session cache unavailable"))?
+        .clone()
+    {
         return Ok(value);
     }
     let value = login(host, cfg)?;
-    *session.token.borrow_mut() = Some(value.clone());
+    *session
+        .token
+        .lock()
+        .map_err(|_| RpcError::internal("session cache unavailable"))? = Some(value.clone());
     Ok(value)
 }
 
 pub(crate) fn authorized(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     cfg: &Config,
     session: &Session,
     endpoint: &str,
@@ -155,7 +159,10 @@ pub(crate) fn authorized(
         // A stale token is the common failure after a server restart: log in
         // once more before surfacing the error.
         Err(error) if error.message.contains("401") => {
-            *session.token.borrow_mut() = None;
+            *session
+                .token
+                .lock()
+                .map_err(|_| RpcError::internal("session cache unavailable"))? = None;
             let fresh = token(host, cfg, session)?;
             post(host, cfg, Some(&fresh), endpoint, body)
         }
@@ -164,7 +171,7 @@ pub(crate) fn authorized(
 }
 
 pub(crate) fn download(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     cfg: &Config,
     url: &str,
 ) -> Result<(Vec<u8>, u64), RpcError> {

@@ -48,7 +48,7 @@ pub fn looks_encrypted(message: &str) -> bool {
 pub fn list(
     source: &str,
     password: Option<&str>,
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     let lower = source.to_lowercase();
     let password = password.filter(|value| !value.is_empty());

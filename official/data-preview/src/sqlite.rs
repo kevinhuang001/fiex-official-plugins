@@ -56,6 +56,30 @@ pub fn datasets(connection: &Connection) -> Result<Vec<Value>, String> {
         .map_err(|error| error.to_string())
 }
 
+pub fn summary(connection: &Connection) -> Result<Value, String> {
+    let datasets = datasets(connection)?;
+    let Some(first) = datasets.first() else {
+        return Ok(serde_json::json!({"datasets": 0, "columns": 0, "rows": 0}));
+    };
+    let name = first
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or("dataset has no name")?;
+    let columns = columns(connection, name)?;
+    let rows: i64 = connection
+        .query_row(
+            &format!("SELECT COUNT(*) FROM {}", quote(name)),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({
+        "datasets": datasets.len(),
+        "columns": columns.len(),
+        "rows": rows,
+    }))
+}
+
 fn columns(connection: &Connection, table: &str) -> Result<Vec<Value>, String> {
     let mut statement = connection
         .prepare(&format!("PRAGMA table_info({})", quote(table)))

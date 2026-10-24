@@ -6,7 +6,7 @@ mod keys;
 use fiex_plugin_sdk as sdk;
 
 fn main() {
-    if let Err(error) = sdk::serve_with_host("org.fiex.gpg", commands::run) {
+    if let Err(error) = sdk::serve("org.fiex.gpg", commands::run) {
         eprintln!("GPG plugin: {error}");
         std::process::exit(1);
     }

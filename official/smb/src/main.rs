@@ -4,7 +4,15 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use smb::{GetLen, ReadAt};
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc, Arc, Mutex,
+    },
+    time::Duration,
+};
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,10 +27,115 @@ struct StoredConnection {
     password: String,
     port: Option<u16>,
 }
-#[derive(Clone)]
-struct ReadStream {
-    connection: StoredConnection,
-    path: String,
+/// A real remote file kept open for the lifetime of one `fs.openRead` stream.
+/// Reusing the connection, authenticated session, tree and file handle avoids
+/// reconnecting and re-authenticating for every read chunk.
+struct OpenStream {
+    connection: smb::Connection,
+    session: smb::Session,
+    tree: smb::Tree,
+    file: smb::File,
+    total: u64,
+}
+
+enum StreamCommand {
+    Read {
+        offset: u64,
+        max: usize,
+        reply: mpsc::Sender<Result<Value, RpcError>>,
+    },
+    Close {
+        reply: mpsc::Sender<Result<Value, RpcError>>,
+    },
+}
+
+/// The stream is owned by a background task so its TCP connection, SMB
+/// session and remote file handle stay authorized after the opening request
+/// returns and are reclaimed when the stream is closed or cancelled.
+struct StreamHandle {
+    sender: mpsc::Sender<StreamCommand>,
+}
+
+impl Drop for OpenStream {
+    fn drop(&mut self) {
+        let _ = self.file.close();
+        let _ = self.tree.disconnect();
+        let _ = self.session.logoff();
+        let _ = self.connection.close();
+    }
+}
+
+fn connect(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+) -> Result<(smb::Connection, smb::Session, smb::Tree), String> {
+    let port = cfg.port.unwrap_or(445);
+    let transport =
+        transport::HostTransport::open(tcp, &cfg.host, port).map_err(|error| error.to_string())?;
+    let connection = smb::Connection::from_transport(
+        Box::new(transport),
+        &cfg.host,
+        smb::Guid::generate(),
+        smb::ConnectionConfig::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    let identity = sspi::AuthIdentity {
+        username: sspi::Username::parse(&cfg.username).map_err(|error| error.to_string())?,
+        password: sspi::Secret::from(cfg.password.clone()),
+    };
+    let session = connection
+        .authenticate(identity)
+        .map_err(|error| error.to_string())?;
+    let unc = smb::UncPath::from_str(&format!("\\\\{}\\{}", cfg.host, cfg.share))
+        .map_err(|error| error.to_string())?;
+    let tree = session
+        .tree_connect(&unc)
+        .map_err(|error| error.to_string())?;
+    Ok((connection, session, tree))
+}
+
+fn open_stream(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+    path: &str,
+) -> Result<OpenStream, RpcError> {
+    let (connection, session, tree) = connect(tcp, cfg).map_err(RpcError::internal)?;
+    let path = smb_path(cfg, path);
+    let file = tree
+        .create(
+            &path,
+            &smb::FileCreateArgs::make_open_existing(
+                smb::FileAccessMask::new().with_generic_read(true),
+            ),
+        )
+        .map_err(|error| RpcError::internal(error.to_string()))?
+        .unwrap_file();
+    let total = file
+        .get_len()
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(OpenStream {
+        connection,
+        session,
+        tree,
+        file,
+        total,
+    })
+}
+
+fn read_open_stream(stream: &OpenStream, offset: u64, max: usize) -> Result<Value, RpcError> {
+    let mut bytes = vec![0; max];
+    let read = stream
+        .file
+        .read_at(&mut bytes, offset)
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    bytes.truncate(read);
+    use base64::Engine;
+    Ok(json!({
+        "base64":base64::engine::general_purpose::STANDARD.encode(bytes),
+        "length":read,
+        "bytesRead":read,
+        "eof":offset.saturating_add(read as u64)>=stream.total
+    }))
 }
 fn safe_relative(path: &str) -> Result<(), RpcError> {
     if path.starts_with('/')
@@ -41,7 +154,7 @@ fn smb_path(cfg: &StoredConnection, path: &str) -> String {
         .join("\\")
 }
 fn remote(
-    host: sdk::worker::HostProxy,
+    tcp: sdk::TcpClient,
     cfg: StoredConnection,
     path: String,
     method: String,
@@ -50,7 +163,7 @@ fn remote(
     let run = || -> Result<Value, String> {
         let port = cfg.port.unwrap_or(445);
         let transport =
-            transport::HostTransport::open(host, &cfg.host, port).map_err(|e| e.to_string())?;
+            transport::HostTransport::open(&tcp, &cfg.host, port).map_err(|e| e.to_string())?;
         let connection = smb::Connection::from_transport(
             Box::new(transport),
             &cfg.host,
@@ -135,36 +248,35 @@ fn remote(
                 .map_err(|e| e.to_string())?
                 .unwrap_file();
             let total = file.get_len().map_err(|e| e.to_string())?;
-            let result = if method == "fs.openRead" {
-                json!({"size":total})
-            } else {
-                let max = params
-                    .get("maxBytes")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(262144)
-                    .clamp(1, 1048576) as usize;
-                let offset = params.get("offset").and_then(Value::as_u64).unwrap_or(0);
-                let mut bytes = vec![0; max];
-                let read = file
-                    .read_at(&mut bytes, offset)
-                    .map_err(|e| e.to_string())?;
-                bytes.truncate(read);
-                use base64::Engine;
-                json!({"base64":base64::engine::general_purpose::STANDARD.encode(bytes),"length":read,"bytesRead":read,"eof":offset.saturating_add(read as u64)>=total})
-            };
+            let max = params
+                .get("maxBytes")
+                .and_then(Value::as_u64)
+                .unwrap_or(262144)
+                .clamp(1, 1048576) as usize;
+            let offset = params.get("offset").and_then(Value::as_u64).unwrap_or(0);
+            let mut bytes = vec![0; max];
+            let read = file
+                .read_at(&mut bytes, offset)
+                .map_err(|e| e.to_string())?;
+            bytes.truncate(read);
+            use base64::Engine;
+            let result = json!({"base64":base64::engine::general_purpose::STANDARD.encode(bytes),"length":read,"bytesRead":read,"eof":offset.saturating_add(read as u64)>=total});
             let _ = file.close();
             result
         };
         let _ = tree.disconnect();
+        let _ = session.logoff();
         let _ = connection.close();
         Ok(result)
     };
     run().map_err(RpcError::internal)
 }
 fn main() {
-    let mut streams: HashMap<String, ReadStream> = HashMap::new();
-    let mut sequence = 0u64;
-    let result = sdk::serve_with_host("org.fiex.smb", move |method, p, host| {
+    let streams: Mutex<HashMap<String, Arc<StreamHandle>>> = Mutex::new(HashMap::new());
+    let sequence = AtomicU64::new(0);
+    let result = sdk::serve("org.fiex.smb", move |ctx| {
+        let method = ctx.method();
+        let p = ctx.params();
         if !matches!(
             method,
             "connection.validate"
@@ -178,49 +290,107 @@ fn main() {
         }
         let stream_id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
         if method == "fs.closeRead" {
-            streams.remove(stream_id);
+            let stream = streams
+                .lock()
+                .map_err(|_| RpcError::internal("stream registry unavailable"))?
+                .remove(stream_id);
+            if let Some(stream) = stream {
+                let (reply, response) = mpsc::channel();
+                let _ = stream.sender.send(StreamCommand::Close { reply });
+                let _ = response.recv_timeout(Duration::from_secs(30));
+            }
             return Ok(Value::Null);
         }
-        let (cfg, path) = if method == "fs.readStream" {
+        if method == "fs.readStream" {
             let stream = streams
+                .lock()
+                .map_err(|_| RpcError::internal("stream registry unavailable"))?
                 .get(stream_id)
+                .cloned()
                 .ok_or_else(|| RpcError::invalid_params("unknown read stream"))?;
-            (stream.connection.clone(), stream.path.clone())
-        } else {
-            let cfg: StoredConnection = serde_json::from_value(
-                p.get("connection")
-                    .cloned()
-                    .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-            )
-            .map_err(|e| RpcError::invalid_params(e.to_string()))?;
-            let path = p
-                .get("directoryId")
-                .or_else(|| p.get("nodeId"))
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_owned();
-            safe_relative(&path)?;
-            safe_relative(&cfg.base)?;
-            (cfg, path)
-        };
-        let stored = ReadStream {
-            connection: cfg.clone(),
-            path: path.clone(),
-        };
-        let method_owned = method.to_owned();
-        let mut value = sdk::worker::with_host_worker(host, move |proxy| {
-            remote(proxy, cfg, path, method_owned, p)
-        })?;
+            let max = p
+                .get("maxBytes")
+                .and_then(Value::as_u64)
+                .unwrap_or(262144)
+                .clamp(1, 1048576) as usize;
+            let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0);
+            let (reply, response) = mpsc::channel();
+            stream
+                .sender
+                .send(StreamCommand::Read { offset, max, reply })
+                .map_err(|_| RpcError::internal("SMB stream is closed"))?;
+            return response
+                .recv_timeout(Duration::from_secs(120))
+                .map_err(|_| RpcError::internal("SMB stream stopped responding"))?;
+        }
+        let cfg: StoredConnection = serde_json::from_value(
+            p.get("connection")
+                .cloned()
+                .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+        )
+        .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+        let path = p
+            .get("directoryId")
+            .or_else(|| p.get("nodeId"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
+        safe_relative(&path)?;
+        safe_relative(&cfg.base)?;
         if method == "fs.openRead" {
-            if streams.len() >= 32 {
+            let (init_sender, init_receiver) = mpsc::channel();
+            let (sender, receiver) = mpsc::channel();
+            let task = ctx.spawn_internal_task("SMB 读取流", move |task| {
+                let tcp = task.tcp();
+                let stream = match open_stream(&tcp, &cfg, &path) {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        let _ = init_sender.send(Err(error.clone()));
+                        return Err(error);
+                    }
+                };
+                let _ = init_sender.send(Ok(stream.total));
+                loop {
+                    if task.is_cancelled() {
+                        break;
+                    }
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(StreamCommand::Read { offset, max, reply }) => {
+                            let _ = reply.send(read_open_stream(&stream, offset, max));
+                        }
+                        Ok(StreamCommand::Close { reply }) => {
+                            let _ = reply.send(Ok(Value::Null));
+                            break;
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    }
+                }
+                Ok(Value::Null)
+            })?;
+            let total = match init_receiver.recv_timeout(Duration::from_secs(30)) {
+                Ok(Ok(total)) => total,
+                Ok(Err(error)) => {
+                    task.cancel();
+                    return Err(error);
+                }
+                Err(_) => {
+                    task.cancel();
+                    return Err(RpcError::internal("SMB stream did not open"));
+                }
+            };
+            let mut streams = streams
+                .lock()
+                .map_err(|_| RpcError::internal("stream registry unavailable"))?;
+            if streams.len() >= 8 {
+                task.cancel();
                 return Err(RpcError::internal("too many read streams"));
             }
-            sequence += 1;
-            let id = format!("smb-read-{sequence}");
-            streams.insert(id.clone(), stored);
-            value["streamId"] = json!(id);
+            let id = format!("smb-read-{}", sequence.fetch_add(1, Ordering::Relaxed) + 1);
+            streams.insert(id.clone(), Arc::new(StreamHandle { sender }));
+            return Ok(json!({"size": total, "streamId": id}));
         }
-        Ok(value)
+        remote(ctx.tcp(), cfg, path, method.to_owned(), p.clone())
     });
     if let Err(error) = result {
         eprintln!("SMB plugin IPC failed: {error}");

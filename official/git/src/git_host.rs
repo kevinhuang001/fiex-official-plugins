@@ -2,11 +2,11 @@
 //!
 //! Core chooses the working directory (the focused explorer directory); this
 //! module only supplies command arguments and parses the returned output.
-use fiex_plugin_sdk::HostServices;
+use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-pub fn run(host: &mut dyn HostServices, root: &str, args: &[&str]) -> Result<String, String> {
+pub fn run(host: &sdk::RequestContext, root: &str, args: &[&str]) -> Result<String, String> {
     let args = ["-C", root]
         .into_iter()
         .chain(args.iter().copied())
@@ -28,7 +28,7 @@ pub fn run(host: &mut dyn HostServices, root: &str, args: &[&str]) -> Result<Str
     Ok(result.stdout)
 }
 
-pub fn status(root: &str, host: &mut dyn HostServices) -> Option<Value> {
+pub fn status(root: &str, host: &sdk::RequestContext) -> Option<Value> {
     let branch = run(host, root, &["rev-parse", "--abbrev-ref", "HEAD"])
         .or_else(|_| run(host, root, &["symbolic-ref", "--short", "HEAD"]))
         .ok()?;
@@ -64,12 +64,12 @@ pub fn status(root: &str, host: &mut dyn HostServices) -> Option<Value> {
     }))
 }
 
-pub fn init(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn init(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     run(host, root, &["init", "-b", "main"])?;
     status(root, host).ok_or("仓库已创建，但无法读取状态".into())
 }
 
-pub fn refs(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn refs(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     let current = run(host, root, &["rev-parse", "--abbrev-ref", "HEAD"])
         .or_else(|_| run(host, root, &["symbolic-ref", "--short", "HEAD"]))?;
     let head = run(host, root, &["rev-parse", "--short=7", "HEAD"]).unwrap_or_default();
@@ -88,7 +88,7 @@ pub fn refs(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
     Ok(json!({"head": head.trim(), "current": current.trim(), "branches": branches, "tags": tags}))
 }
 
-pub fn identity(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn identity(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     let name = run(host, root, &["config", "user.name"]).unwrap_or_default();
     let email = run(host, root, &["config", "user.email"]).unwrap_or_default();
     Ok(json!({"name": name.trim(), "email": email.trim()}))
@@ -98,7 +98,7 @@ pub fn stage(
     root: &str,
     paths: &[String],
     all: bool,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     if all {
         run(host, root, &["add", "-A"])?;
@@ -114,7 +114,7 @@ pub fn unstage(
     root: &str,
     paths: &[String],
     all: bool,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     let committed = run(host, root, &["rev-parse", "--verify", "HEAD"]).is_ok();
     let mut args = if committed {
@@ -138,7 +138,7 @@ pub fn commit(
     message: &str,
     name: &str,
     email: &str,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     let name = format!("user.name={name}");
     let email = format!("user.email={email}");

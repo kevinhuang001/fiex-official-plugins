@@ -20,14 +20,25 @@
   },
   "permissions": {
     "folders": {
-      "read": { "enabled": false },
+      "read": {
+        "enabled": false
+      },
       "create": false,
       "delete": false,
       "rename": false
     },
-    "files": { "read": true, "write": false },
-    "network": { "enabled": false, "domains": [] },
-    "commands": { "enabled": false, "allow": [] }
+    "files": {
+      "read": true,
+      "write": false
+    },
+    "network": {
+      "enabled": false,
+      "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
+    }
   },
   "contributions": {
     "preview": [
@@ -53,8 +64,33 @@
         "panel": {
           "entry": "ui/index.html",
           "title": "数据预览",
-          "defaultSize": { "width": 720, "height": 640 }
+          "defaultSize": {
+            "width": 720,
+            "height": 640
+          }
         }
+      }
+    ],
+    "info": [
+      {
+        "id": "data.info",
+        "title": "数据表",
+        "command": "data.info",
+        "extensions": [
+          "db",
+          "sqlite",
+          "sqlite3",
+          "csv",
+          "tsv",
+          "xlsx",
+          "xls",
+          "parquet",
+          "arrow",
+          "feather",
+          "ipc",
+          "avro"
+        ],
+        "priority": 100
       }
     ]
   }

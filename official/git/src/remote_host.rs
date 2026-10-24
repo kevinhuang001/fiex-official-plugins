@@ -1,5 +1,5 @@
 use crate::git_host::run;
-use fiex_plugin_sdk::HostServices;
+use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 fn valid(name: &str) -> Result<(), String> {
     if name.is_empty()
@@ -13,7 +13,7 @@ fn valid(name: &str) -> Result<(), String> {
         Ok(())
     }
 }
-pub fn status(root: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn status(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     let names = run(host, root, &["remote"])?;
     let mut remotes = Vec::new();
     for name in names.lines() {
@@ -47,7 +47,7 @@ pub fn save(
     root: &str,
     name: &str,
     url: &str,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     valid(name)?;
     if url.is_empty() || url.starts_with('-') || url.contains(['\n', '\r', '\0']) {
@@ -61,7 +61,7 @@ pub fn save(
     )?;
     Ok(Value::Null)
 }
-pub fn remove(root: &str, name: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn remove(root: &str, name: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     valid(name)?;
     run(host, root, &["remote", "remove", name])?;
     Ok(Value::Null)
@@ -71,7 +71,7 @@ pub fn sync(
     name: &str,
     push: bool,
     branch: Option<&str>,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     valid(name)?;
     if let Some(b) = branch {

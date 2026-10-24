@@ -1,15 +1,19 @@
 mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let p = ctx.params();
     match method {
         "checksum.calculate" => {
             let path = p
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let metadata = host.fs_stat(path)?;
-            let files = host.files();
+            let files = ctx.files();
+            let metadata = files
+                .metadata(path)
+                .map_err(|e| RpcError::internal(e.to_string()))?;
             let reader = files
                 .open_read(path)
                 .map_err(|e| RpcError::internal(e.to_string()))?;
@@ -20,11 +24,31 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
             }
             Ok(result)
         }
+        "checksum.info" => {
+            let path = ctx
+                .params()
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let files = ctx.files();
+            let reader = files
+                .open_read(path)
+                .map_err(|error| RpcError::internal(error.to_string()))?;
+            let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
+            let mut rows = Vec::new();
+            for hash in hashes {
+                rows.push(serde_json::json!({
+                    "label": hash.algorithm.to_ascii_uppercase(),
+                    "value": hash.value,
+                }));
+            }
+            Ok(serde_json::json!({"rows": rows}))
+        }
         _ => Err(RpcError::method_not_found(method)),
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve_with_host("org.fiex.checksum", run) {
+    if let Err(e) = sdk::serve("org.fiex.checksum", run) {
         eprintln!("Checksum plugin failed: {e}");
         std::process::exit(1);
     }

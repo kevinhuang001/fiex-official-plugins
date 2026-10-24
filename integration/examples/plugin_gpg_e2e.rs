@@ -38,8 +38,9 @@ fn main() {
         &plugin_host::activation_requirements(&manifest).unwrap(),
     )
     .unwrap();
-    plugin_host::set_active_directory(root.to_str().unwrap()).unwrap();
-    let invoke = |method, params| plugin_host::global().invoke("org.fiex.gpg", method, params);
+    let invoke = |method, params| {
+        plugin_host::global().invoke_at("org.fiex.gpg", method, params, root.to_str().unwrap())
+    };
     let keys = invoke("gpg.keys", json!({})).unwrap();
     let fingerprint = keys[0]["fingerprint"].as_str().unwrap();
     let input = root.join("plain.bin");

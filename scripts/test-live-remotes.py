@@ -79,6 +79,8 @@ class Plugin:
     def host_call(self, method, params):
         # Test fixture broker only. Production authorization is tested separately
         # through the actual Core host in the core-integration job.
+        if method in {"host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
+            return None
         if method == "host.net.http.open":
             url = params["url"]
             assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}

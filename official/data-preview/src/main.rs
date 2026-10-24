@@ -10,15 +10,13 @@ mod table;
 mod tabular;
 
 use fiex_plugin_sdk as sdk;
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 fn main() {
-    let cache = RefCell::new(None);
-    if let Err(error) =
-        sdk::serve_with_host("org.fiex.data-preview", move |method, params, host| {
-            dispatch::dispatch(method, params, &cache, host)
-        })
-    {
+    let cache = Mutex::new(None);
+    if let Err(error) = sdk::serve("org.fiex.data-preview", move |ctx| {
+        dispatch::dispatch(ctx, &cache)
+    }) {
         eprintln!("Data preview IPC failed: {error}");
         std::process::exit(1);
     }

@@ -1,6 +1,6 @@
 //! Path helpers: safe extraction names, non-colliding targets and the default
 //! archive destination.
-use fiex_plugin_sdk::{files::FileSystem, HostServices};
+use fiex_plugin_sdk::{self as sdk, Files};
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn safe_name(path: &Path) -> Result<(), String> {
@@ -20,7 +20,7 @@ pub(crate) fn text(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-pub(crate) fn unique(files: &FileSystem<'_>, path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn unique(files: &Files, path: &Path) -> Result<PathBuf, String> {
     for n in 0..1000 {
         let next = if n == 0 {
             path.to_path_buf()
@@ -41,7 +41,7 @@ pub(crate) fn unique(files: &FileSystem<'_>, path: &Path) -> Result<PathBuf, Str
 pub fn default_destination(
     paths: &[String],
     format: &str,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<String, String> {
     if !matches!(
         format,

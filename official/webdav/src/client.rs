@@ -29,12 +29,12 @@ pub(crate) struct RemoteFile {
 }
 
 /// Build a request for `url` authenticated with the stored credentials.
-pub(crate) fn request<'h, 'a>(
-    client: &'h sdk::http::HttpClient<'a>,
+pub(crate) fn request(
+    client: &sdk::http::HttpClient,
     cfg: &StoredConnection,
     method: &str,
     url: &str,
-) -> sdk::http::Request<'h, 'a> {
+) -> sdk::http::Request {
     client
         .request(method, url)
         .timeout(Duration::from_secs(90))

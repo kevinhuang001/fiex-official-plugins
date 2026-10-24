@@ -85,7 +85,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             };
             let level = p.get("level").and_then(Value::as_u64).map(|n| n as u32);
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
-            let task = ctx.spawn_task(move |task| {
+            let task = ctx.spawn_task_with_label("正在压缩", move |task| {
                 let result = archives::compress(
                     &paths,
                     &destination,
@@ -131,7 +131,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .and_then(Value::as_str)
                 .map(str::to_owned);
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
-            let task = ctx.spawn_task(move |task| {
+            let task = ctx.spawn_task_with_label("正在解压", move |task| {
                 let result = archives::extract(
                     &path,
                     destination.as_deref(),

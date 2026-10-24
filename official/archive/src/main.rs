@@ -1,5 +1,6 @@
 mod archives;
 mod ignores;
+mod listing;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
@@ -83,6 +84,28 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
             )
             .map_err(RpcError::internal)?;
             Ok(json!(result))
+        }
+        "archive.list" => Ok(listing::list(
+            param(&p, "path")?,
+            p.get("password").and_then(Value::as_str),
+            host,
+        )
+        .map_err(RpcError::internal)?),
+        // Runs before Core opens the file: extract in place, never fall through
+        // for a valid archive. A password-protected archive hands control to
+        // the preview panel so the user can type the password.
+        "archive.beforeOpen" => {
+            let path = param(&p, "path")?;
+            let stored = stored_ignores(host, "extractIgnores");
+            let ignores = merge_ignores(&p, stored);
+            let password = p.get("password").and_then(Value::as_str);
+            match archives::extract(path, None, password, &ignores, host) {
+                Ok(destination) => Ok(json!({ "handled": true, "destination": destination })),
+                Err(error) if listing::looks_encrypted(&error) => {
+                    Ok(json!({ "handled": true, "preview": true }))
+                }
+                Err(error) => Err(RpcError::internal(error)),
+            }
         }
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");

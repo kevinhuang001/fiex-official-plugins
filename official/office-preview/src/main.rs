@@ -1,209 +1,74 @@
 //! Read-only Word / Excel / PowerPoint preview.
 //!
-//! This is a text-level renderer: paragraphs, table cells and slide text are
-//! extracted from the OOXML parts. Charts, SmartArt, animations, embedded
-//! objects and legacy `.doc/.xls/.ppt` are explicitly out of scope.
+//! Parsing is delegated to `office_oxide`, which reads the OOXML package and
+//! renders structured HTML: headings, paragraphs, lists, tables and sheet /
+//! slide boundaries. The plugin only sanitizes and styles that HTML; it never
+//! walks the XML by hand. Charts, SmartArt, animations, embedded objects and
+//! legacy `.doc/.xls/.ppt` remain out of scope.
 use fiex_plugin_sdk::{self as sdk, RpcError};
-use quick_xml::events::Event;
-use quick_xml::Reader;
+use office_oxide::{Document, DocumentFormat};
 use serde_json::{json, Value};
-use std::io::{Cursor, Read};
-use zip::ZipArchive;
+use std::io::Cursor;
 
-const MAX_ROWS: usize = 2000;
-const MAX_COLUMNS: usize = 64;
-
-fn xml_part(archive: &mut ZipArchive<Cursor<Vec<u8>>>, name: &str) -> Option<String> {
-    let mut file = archive.by_name(name).ok()?;
-    let mut text = String::new();
-    file.read_to_string(&mut text).ok()?;
-    Some(text)
-}
-
-fn local_name(name: quick_xml::name::QName<'_>) -> Vec<u8> {
-    let raw = name.as_ref();
-    raw.rsplit(|byte| *byte == b':')
-        .next()
-        .unwrap_or(raw)
-        .to_vec()
-}
-
-fn docx_lines(xml: &str) -> Vec<String> {
-    let mut reader = Reader::from_str(xml);
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    let mut in_text = false;
-    loop {
-        match reader.read_event() {
-            Ok(Event::Start(event)) if local_name(event.name()) == b"t" => in_text = true,
-            Ok(Event::End(event)) if local_name(event.name()) == b"t" => in_text = false,
-            Ok(Event::End(event)) if local_name(event.name()) == b"p" => {
-                let line = current.trim().to_string();
-                if !line.is_empty() {
-                    lines.push(line);
-                }
-                current.clear();
-            }
-            Ok(Event::Text(text)) if in_text => {
-                current.push_str(&text.unescape().unwrap_or_default())
-            }
-            Ok(Event::Eof) => break,
-            Err(_) => break,
-            _ => {}
+/// Defense in depth: the renderer escapes text, but an iframe DOM is built from
+/// this string, so drop anything executable before it reaches the UI.
+fn sanitize(html: &str) -> String {
+    let mut output = String::with_capacity(html.len());
+    let lower = html.to_ascii_lowercase();
+    let mut index = 0;
+    while index < html.len() {
+        if lower[index..].starts_with("<script")
+            || lower[index..].starts_with("<iframe")
+            || lower[index..].starts_with("<object")
+            || lower[index..].starts_with("<embed")
+        {
+            let closing = if lower[index..].starts_with("<script") {
+                "</script>"
+            } else if lower[index..].starts_with("<iframe") {
+                "</iframe>"
+            } else if lower[index..].starts_with("<object") {
+                "</object>"
+            } else {
+                "</embed>"
+            };
+            index = lower[index..]
+                .find(closing)
+                .map(|offset| index + offset + closing.len())
+                .unwrap_or(html.len());
+            continue;
         }
-    }
-    lines.truncate(MAX_ROWS);
-    lines
-}
-
-fn shared_strings(xml: &str) -> Vec<String> {
-    let mut reader = Reader::from_str(xml);
-    let mut values = Vec::new();
-    let mut current = String::new();
-    let mut in_item = false;
-    let mut in_text = false;
-    loop {
-        match reader.read_event() {
-            Ok(Event::Start(event)) if local_name(event.name()) == b"si" => {
-                in_item = true;
-                current.clear();
+        let rest = &html[index..];
+        let consumed = rest.chars().next().map(char::len_utf8).unwrap_or(1);
+        if rest.starts_with("on")
+            && rest
+                .chars()
+                .nth(2)
+                .is_some_and(|next| next.is_ascii_alphabetic())
+        {
+            // Attribute handlers only appear inside tags; dropping the name is
+            // enough because the tag itself is kept.
+            if let Some(end) = rest.find(|c: char| c.is_whitespace() || c == '>' || c == '=') {
+                index += end;
+                continue;
             }
-            Ok(Event::Start(event)) if in_item && local_name(event.name()) == b"t" => {
-                in_text = true
-            }
-            Ok(Event::End(event)) if in_item && local_name(event.name()) == b"t" => in_text = false,
-            Ok(Event::End(event)) if local_name(event.name()) == b"si" => {
-                values.push(current.clone());
-                in_item = false;
-            }
-            Ok(Event::Text(text)) if in_text => {
-                current.push_str(&text.unescape().unwrap_or_default())
-            }
-            Ok(Event::Eof) => break,
-            Err(_) => break,
-            _ => {}
         }
-    }
-    values
-}
-
-fn local_name_key(key: &[u8]) -> &[u8] {
-    key.rsplit(|byte| *byte == b':').next().unwrap_or(key)
-}
-
-fn column_index(reference: &str) -> Option<usize> {
-    let letters = reference
-        .bytes()
-        .take_while(|byte| byte.is_ascii_uppercase())
-        .collect::<Vec<_>>();
-    if letters.is_empty() {
-        return None;
-    }
-    let mut value = 0usize;
-    for letter in letters {
-        value = value * 26 + (letter - b'A' + 1) as usize;
-    }
-    Some(value - 1)
-}
-
-fn sheet_rows(xml: &str, strings: &[String]) -> Vec<Vec<String>> {
-    let mut reader = Reader::from_str(xml);
-    let mut rows = Vec::new();
-    let mut row: Vec<String> = Vec::new();
-    let mut cell_column = 0usize;
-    let mut cell_type = String::new();
-    let mut value = String::new();
-    let mut in_value = false;
-    let mut in_inline = false;
-    loop {
-        match reader.read_event() {
-            Ok(Event::Start(event)) if local_name(event.name()) == b"c" => {
-                cell_column = event
-                    .attributes()
-                    .filter_map(|attribute| attribute.ok())
-                    .find(|attribute| local_name_key(attribute.key.as_ref()) == b"r")
-                    .and_then(|attribute| attribute.unescape_value().ok())
-                    .and_then(|value| column_index(&value))
-                    .unwrap_or(cell_column);
-                cell_type = event
-                    .attributes()
-                    .filter_map(|attribute| attribute.ok())
-                    .find(|attribute| local_name_key(attribute.key.as_ref()) == b"t")
-                    .and_then(|attribute| attribute.unescape_value().ok())
-                    .unwrap_or_default()
-                    .to_string();
-                value.clear();
-            }
-            Ok(Event::Start(event)) if local_name(event.name()) == b"v" => in_value = true,
-            Ok(Event::Start(event))
-                if local_name(event.name()) == b"t" && cell_type == "inlineStr" =>
-            {
-                in_inline = true
-            }
-            Ok(Event::End(event)) if local_name(event.name()) == b"v" => in_value = false,
-            Ok(Event::End(event)) if local_name(event.name()) == b"t" => in_inline = false,
-            Ok(Event::End(event)) if local_name(event.name()) == b"c" => {
-                if cell_column < MAX_COLUMNS {
-                    while row.len() <= cell_column {
-                        row.push(String::new());
-                    }
-                    let text = if cell_type == "s" {
-                        value
-                            .trim()
-                            .parse::<usize>()
-                            .ok()
-                            .and_then(|index| strings.get(index).cloned())
-                            .unwrap_or_default()
-                    } else {
-                        value.clone()
-                    };
-                    row[cell_column] = text;
-                }
-            }
-            Ok(Event::End(event)) if local_name(event.name()) == b"row" => {
-                let cells = row.drain(..).take(MAX_COLUMNS).collect::<Vec<_>>();
-                if cells.iter().any(|cell| !cell.is_empty()) && rows.len() < MAX_ROWS {
-                    rows.push(cells);
-                }
-                cell_column = 0;
-            }
-            Ok(Event::Text(text)) if in_value || in_inline => {
-                value.push_str(&text.unescape().unwrap_or_default())
-            }
-            Ok(Event::Eof) => break,
-            Err(_) => break,
-            _ => {}
+        if rest.to_ascii_lowercase().starts_with("javascript:") {
+            index += "javascript:".len();
+            continue;
         }
+        output.push_str(&html[index..index + consumed]);
+        index += consumed;
     }
-    rows
+    output
 }
 
-fn pptx_lines(xml: &str) -> Vec<String> {
-    let mut reader = Reader::from_str(xml);
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    let mut in_text = false;
-    loop {
-        match reader.read_event() {
-            Ok(Event::Start(event)) if local_name(event.name()) == b"t" => in_text = true,
-            // A paragraph break separates text boxes on the slide.
-            Ok(Event::End(event)) if local_name(event.name()) == b"p" => {
-                let line = current.trim().to_string();
-                if !line.is_empty() {
-                    lines.push(line);
-                }
-                current.clear();
-            }
-            Ok(Event::End(event)) if local_name(event.name()) == b"t" => in_text = false,
-            Ok(Event::Text(text)) if in_text => {
-                current.push_str(&text.unescape().unwrap_or_default())
-            }
-            Ok(Event::Eof) => break,
-            Err(_) => break,
-            _ => {}
-        }
+fn format(extension: &str) -> Result<DocumentFormat, RpcError> {
+    match extension {
+        "docx" => Ok(DocumentFormat::Docx),
+        "xlsx" => Ok(DocumentFormat::Xlsx),
+        "pptx" => Ok(DocumentFormat::Pptx),
+        _ => Err(RpcError::invalid_params("仅支持 docx、xlsx、pptx")),
     }
-    lines
 }
 
 fn extension(path: &str) -> String {
@@ -212,62 +77,15 @@ fn extension(path: &str) -> String {
         .unwrap_or_default()
 }
 
-fn render(bytes: Vec<u8>, format: &str) -> Result<Value, RpcError> {
-    let mut archive = ZipArchive::new(Cursor::new(bytes))
-        .map_err(|error| RpcError::internal(format!("不是有效的 Office 文件: {error}")))?;
-    match format {
-        "docx" => {
-            let xml = xml_part(&mut archive, "word/document.xml")
-                .ok_or_else(|| RpcError::internal("缺少 word/document.xml"))?;
-            Ok(json!({ "kind": "docx", "lines": docx_lines(&xml) }))
-        }
-        "xlsx" => {
-            let strings = xml_part(&mut archive, "xl/sharedStrings.xml")
-                .map(|xml| shared_strings(&xml))
-                .unwrap_or_default();
-            let names = (0..archive.len())
-                .filter_map(|index| {
-                    archive
-                        .by_index(index)
-                        .ok()
-                        .map(|file| file.name().to_string())
-                })
-                .filter(|name| name.starts_with("xl/worksheets/") && name.ends_with(".xml"))
-                .collect::<Vec<_>>();
-            let mut sheets = Vec::new();
-            for (index, name) in names.iter().enumerate() {
-                let Some(xml) = xml_part(&mut archive, name) else {
-                    continue;
-                };
-                sheets.push(json!({
-                    "name": format!("Sheet{}", index + 1),
-                    "rows": sheet_rows(&xml, &strings)
-                }));
-            }
-            Ok(json!({ "kind": "xlsx", "sheets": sheets }))
-        }
-        "pptx" => {
-            let mut names = (0..archive.len())
-                .filter_map(|index| {
-                    archive
-                        .by_index(index)
-                        .ok()
-                        .map(|file| file.name().to_string())
-                })
-                .filter(|name| name.starts_with("ppt/slides/slide") && name.ends_with(".xml"))
-                .collect::<Vec<_>>();
-            names.sort();
-            let mut slides = Vec::new();
-            for (index, name) in names.iter().enumerate() {
-                let Some(xml) = xml_part(&mut archive, name) else {
-                    continue;
-                };
-                slides.push(json!({ "index": index + 1, "lines": pptx_lines(&xml) }));
-            }
-            Ok(json!({ "kind": "pptx", "slides": slides }))
-        }
-        _ => Err(RpcError::invalid_params("仅支持 docx、xlsx、pptx")),
+fn render(bytes: Vec<u8>, extension: &str) -> Result<Value, RpcError> {
+    let format = format(extension)?;
+    let document = Document::from_reader(Cursor::new(bytes), format)
+        .map_err(|error| RpcError::internal(format!("无法解析 Office 文件: {error}")))?;
+    let html = sanitize(&document.to_html());
+    if html.trim().is_empty() {
+        return Ok(json!({ "kind": extension, "html": "", "empty": true }));
     }
+    Ok(json!({ "kind": extension, "html": html }))
 }
 
 fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
@@ -297,68 +115,55 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use zip::write::SimpleFileOptions;
 
-    fn package(parts: &[(&str, &str)]) -> Vec<u8> {
-        let mut buffer = Cursor::new(Vec::new());
-        {
-            let mut writer = zip::ZipWriter::new(&mut buffer);
-            for (name, body) in parts {
-                writer
-                    .start_file(*name, SimpleFileOptions::default())
-                    .unwrap();
-                writer.write_all(body.as_bytes()).unwrap();
-            }
-            writer.finish().unwrap();
-        }
-        buffer.into_inner()
-    }
-
-    const DOCUMENT: &str = r#"<?xml version="1.0"?><w:document xmlns:w="w"><w:body>
-<w:p><w:r><w:t>第一段</w:t></w:r></w:p>
-<w:p><w:r><w:t>第二段</w:t></w:r></w:p>
-</w:body></w:document>"#;
-
-    #[test]
-    fn extracts_docx_paragraphs() {
-        let value = render(package(&[("word/document.xml", DOCUMENT)]), "docx").unwrap();
-        assert_eq!(value["kind"], "docx");
-        assert_eq!(value["lines"][0], "第一段");
-        assert_eq!(value["lines"][1], "第二段");
+    fn fixture(name: &str) -> Vec<u8> {
+        std::fs::read(format!("tests/fixtures/{name}")).unwrap()
     }
 
     #[test]
-    fn extracts_xlsx_cells_with_shared_strings() {
-        let strings = r#"<?xml version="1.0"?><sst><si><t>名称</t></si><si><t>数值</t></si></sst>"#;
-        let sheet = r#"<?xml version="1.0"?><worksheet><sheetData>
-<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>
-<row r="2"><c r="A2"><v>42</v></c></row>
-</sheetData></worksheet>"#;
-        let value = render(
-            package(&[
-                ("xl/sharedStrings.xml", strings),
-                ("xl/worksheets/sheet1.xml", sheet),
-            ]),
-            "xlsx",
-        )
-        .unwrap();
-        assert_eq!(value["sheets"][0]["rows"][0][0], "名称");
-        assert_eq!(value["sheets"][0]["rows"][1][0], "42");
+    fn renders_docx_structure() {
+        let value = render(fixture("fixture.docx"), "docx").unwrap();
+        let html = value["html"].as_str().unwrap();
+        assert!(html.contains("<h1>"), "{html}");
+        assert!(html.contains("2026 年第三季度产品报告"));
+        assert!(html.contains("<table>"));
+        assert!(html.contains("1,200,000"));
+        assert!(html.contains("<ul>"));
     }
 
     #[test]
-    fn extracts_pptx_slide_text() {
-        let slide = r#"<?xml version="1.0"?><p:sld><a:p><a:r><a:t>标题</a:t></a:r></a:p>
-<a:p><a:r><a:t>正文</a:t></a:r></a:p></p:sld>"#;
-        let value = render(package(&[("ppt/slides/slide1.xml", slide)]), "pptx").unwrap();
-        assert_eq!(value["slides"][0]["lines"][0], "标题");
-        assert_eq!(value["slides"][0]["lines"][1], "正文");
+    fn renders_xlsx_sheets() {
+        let value = render(fixture("fixture.xlsx"), "xlsx").unwrap();
+        let html = value["html"].as_str().unwrap();
+        assert!(html.contains("预算"));
+        assert!(html.contains("收入"));
+        assert!(html.contains("<table>"));
+        assert!(html.contains("1120000"));
     }
 
     #[test]
-    fn rejects_unknown_formats() {
-        assert!(render(package(&[]), "doc").is_err());
+    fn renders_pptx_slides() {
+        let value = render(fixture("fixture.pptx"), "pptx").unwrap();
+        let html = value["html"].as_str().unwrap();
+        assert!(html.contains("Fiex 产品介绍"));
+        assert!(html.contains("插件化"));
+        assert!(html.contains("下一步"));
+    }
+
+    #[test]
+    fn rejects_unknown_and_corrupt_files() {
         assert!(render(Vec::new(), "docx").is_err());
+        assert!(render(Vec::new(), "doc").is_err());
+    }
+
+    #[test]
+    fn strips_executable_markup() {
+        let html = sanitize(
+            "<p onclick=\"x()\">a<script>alert(1)</script><img src=x onerror=alert(2)></p>",
+        );
+        assert!(!html.contains("<script"));
+        assert!(!html.contains("onclick"));
+        assert!(!html.contains("onerror"));
+        assert!(html.contains("<img src=x"));
     }
 }

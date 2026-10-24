@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.office-preview",
   "name": "Office 预览",
-  "version": "0.2.8",
+  "version": "0.2.10",
   "description": "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。",
   "icon": "file-text",
   "author": {
@@ -45,13 +45,20 @@
       {
         "id": "office",
         "title": "Office 预览",
-        "extensions": ["docx", "xlsx", "pptx"],
+        "extensions": [
+          "docx",
+          "xlsx",
+          "pptx"
+        ],
         "priority": 100,
         "maxBytes": 33554432,
         "panel": {
           "entry": "ui/index.html",
           "title": "Office 预览",
-          "defaultSize": { "width": 720, "height": 600 }
+          "defaultSize": {
+            "width": 720,
+            "height": 600
+          }
         }
       }
     ]

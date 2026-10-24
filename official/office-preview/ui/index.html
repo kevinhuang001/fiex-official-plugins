@@ -17,15 +17,6 @@
       }
       * { box-sizing: border-box; }
       body { margin: 0; color: var(--text); background: var(--surface); }
-      header {
-        position: sticky; top: 0; z-index: 1;
-        display: flex; align-items: baseline; gap: 8px;
-        padding: 8px 16px; border-bottom: 1px solid var(--line);
-        background: color-mix(in srgb, var(--surface) 92%, transparent);
-        backdrop-filter: blur(8px);
-      }
-      header strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      header span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
       main { padding: 18px 22px 32px; max-width: 860px; margin: 0 auto; }
       .hint { color: var(--muted); text-align: center; padding: 28px 0; }
       .error { color: var(--danger, #b4443d); white-space: pre-wrap; }
@@ -49,13 +40,10 @@
     </style>
   </head>
   <body>
-    <header><strong id="title">Office 预览</strong><span id="kind"></span></header>
     <main id="content"><p class="hint">正在读取…</p></main>
     <script>
       (() => {
         const content = document.getElementById('content')
-        const title = document.getElementById('title')
-        const kind = document.getElementById('kind')
         let port = null
         let sessionId = ''
         let nonce = ''
@@ -93,12 +81,10 @@
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
             const preview = context.preview || {}
-            title.textContent = preview.name || 'Office 预览'
             const value = await invoke('plugin.invoke', {
               method: 'office.render',
               params: { path: preview.path },
             })
-            kind.textContent = value.kind || ''
             if (!value.html) {
               content.innerHTML = '<p class="hint">文档没有可提取的内容。</p>'
               return

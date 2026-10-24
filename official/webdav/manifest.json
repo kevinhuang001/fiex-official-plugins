@@ -82,12 +82,7 @@
             "label": "允许自签名证书",
             "type": "checkbox"
           }
-        ],
-        "capabilities": {
-          "sync": true,
-          "writeMode": "file",
-          "conflictControl": "conditional"
-        }
+        ]
       }
     ]
   }

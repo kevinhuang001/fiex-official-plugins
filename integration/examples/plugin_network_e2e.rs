@@ -134,7 +134,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
             .entries
             .iter()
             .any(|entry| entry.name == "hello.txt"));
-        let hello = format!("{}/hello.txt", connection.mount_path);
+        let hello = format!("{}hello.txt", connection.mount_path);
         futures::executor::block_on(fiex_lib::remote::sync_one(&hello, &Default::default()))
             .unwrap();
         assert_eq!(std::fs::read(&hello).unwrap(), expected);

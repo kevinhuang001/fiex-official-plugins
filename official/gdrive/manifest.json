@@ -28,7 +28,7 @@
       "rename": false
     },
     "files": {
-      "read": false,
+      "read": true,
       "write": false
     },
     "network": {
@@ -67,10 +67,7 @@
             "type": "secret",
             "required": true
           }
-        ],
-        "capabilities": {
-          "sync": true
-        }
+        ]
       }
     ]
   }

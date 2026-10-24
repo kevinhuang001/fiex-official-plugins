@@ -53,12 +53,7 @@
             "required": true,
             "placeholder": "https://openlist.example.com"
           }
-        ],
-        "capabilities": {
-          "sync": true,
-          "writeMode": "file",
-          "conflictControl": "compare-before-write"
-        }
+        ]
       }
     ],
     "settings": [

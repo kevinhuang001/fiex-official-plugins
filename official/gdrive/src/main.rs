@@ -98,9 +98,7 @@ fn main() {
             | "fs.openRead"
             | "fs.readStream"
             | "fs.closeRead" => reads::dispatch(&ctx, &state),
-            "fs.beginWrite" | "fs.writeStream" | "fs.commitWrite" | "fs.abortWrite" => {
-                writes::dispatch(&ctx, &state)
-            }
+            "fs.writeFile" => writes::write_file(&ctx),
             _ => Err(RpcError::method_not_found(method)),
         }
     }) {

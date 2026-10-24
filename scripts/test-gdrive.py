@@ -23,6 +23,9 @@ class Fixture:
         self.content = b'x' * (262144 + 17)
         self.version = '1'
         self.uploaded = bytearray()
+        self.source = getattr(self, 'source', b'')
+        self.readers = {}
+        self.change_before_commit = False
         self.offline = False
         self.call('plugin.initialize', {'protocolVersion':'2.0'})
 
@@ -43,6 +46,20 @@ class Fixture:
             send(self.child.stdin, {'jsonrpc':'2.0','id':message['id'],**reply})
 
     def host(self, method, p):
+        if method == 'host.fs.openRead':
+            assert p['path'] == 'source.dat'
+            self.readers['source-reader'] = self.source
+            return {'handle':'source-reader','size':len(self.source)}
+        if method == 'host.fs.readOpen':
+            assert p['handle'] in self.readers
+            data = self.readers[p['handle']]
+            chunk = data[p['offset']:p['offset']+p['length']]
+            return {'base64':base64.b64encode(chunk).decode(),'size':len(chunk),'eof':p['offset']+len(chunk)>=len(data)}
+        if method == 'host.fs.closeRead':
+            self.readers.pop(p['handle'], None)
+            return None
+        if method == 'host.buffer.create':
+            raise RuntimeError('fixture uses bounded inline reader transport')
         if method == 'host.net.http.close':
             self.streams.pop(p['stream'], None)
             return None
@@ -79,6 +96,8 @@ class Fixture:
             assert p['headers']['If-Match'] == f'"{self.version}"'
             headers['location'] = 'https://www.googleapis.com/upload/drive/session1'
             self.uploaded = bytearray()
+            if self.change_before_commit:
+                self.version = str(int(self.version)+1)
         elif '/upload/drive/session1' in url:
             frame = base64.b64decode(p['bodyBase64'])
             self.uploaded.extend(frame)
@@ -130,24 +149,20 @@ def main():
         f.offline = True
         assert 'error' in call('fs.stat',nodeId='file1')
         f.offline = False
-        assert 'error' in call('fs.beginWrite',nodeId='file1',size=1,ifRevision='stale')
-        upload = call('fs.beginWrite',nodeId='file1',size=262144+17,ifRevision='1')['result']['streamId']
-        assert 'error' in call('fs.commitWrite',streamId=upload)
-        assert 'error' in call('fs.writeStream',streamId=upload,offset=1,base64='eA==')
-        content = b'y' * (262144+17)
-        for offset in (0,262144):
-            assert 'result' in call('fs.writeStream',streamId=upload,offset=offset,base64=base64.b64encode(content[offset:offset+262144]).decode())
-        assert call('fs.commitWrite',streamId=upload)['result']['revision'] == '2'
-        assert f.content == content
-        upload = call('fs.beginWrite',nodeId='file1',size=1,ifRevision='2')['result']['streamId']
-        call('fs.writeStream',streamId=upload,offset=0,base64='eg==')
-        f.version = '3'  # Another client saves before commit.
-        assert 'error' in call('fs.commitWrite',streamId=upload)
-        assert f.content == content
-        call('fs.abortWrite',streamId=upload)
-        empty = call('fs.beginWrite',nodeId='file1',size=0,ifRevision='3')['result']['streamId']
-        assert call('fs.commitWrite',streamId=empty)['result']['revision'] == '4'
+        f.source = b'y' * (262144+17)
+        assert 'error' in call('fs.writeFile',nodeId='file1',source='source.dat',size=len(f.source),ifRevision='stale')
+        assert 'error' in call('fs.writeFile',nodeId='file1',source='source.dat',size=1,ifRevision='1')
+        assert call('fs.writeFile',nodeId='file1',source='source.dat',size=len(f.source),ifRevision='1')['result']['revision'] == '2'
+        assert f.content == f.source
+        f.change_before_commit = True
+        f.source = b'z'
+        assert 'error' in call('fs.writeFile',nodeId='file1',source='source.dat',size=1,ifRevision='2')
+        assert f.content == b'y' * (262144+17)
+        f.change_before_commit = False
+        f.source = b''
+        assert call('fs.writeFile',nodeId='file1',source='source.dat',size=0,ifRevision='3')['result']['revision'] == '4'
         assert f.content == b''
+        assert not f.readers
         assert not f.streams
         print('PASS Drive ranges, offline retry, bounded upload, stale revisions and commit conflicts')
     finally:

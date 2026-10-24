@@ -53,7 +53,7 @@ fn main() {
     let reference = invoke("git.browse", json!({"root": root, "reference": "main"}))
         .expect("git.browse failed");
     let history_path = reference.as_str().expect("history path").to_string();
-    assert!(history_path.starts_with("history://"), "{history_path}");
+    assert!(history_path.starts_with("fiex://mount/"), "{history_path}");
 
     let listing = plugin_vfs::list(&history_path, true, &[]).expect("vfs.list failed");
     assert_eq!(listing.entries.len(), 1, "{:?}", listing.entries);
@@ -87,6 +87,48 @@ fn main() {
         .expect("filename decoration");
     assert_eq!(name.badges[0].text, "M", "{decorated:?}");
 
+    // Two immutable contexts must continue to serve different commits.
+    invoke("git.stage", json!({"root":root,"paths":[],"all":true})).unwrap();
+    invoke(
+        "git.commit",
+        json!({"root":root,"message":"second","name":"Fiex","email":"fiex@example.com"}),
+    )
+    .unwrap();
+    let second = invoke("git.browse", json!({"root":root,"reference":"main"}))
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(history_path, second);
+    let second_file = plugin_vfs::list(&second, true, &[]).unwrap().entries[0]
+        .path
+        .clone();
+    assert_eq!(
+        plugin_vfs::read_small(&second_file, 1024).unwrap(),
+        b"changed\n"
+    );
+    assert_eq!(plugin_vfs::read_small(&child, 1024).unwrap(), b"hello\n");
+    assert!(fiex_lib::remote::connection_for_path(&child).is_none());
+    assert!(plugin_vfs::list("fiex://mount/unknown/", true, &[]).is_err());
+    assert!(plugin_host::global()
+        .invoke(id, "fs.writeFile", json!({"connection":{},"nodeId":"x"}))
+        .is_err());
+    let unselected = fiex_lib::plugin_fs_access::Scope::selected(&repo, &[]).unwrap();
+    assert!(fiex_lib::mounts::open_view(
+        id,
+        &json!({"contributionId":"history","resourceRoot":root,"viewContext":{}}),
+        &unselected
+    )
+    .is_err());
+    assert!(fiex_lib::mounts::open_view(
+        id,
+        &json!({"contributionId":"foreign","resourceRoot":root,"viewContext":{}}),
+        &unselected
+    )
+    .is_err());
+    plugin_host::set_enabled(id, false).unwrap();
+    assert!(plugin_vfs::read_small(&child, 1024).is_err());
+    assert!(plugin_vfs::handles(&child));
     plugin_host::global().stop(id);
     std::fs::remove_dir_all(&repo).ok();
     println!("PASS: Git plugin commands and generic plugin VFS");

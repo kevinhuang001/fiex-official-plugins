@@ -14,24 +14,20 @@
 
 ## 提供者扩展协议
 
-连接工厂可声明 `capabilities: { "sync": true }`，启用 Core 后台文件内容协调。未声明的连接仍可按需下载和固定离线副本。官方插件没有特权，调用前检查插件启用状态和全部授权。
+连接只声明 `contributions.connections`。Core 根据实际文件版本与 I/O 操作结果协调缓存，不再读取 `capabilities` 或同步开关。官方插件没有特权，调用前检查插件启用状态和全部授权。
 
 `fs.list` 的每个条目返回 `nodeId`、`name`、`kind`、`size`、`modified` 和不透明字符串 `revision`。Core 保存逻辑路径到稳定节点 ID 的映射。目录分页成功后保存离线元数据，失败时读取上次完整快照。
 
-| 方法             | 参数（另含 connection）      | 返回                                    |
-| ---------------- | ---------------------------- | --------------------------------------- |
-| `fs.stat`        | `nodeId`                     | `{revision, size}`；删除/无权限返回错误 |
-| `fs.openRead`    | `nodeId`                     | `{streamId, size?}`                     |
-| `fs.readStream`  | `streamId, offset, maxBytes` | `{base64, eof}`                         |
-| `fs.closeRead`   | `streamId`                   | null                                    |
-| `fs.beginWrite`  | `nodeId, size, ifRevision`   | `{streamId}`                            |
-| `fs.writeStream` | `streamId, offset, base64`   | null                                    |
-| `fs.commitWrite` | `streamId`                   | `{revision}`                            |
-| `fs.abortWrite`  | `streamId`                   | null                                    |
+| 方法            | 参数（另含 connection）      | 返回                                    |
+| --------------- | ---------------------------- | --------------------------------------- |
+| `fs.stat`       | `nodeId`                     | `{revision, size}`；删除/无权限返回错误 |
+| `fs.openRead`   | `nodeId`                     | `{streamId, size?}`                     |
+| `fs.readStream` | `streamId, offset, maxBytes` | `{base64, eof}`                         |
+| `fs.closeRead`  | `streamId`                   | null                                    |
 
-文件上传支持两种通用模式：`writeMode: "stream"` 使用分块 RPC；`writeMode: "file"` 使用 `fs.writeFile({nodeId, source, size, ifRevision}) -> {revision}`。Core 只向该次操作授权上传快照这个文件，插件用 SDK 的 `files().open_read(source)` 读取。HTTP 插件通过 `Request::body_reader(reader)` 让 Core 直接流式上传，不经 JSON 传递整文件，也不授权快照所在目录。
+文件上传统一使用 `fs.writeFile({nodeId, source, size, ifRevision}) -> {revision}`。Core 只向该次操作授权上传快照这个文件，插件用 SDK 的 `files().open_read(source)` 读取；HTTP 插件可以用 `body_reader`，Google Drive 在插件内部以 256 KiB 分块完成 resumable 上传。没有 `writeMode`、`sync` 或 `conflictControl` 配置字段。
 
-WebDAV 使用 HEAD/PROPFIND ETag 和 If-Match 条件 PUT；没有强 ETag 的服务器仍可离线缓存，但拒绝不安全的自动覆盖。SMB 使用修改/变更时间和大小校验，先写远端临时文件，提交前再检查后原子替换。OpenList 使用 `/api/fs/get` 的元数据基线和 `/api/fs/put` 的流式上传；其 API 无标准 CAS，属于尽力检测并发冲突，不能承诺服务端原子版本条件。SMB 提交前检查与替换之间同样存在协议客户端不配合时的窄竞争窗口。连接工厂通过 `conflictControl` 明示能力差异，不能把比较后写入描述为 CAS。
+WebDAV 使用 HEAD/PROPFIND ETag 和 If-Match 条件 PUT；没有强 ETag 的服务器仍可离线缓存，但拒绝不安全的自动覆盖。SMB 使用修改/变更时间和大小校验，先写远端临时文件，提交前再检查后原子替换。OpenList 使用 `/api/fs/get` 的元数据基线和 `/api/fs/put` 的流式上传；其 API 无标准 CAS，属于尽力检测并发冲突，不能承诺服务端原子版本条件。SMB 提交前检查与替换之间同样存在协议客户端不配合时的窄竞争窗口。这些差异由 Provider 的版本检查和实际操作结果体现，比较后写入不能描述为 CAS。
 
 写入必须检查远程基线，已检测出的冲突返回错误。Core 使用磁盘快照，按 256 KiB 顺序分块，不向插件暴露宿主路径，不在内存装载整个文件。写入失败或插件重启后从本地文件重试，不宣称跨进程恢复上传会话。下载使用同目录临时文件和原子替换。JSON 元数据也先同步临时文件再替换；每连接异步锁序列化下载、释放和协调。
 
@@ -40,3 +36,5 @@ Google Drive 使用 OAuth 自动刷新访问令牌、范围读取、resumable �
 ## 验证
 
 Core CI 覆盖离线目录元数据持久化、基线版本不被目录刷新覆盖、固定继承与释放例外、路径边界和内容指纹。官方插件 CI 在三个平台运行真实插件进程，对接确定性 Core HTTP 替身，覆盖范围读取、断网失败/恢复、分块上传、过期基线、提交前远端变化和资源释放。真实 Google 账号 OAuth 和 Drive 服务联调仍需使用测试账号完成。
+
+统一上传：`fs.writeFile` 传入 `nodeId, source, size, ifRevision`，返回 `{revision}`。普通虚拟树不能调用 Connection Provider 接口。

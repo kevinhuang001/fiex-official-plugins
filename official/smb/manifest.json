@@ -89,12 +89,7 @@
             "label": "密码",
             "type": "secret"
           }
-        ],
-        "capabilities": {
-          "sync": true,
-          "writeMode": "file",
-          "conflictControl": "compare-before-commit"
-        }
+        ]
       }
     ]
   }

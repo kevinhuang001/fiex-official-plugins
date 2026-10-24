@@ -1,11 +1,10 @@
 use super::*;
-use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::HashMap;
+use std::io::Read;
 
 #[derive(Default)]
 pub(super) struct State {
     pub reads: HashMap<String, (Value, String)>,
-    writes: HashMap<String, Upload>,
     next: u64,
 }
 impl State {
@@ -15,14 +14,12 @@ impl State {
     }
 }
 struct Upload {
-    config: Value,
     token: String,
     node: String,
     url: String,
     revision: String,
     etag: String,
     size: u64,
-    received: u64,
     sent: u64,
     pending: Vec<u8>,
 }
@@ -69,108 +66,69 @@ fn send(ctx: &sdk::RequestContext, upload: &mut Upload, final_chunk: bool) -> Re
     upload.pending.clear();
     Ok(())
 }
-pub(super) fn dispatch(ctx: &sdk::RequestContext, state: &Mutex<State>) -> Result<Value, RpcError> {
+/// Core supplies one exact-file snapshot grant. Resumable upload mechanics
+/// stay inside this provider; the manifest has no sync/write-mode switches.
+pub(super) fn write_file(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
     let p = ctx.params();
-    if ctx.method() == "fs.beginWrite" {
-        let token = token(ctx, &p["connection"])?;
-        let id = node(text(p, "nodeId")?)?;
-        let revision = text(p, "ifRevision")?;
-        let (file, etag) = metadata(ctx, &token, id)?;
-        if file["version"].as_str() != Some(revision) {
-            return Err(error("同步冲突：云端版本已改变"));
-        }
-        if etag.is_empty() {
-            return Err(error(
-                "Drive did not return an ETag; refusing unsafe overwrite",
-            ));
-        }
-        if file["capabilities"]["canEdit"] != true {
-            return Err(error("Drive file is read-only"));
-        }
-        let size = p["size"].as_u64().ok_or_else(|| error("missing size"))?;
-        let url = if size == 0 {
-            format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=media&supportsAllDrives=true")
-        } else {
-            let response = request(ctx,&token,"PATCH",&format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=resumable&supportsAllDrives=true"))
+    let size = p["size"].as_u64().ok_or_else(|| error("missing size"))?;
+    let mut reader = ctx.files().open_read(text(p, "source")?).map_err(error)?;
+    if reader.len() != size {
+        return Err(error("upload source size changed"));
+    }
+    let token = token(ctx, &p["connection"])?;
+    let id = node(text(p, "nodeId")?)?;
+    let revision = text(p, "ifRevision")?;
+    let (file, etag) = metadata(ctx, &token, id)?;
+    if file["version"].as_str() != Some(revision) {
+        return Err(error("同步冲突：云端版本已改变"));
+    }
+    if etag.is_empty() {
+        return Err(error(
+            "Drive did not return an ETag; refusing unsafe overwrite",
+        ));
+    }
+    if file["capabilities"]["canEdit"] != true {
+        return Err(error("Drive file is read-only"));
+    }
+    let url = if size == 0 {
+        format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=media&supportsAllDrives=true")
+    } else {
+        let response = request(ctx,&token,"PATCH",&format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=resumable&supportsAllDrives=true"))
             .header("If-Match",&etag).header("X-Upload-Content-Length",size.to_string())
             .header("X-Upload-Content-Type","application/octet-stream").header("Content-Type","application/json").body("{}")
             .send().and_then(|r|r.error_for_status()).map_err(error)?;
-            let session_url = response
-                .headers
-                .get("location")
-                .ok_or_else(|| error("missing session URL"))?
-                .clone();
-            session_url
-        };
-        if !url.starts_with("https://www.googleapis.com/upload/drive/") {
-            return Err(error("invalid upload session host"));
-        }
-        let mut state = state.lock().map_err(error)?;
-        if state.writes.len() >= 8 {
-            return Err(error("too many uploads"));
-        }
-        let stream = state.next_id("write");
-        state.writes.insert(
-            stream.clone(),
-            Upload {
-                config: p["connection"].clone(),
-                token,
-                node: id.into(),
-                url,
-                revision: revision.into(),
-                etag,
-                size,
-                received: 0,
-                sent: 0,
-                pending: Vec::new(),
-            },
-        );
-        return Ok(json!({"streamId":stream}));
+        response
+            .headers
+            .get("location")
+            .ok_or_else(|| error("missing session URL"))?
+            .clone()
+    };
+    if !url.starts_with("https://www.googleapis.com/upload/drive/") {
+        return Err(error("invalid upload session host"));
     }
-    let id = text(p, "streamId")?;
-    let mut state = state.lock().map_err(error)?;
-    if ctx.method() == "fs.abortWrite" {
-        state.writes.remove(id);
-        return Ok(Value::Null);
-    }
-    let upload = state
-        .writes
-        .get_mut(id)
-        .ok_or_else(|| error("unknown upload"))?;
-    upload.token = token(ctx, &upload.config)?;
-    if ctx.method() == "fs.writeStream" {
-        let encoded = text(p, "base64")?;
-        if encoded.len() > 349528 {
-            return Err(error("frame too large"));
+    let mut upload = Upload {
+        token,
+        node: id.into(),
+        url,
+        revision: revision.into(),
+        etag,
+        size,
+        sent: 0,
+        pending: Vec::new(),
+    };
+    loop {
+        let remaining = size - upload.sent;
+        upload.pending.resize(remaining.min(262144) as usize, 0);
+        reader.read_exact(&mut upload.pending).map_err(error)?;
+        let final_chunk = remaining <= 262144;
+        if final_chunk {
+            check_version(ctx, &upload)?;
         }
-        let bytes = STANDARD.decode(encoded).map_err(error)?;
-        if bytes.is_empty()
-            || bytes.len() > 262144
-            || p["offset"].as_u64() != Some(upload.received)
-            || upload
-                .received
-                .checked_add(bytes.len() as u64)
-                .is_none_or(|n| n > upload.size)
-        {
-            return Err(error("invalid upload frame"));
+        send(ctx, &mut upload, final_chunk)?;
+        if final_chunk {
+            break;
         }
-        if !upload.pending.is_empty() {
-            if upload.pending.len() != 262144 {
-                return Err(error("nonfinal chunks must be 256 KiB"));
-            }
-            send(ctx, upload, false)?;
-        }
-        upload.received += bytes.len() as u64;
-        upload.pending = bytes;
-        return Ok(Value::Null);
     }
-    if upload.received != upload.size {
-        return Err(error("incomplete upload"));
-    }
-    check_version(ctx, upload)?;
-    send(ctx, upload, true)?;
     let (file, _) = metadata(ctx, &upload.token, &upload.node)?;
-    let result = json!({"revision":file["version"]});
-    state.writes.remove(id);
-    Ok(result)
+    Ok(json!({"revision":file["version"]}))
 }

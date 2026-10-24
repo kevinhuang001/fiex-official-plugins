@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "org.fiex.gdrive",
+  "name": "Google Drive",
+  "version": "0.1.0",
+  "description": "Google Drive 按需下载、离线副本与版本保护的双向文件同步。",
+  "icon": "cloud",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-gdrive.exe",
+      "macos-aarch64": "fiex-plugin-gdrive",
+      "macos-x86_64": "fiex-plugin-gdrive",
+      "linux-x86_64": "fiex-plugin-gdrive"
+    }
+  },
+  "permissions": {
+    "folders": {
+      "read": {
+        "enabled": false
+      },
+      "create": false,
+      "delete": false,
+      "rename": false
+    },
+    "files": {
+      "read": false,
+      "write": false
+    },
+    "network": {
+      "enabled": true,
+      "domains": [
+        "www.googleapis.com",
+        "oauth2.googleapis.com"
+      ]
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
+    }
+  },
+  "contributions": {
+    "connections": [
+      {
+        "id": "gdrive",
+        "title": "Google Drive",
+        "fields": [
+          {
+            "id": "clientId",
+            "label": "OAuth 客户端 ID",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "clientSecret",
+            "label": "OAuth 客户端密钥",
+            "type": "secret",
+            "required": true
+          },
+          {
+            "id": "refreshToken",
+            "label": "OAuth 刷新令牌（Drive 读写权限）",
+            "type": "secret",
+            "required": true
+          }
+        ],
+        "capabilities": {
+          "sync": true
+        }
+      }
+    ]
+  }
+}

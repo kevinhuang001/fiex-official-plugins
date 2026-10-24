@@ -95,6 +95,7 @@ jobs:
           path: |
             dist/plugins/*.fiexplugin
             dist/plugins/fiex-catalog.json
+            dist/plugins/plugin-descriptions.json
   core-integration:
     name: Installed official plugins ↔ real Core host (Linux)
     needs: build

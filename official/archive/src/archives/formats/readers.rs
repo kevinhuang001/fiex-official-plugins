@@ -1,30 +1,34 @@
-//! Per-format archive readers and writers.
+//! Per-format archive readers.
 use super::super::{
     err,
     extract::extract_file,
     paths::{safe_name, text},
-    MAX_ENTRIES, MAX_TOTAL,
+    ArchiveContext, CANCELLED, MAX_ENTRIES, MAX_TOTAL,
 };
 use crate::ignores::IgnoreSet;
-use fiex_plugin_sdk::Files;
 use std::{
     io::{self, Read, Write},
     path::Path,
 };
 
 pub(crate) fn extract_zip(
-    files: &Files,
+    context: &dyn ArchiveContext,
     root: &Path,
     source: &str,
     password: Option<&str>,
     ignore: &IgnoreSet,
     remaining: &mut u64,
 ) -> Result<(), String> {
+    let files = context.files();
     let mut archive = zip::ZipArchive::new(files.open_read(source).map_err(err)?).map_err(err)?;
     if archive.len() > MAX_ENTRIES {
         return Err("压缩包项目过多".into());
     }
+    let mut processed = 0;
     for i in 0..archive.len() {
+        if context.cancelled() {
+            return Err(CANCELLED.into());
+        }
         let mut input = if let Some(password) = password {
             archive
                 .by_index_decrypt(i, password.as_bytes())
@@ -43,19 +47,22 @@ pub(crate) fn extract_zip(
             continue;
         }
         let dir = input.is_dir();
-        extract_file(files, root, &name, dir, &mut input, remaining)?;
+        extract_file(&files, context, root, &name, dir, &mut input, remaining)?;
+        processed += 1;
+        context.progress(processed as u64, None);
     }
     Ok(())
 }
 
 pub(crate) fn extract_7z(
-    files: &Files,
+    context: &dyn ArchiveContext,
     root: &Path,
     source: &str,
     password: Option<&str>,
     ignore: &IgnoreSet,
     remaining: &mut u64,
 ) -> Result<(), String> {
+    let files = context.files();
     let mut archive = sevenz_rust2::ArchiveReader::new(
         files.open_read(source).map_err(err)?,
         password.unwrap_or("").into(),
@@ -64,6 +71,9 @@ pub(crate) fn extract_7z(
     let mut count = 0;
     archive
         .for_each_entries(|meta, input| {
+            if context.cancelled() {
+                return Err(sevenz_rust2::Error::from(io::Error::other(CANCELLED)));
+            }
             count += 1;
             if count > MAX_ENTRIES {
                 return Err(sevenz_rust2::Error::from(io::Error::other(
@@ -74,7 +84,8 @@ pub(crate) fn extract_7z(
                 return Ok(true);
             }
             extract_file(
-                files,
+                &files,
+                context,
                 root,
                 Path::new(&meta.name),
                 meta.is_directory,
@@ -82,6 +93,7 @@ pub(crate) fn extract_7z(
                 remaining,
             )
             .map_err(|e| sevenz_rust2::Error::from(io::Error::other(e)))?;
+            context.progress(count as u64, None);
             Ok(true)
         })
         .map_err(err)?;
@@ -89,7 +101,7 @@ pub(crate) fn extract_7z(
 }
 
 pub(crate) fn extract_rar(
-    files: &Files,
+    context: &dyn ArchiveContext,
     root: &Path,
     source: &str,
     password: Option<&str>,
@@ -110,6 +122,7 @@ pub(crate) fn extract_rar(
             Ok(())
         }
     }
+    let files = context.files();
     let reader = files.open_read(source).map_err(err)?;
     let mut pending: Option<Arc<Mutex<Option<fiex_plugin_sdk::FileWriter>>>> = None;
     let mut count = 0;
@@ -122,6 +135,9 @@ pub(crate) fn extract_rar(
     let archive = rars::ArchiveReader::read_reader_with_options(reader, options).map_err(err)?;
     archive
         .extract_to_with_options(options, |meta| {
+            if context.cancelled() {
+                return Err(rars::Error::from(io::Error::other(CANCELLED)));
+            }
             if let Some(previous) = pending.take() {
                 previous
                     .lock()
@@ -146,6 +162,7 @@ pub(crate) fn extract_rar(
                 files
                     .create_dir_all(&text(&path))
                     .map_err(rars::Error::from)?;
+                context.progress(count as u64, None);
                 return Ok(Box::new(io::sink()));
             }
             if let Some(parent) = path.parent() {
@@ -159,6 +176,7 @@ pub(crate) fn extract_rar(
                     .map_err(rars::Error::from)?,
             )));
             pending = Some(output.clone());
+            context.progress(count as u64, None);
             Ok(Box::new(Sink(output)))
         })
         .map_err(err)?;
@@ -175,7 +193,7 @@ pub(crate) fn extract_rar(
 }
 
 pub(crate) fn extract_stream(
-    files: &Files,
+    context: &dyn ArchiveContext,
     root: &Path,
     source: &str,
     source_path: &Path,
@@ -183,6 +201,7 @@ pub(crate) fn extract_stream(
     ignore: &IgnoreSet,
     remaining: &mut u64,
 ) -> Result<(), String> {
+    let files = context.files();
     let reader = files.open_read(source).map_err(err)?;
     let reader: Box<dyn Read + '_> = if lower.ends_with(".gz") || lower.ends_with(".tgz") {
         Box::new(flate2::read::GzDecoder::new(reader))
@@ -201,7 +220,11 @@ pub(crate) fn extract_stream(
             .any(|s| lower.ends_with(s));
     if tar {
         let mut archive = tar::Archive::new(reader);
+        let mut processed = 0;
         for (i, input) in archive.entries().map_err(err)?.enumerate() {
+            if context.cancelled() {
+                return Err(CANCELLED.into());
+            }
             if i >= MAX_ENTRIES {
                 return Err("压缩包项目过多".into());
             }
@@ -214,11 +237,22 @@ pub(crate) fn extract_stream(
             if ignore.is_ignored(&name) {
                 continue;
             }
-            extract_file(files, root, &name, kind.is_dir(), &mut input, remaining)?;
+            extract_file(
+                &files,
+                context,
+                root,
+                &name,
+                kind.is_dir(),
+                &mut input,
+                remaining,
+            )?;
+            processed += 1;
+            context.progress(processed as u64, None);
         }
     } else {
         extract_file(
-            files,
+            &files,
+            context,
             root,
             Path::new(source_path.file_stem().ok_or("无效文件名")?),
             false,

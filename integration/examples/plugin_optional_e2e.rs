@@ -19,6 +19,26 @@ fn approve(id: &str) {
     .unwrap();
 }
 
+fn wait_task(task_id: &str) -> serde_json::Value {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+    loop {
+        let task = plugin_host::global()
+            .task(task_id)
+            .expect("Core did not register the plugin task");
+        match task.status.as_str() {
+            "running" | "cancelling" => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "plugin task did not finish: {task:?}"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            "completed" => return task.result,
+            _ => panic!("plugin task failed: {task:?}"),
+        }
+    }
+}
+
 fn main() {
     fiex_lib::plugin_sandbox::run_wrapper_if_requested();
     let root = std::env::temp_dir().join(format!("fiex-optional-e2e-{}", std::process::id()));
@@ -60,6 +80,8 @@ fn main() {
                 &[file.clone(), archive.clone()],
             )
             .expect("compress failed");
+        let task_id = created["taskId"].as_str().expect("compress task id");
+        let created = wait_task(task_id);
         assert_eq!(created.as_str(), Some(archive.to_string_lossy().as_ref()));
         assert!(archive.is_file(), "{format} archive was not created");
         let output = root.join(format!("out-{format}"));
@@ -73,6 +95,8 @@ fn main() {
                 &[archive.clone(), output.clone()],
             )
             .expect("extract failed");
+        let task_id = extracted["taskId"].as_str().expect("extract task id");
+        let extracted = wait_task(task_id);
         let extracted = extracted.as_str().expect("extract path").to_string();
         assert_eq!(
             std::fs::read(std::path::Path::new(&extracted).join("hello.txt")).unwrap(),

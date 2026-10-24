@@ -43,6 +43,13 @@ fn merge_ignores(params: &Value, mut stored: Vec<String>) -> Vec<String> {
     values.append(&mut stored);
     values
 }
+fn archive_error(error: String) -> RpcError {
+    if error == archives::CANCELLED {
+        RpcError::cancelled()
+    } else {
+        RpcError::internal(error)
+    }
+}
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
@@ -70,23 +77,28 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 Vec::new()
             };
             let ignores = merge_ignores(p, stored);
-            let format = param(p, "format")?;
+            let format = param(p, "format")?.to_string();
             let destination = match p.get("destination").and_then(Value::as_str) {
                 Some(value) => value.to_owned(),
-                None => archives::default_destination(&paths, format, host)
+                None => archives::default_destination(&paths, &format, host)
                     .map_err(RpcError::internal)?,
             };
-            let result = archives::compress(
-                &paths,
-                &destination,
-                format,
-                &ignores,
-                p.get("level").and_then(Value::as_u64).map(|n| n as u32),
-                p.get("password").and_then(Value::as_str),
-                host,
-            )
-            .map_err(RpcError::internal)?;
-            Ok(json!(result))
+            let level = p.get("level").and_then(Value::as_u64).map(|n| n as u32);
+            let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
+            let task = ctx.spawn_task(move |task| {
+                let result = archives::compress(
+                    &paths,
+                    &destination,
+                    &format,
+                    &ignores,
+                    level,
+                    password.as_deref(),
+                    &task,
+                )
+                .map_err(archive_error)?;
+                Ok(json!(result))
+            })?;
+            Ok(json!({"taskId": task.id()}))
         }
         "archive.list" => Ok(listing::list(
             param(p, "path")?,
@@ -113,14 +125,24 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
-            Ok(json!(archives::extract(
-                param(p, "path")?,
-                p.get("destination").and_then(Value::as_str),
-                p.get("password").and_then(Value::as_str),
-                &ignores,
-                host
-            )
-            .map_err(RpcError::internal)?))
+            let path = param(p, "path")?.to_string();
+            let destination = p
+                .get("destination")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
+            let task = ctx.spawn_task(move |task| {
+                let result = archives::extract(
+                    &path,
+                    destination.as_deref(),
+                    password.as_deref(),
+                    &ignores,
+                    &task,
+                )
+                .map_err(archive_error)?;
+                Ok(json!(result))
+            })?;
+            Ok(json!({"taskId": task.id()}))
         }
         _ => Err(RpcError::method_not_found(method)),
     }

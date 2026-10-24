@@ -12,6 +12,14 @@ interface Context {
   selectionPaths?: string[];
   directoryPath?: string;
 }
+interface PluginTask {
+  taskId: string;
+  status: "running" | "cancelling" | "completed" | "failed" | "cancelled";
+  done: number;
+  total?: number | null;
+  result?: unknown;
+  error?: string | null;
+}
 interface Format {
   id: string;
   label: string;
@@ -80,6 +88,7 @@ const formats: Format[] = [
     note: "XZ 压缩",
   },
 ];
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value;
 const trimSlash = (value: string) => value.replace(/[\\/]+$/, "");
 
@@ -231,12 +240,8 @@ export function App() {
     setBusy(true);
     setError("");
     setDone("");
-    let task: { taskId: string } | null = null;
     try {
-      task = await client.tasks.create(`正在压缩为 ${selected.label}`, {
-        detail: `${paths.length} 个项目`,
-      });
-      const created = await client.invoke<string>("plugin.invoke", {
+      const started = await client.invoke<{ taskId: string }>("plugin.invoke", {
         method: "archive.compress",
         params: {
           paths,
@@ -247,14 +252,25 @@ export function App() {
           ignoreSettings: !compressAll,
         },
       });
-      setDone(created);
-      await client.tasks.finish(task.taskId, { detail: created });
+      if (!started?.taskId) throw new Error("插件没有返回任务 ID");
+      const deadline = Date.now() + 24 * 60 * 60 * 1000;
+      while (Date.now() < deadline) {
+        const status = await client.invoke<PluginTask | null>("plugin.task", {
+          taskId: started.taskId,
+        });
+        if (!status) throw new Error("状态中心没有找到该任务");
+        if (status.status === "completed") {
+          setDone(String(status.result ?? ""));
+          return;
+        }
+        if (status.status === "failed")
+          throw new Error(status.error || "压缩失败");
+        if (status.status === "cancelled") throw new Error("已取消");
+        await sleep(300);
+      }
+      throw new Error("压缩任务超时");
     } catch (cause) {
       setError(String(cause));
-      if (task)
-        await client.tasks
-          .finish(task.taskId, { error: String(cause) })
-          .catch(() => {});
     } finally {
       setBusy(false);
     }

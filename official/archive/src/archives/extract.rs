@@ -3,10 +3,10 @@
 use super::{
     err, formats,
     paths::{safe_name, text, unique},
-    MAX_TOTAL,
+    ArchiveContext, MAX_TOTAL,
 };
 use crate::ignores::IgnoreSet;
-use fiex_plugin_sdk::{self as sdk, Files};
+use fiex_plugin_sdk::Files;
 use std::{
     io::{Read, Write},
     path::Path,
@@ -14,6 +14,7 @@ use std::{
 
 pub(crate) fn extract_file(
     files: &Files,
+    context: &dyn ArchiveContext,
     root: &Path,
     name: &Path,
     directory: bool,
@@ -31,6 +32,9 @@ pub(crate) fn extract_file(
     let mut output = files.begin_write(&text(&path), true).map_err(err)?;
     let mut block = [0u8; 65536];
     loop {
+        if context.cancelled() {
+            return Err(super::CANCELLED.into());
+        }
         let n = input.read(&mut block).map_err(err)?;
         if n == 0 {
             break;
@@ -49,9 +53,9 @@ pub fn extract(
     destination: Option<&str>,
     password: Option<&str>,
     ignores: &[String],
-    host: &sdk::RequestContext,
+    context: &dyn ArchiveContext,
 ) -> Result<String, String> {
-    let files = host.files();
+    let files = context.files();
     let source_path = Path::new(source);
     let base = destination
         .map(Path::new)
@@ -71,14 +75,14 @@ pub fn extract(
         let lower = source.to_lowercase();
         let mut remaining = MAX_TOTAL;
         if lower.ends_with(".zip") {
-            formats::extract_zip(&files, &root, source, password, &ignore, &mut remaining)?;
+            formats::extract_zip(context, &root, source, password, &ignore, &mut remaining)?;
         } else if lower.ends_with(".7z") {
-            formats::extract_7z(&files, &root, source, password, &ignore, &mut remaining)?;
+            formats::extract_7z(context, &root, source, password, &ignore, &mut remaining)?;
         } else if lower.ends_with(".rar") {
-            formats::extract_rar(&files, &root, source, password, &ignore)?;
+            formats::extract_rar(context, &root, source, password, &ignore)?;
         } else {
             formats::extract_stream(
-                &files,
+                context,
                 &root,
                 source,
                 source_path,

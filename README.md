@@ -93,3 +93,13 @@ in the Core repository. Check out the matching Core revision under `core/`, then
 run `cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e`
 and `plugin_optional_e2e` with isolated `FIEX_PLUGIN_DIR` and `XDG_DATA_HOME`.
 Core's own CI uses the standalone SDK mock process.
+
+## Core-owned virtual views and connection I/O
+
+Standalone virtual trees declare `contributions.vfs`; connection factories declare `contributions.connections` and implicitly provide their instance tree. No provider declares a URI scheme or a `capabilities` block. Core generates all `fiex://mount/<id>/` navigation URIs and enforces contribution ownership and selected-resource scope.
+
+Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `vfs.*` through the supplied `viewContext` and opaque `nodeId`. It does not snapshot repositories or participate in connection sync.
+
+All connection uploads use `fs.writeFile` with an exact Core snapshot grant. Google Drive implements resumable chunking internally. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
+
+`test-git-vfs.py`, `test-gdrive.py` and `test-connection-sync.py` exercise real provider processes against deterministic brokers. The separate Core-host and live WebDAV/SMB CI jobs retain actual sandbox/network integration coverage.

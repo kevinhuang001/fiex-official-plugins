@@ -74,8 +74,8 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           set -euo pipefail
-          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
-          for slug in git webdav smb openlist office-preview data-preview archive checksum everything gpg; do
+          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py
+          for slug in git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
@@ -88,6 +88,11 @@ jobs:
         shell: bash
         run: |
           python scripts/test-plugin-process.py --target "${{ matrix.platform }}" --binary-root "target/${{ matrix.target }}/release"
+          python scripts/test-git-vfs.py --binary "target/${{ matrix.target }}/release/fiex-plugin-git${{ runner.os == 'Windows' && '.exe' || '' }}"
+          python scripts/test-gdrive.py --binary "target/${{ matrix.target }}/release/fiex-plugin-gdrive${{ runner.os == 'Windows' && '.exe' || '' }}"
+          for slug in webdav openlist; do
+            python scripts/test-connection-sync.py --kind "$slug" --binary "target/${{ matrix.target }}/release/fiex-plugin-$slug${{ runner.os == 'Windows' && '.exe' || '' }}"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: fiex-plugins-${{ matrix.target }}
@@ -108,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: ca2942a1703c12fc62cf2efc8e649a645b581ad8
+          ref: ec4e0f02b54e75996e6a3dd9ccf7c43ce3e49201
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -129,8 +134,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
-          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)==11; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
-          for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg; do
+          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)==12; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          for id in org.fiex.git org.fiex.webdav org.fiex.gdrive org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg; do
             cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
           done
           # Every declared panel must resolve through the real host, including
@@ -152,7 +157,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: ca2942a1703c12fc62cf2efc8e649a645b581ad8
+          ref: ec4e0f02b54e75996e6a3dd9ccf7c43ce3e49201
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk
@@ -194,6 +199,7 @@ jobs:
           printf 'hello smb\n' > /tmp/fiex-ci-smb/hello.txt
           printf 'another smb\n' > /tmp/fiex-ci-smb/another.txt
           chmod 755 /tmp/fiex-ci-smb
+          sudo chown -R fiex:fiex /tmp/fiex-ci-smb
           printf 'FiexCI-Test-Only-2026\nFiexCI-Test-Only-2026\n' | sudo smbpasswd -a fiex -s
           cat > .ci/smb.conf <<EOF
           [global]

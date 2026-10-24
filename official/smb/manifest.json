@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.smb",
   "name": "SMB / NAS",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "通过独立进程连接 SMB / NAS 共享。",
   "icon": "hard-drive",
   "author": {
@@ -28,7 +28,7 @@
       "rename": false
     },
     "files": {
-      "read": false,
+      "read": true,
       "write": false
     },
     "network": {

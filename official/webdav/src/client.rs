@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::time::{Duration, UNIX_EPOCH};
 
 pub(crate) const DAV_BODY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
-<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getcontenttype/></d:prop></d:propfind>"#;
+<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getcontenttype/><d:getetag/></d:prop></d:propfind>"#;
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,6 +26,7 @@ pub(crate) struct RemoteFile {
     pub(crate) is_dir: bool,
     pub(crate) size: u64,
     pub(crate) modified: u64,
+    pub(crate) revision: String,
 }
 
 /// Build a request for `url` authenticated with the stored credentials.
@@ -84,10 +85,12 @@ pub(crate) fn parse_dav(url: &str, rel: &str, xml: &str) -> Result<Vec<RemoteFil
                             is_dir: false,
                             size: 0,
                             modified: 0,
+                            revision: String::new(),
                         })
                     }
                     b"href" => field = Some("href"),
                     b"displayname" => field = Some("displayname"),
+                    b"getetag" => field = Some("revision"),
                     b"getcontentlength" => field = Some("size"),
                     b"getlastmodified" => field = Some("modified"),
                     _ => {}
@@ -127,6 +130,7 @@ pub(crate) fn parse_dav(url: &str, rel: &str, xml: &str) -> Result<Vec<RemoteFil
                                 item.name = text.trim().into();
                             }
                         }
+                        Some("revision") => item.revision = text.trim().into(),
                         Some("size") => item.size = text.trim().parse().unwrap_or(0),
                         Some("modified") => {
                             if let Ok(time) = httpdate::parse_http_date(text.trim()) {

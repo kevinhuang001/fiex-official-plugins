@@ -75,7 +75,8 @@ pub(crate) fn list(
                 "name": f.name,
                 "kind": if f.is_dir { "directory" } else { "file" },
                 "size": f.size,
-                "modified": f.modified
+                "modified": f.modified,
+                "revision": f.revision
             })
         })
         .collect::<Vec<_>>();

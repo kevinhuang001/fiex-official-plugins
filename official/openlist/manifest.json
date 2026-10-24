@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.fiex.openlist",
   "name": "OpenList",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。",
   "icon": "cloud",
   "author": {
@@ -28,7 +28,7 @@
       "rename": false
     },
     "files": {
-      "read": false,
+      "read": true,
       "write": false
     },
     "network": {

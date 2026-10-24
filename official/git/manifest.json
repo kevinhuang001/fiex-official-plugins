@@ -65,10 +65,7 @@
             "width": 480,
             "height": 300
           }
-        },
-        "schemes": [
-          "history"
-        ]
+        }
       }
     ],
     "settings": [
@@ -77,6 +74,13 @@
         "label": "历史提交显示条数",
         "type": "number",
         "defaultValue": "50"
+      }
+    ],
+    "vfs": [
+      {
+        "id": "history",
+        "title": "Git 历史",
+        "readOnly": true
       }
     ]
   }

@@ -4,7 +4,7 @@ use crate::{
     git_host::run,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use fiex_plugin_sdk::HostServices;
+use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 #[derive(Clone)]
@@ -30,7 +30,7 @@ pub fn route(path: &str) -> Option<Route> {
         relative: relative.into(),
     })
 }
-pub fn history(root: &str, skip: usize, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn history(root: &str, skip: usize, host: &sdk::RequestContext) -> Result<Value, String> {
     if run(host, root, &["rev-parse", "--verify", "HEAD"]).is_err() {
         return Ok(json!([]));
     }
@@ -51,7 +51,7 @@ pub fn history(root: &str, skip: usize, host: &mut dyn HostServices) -> Result<V
     let entries=fields.chunks(6).filter(|p|p.len()==6).map(|p|json!({"id":p[0].trim_start_matches('\n'),"shortId":p[1],"subject":p[2],"author":p[3],"timestamp":p[4].parse::<u64>().unwrap_or(0),"refs":p[5]})).collect::<Vec<_>>();
     Ok(json!(entries))
 }
-pub fn browse(root: &str, reference: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn browse(root: &str, reference: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     if reference.is_empty() || reference.starts_with('-') {
         return Err("无效版本".into());
     }
@@ -73,7 +73,7 @@ fn entries(
     hidden: bool,
     ignores: &[String],
     recursive: bool,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Vec<Entry>, String> {
     let r = route(path).ok_or("无效历史路径")?;
     let object = if r.relative.is_empty() {
@@ -137,7 +137,7 @@ pub fn list(
     path: &str,
     hidden: bool,
     ignores: &[String],
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Listing, String> {
     Ok(Listing {
         read_only: true,
@@ -147,14 +147,14 @@ pub fn list(
         warnings: vec![],
     })
 }
-pub fn info(path: &str, host: &mut dyn HostServices) -> Result<Entry, String> {
+pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
     let (parent, _) = path.rsplit_once('/').ok_or("无效历史路径")?;
     entries(parent, true, &[], false, host)?
         .into_iter()
         .find(|v| v.path == path)
         .ok_or("历史文件不存在".into())
 }
-fn blob(path: &str, host: &mut dyn HostServices) -> Result<Vec<u8>, String> {
+fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
     let r = route(path).ok_or("无效历史路径")?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
@@ -174,7 +174,7 @@ fn blob(path: &str, host: &mut dyn HostServices) -> Result<Vec<u8>, String> {
     }
     result.stdout_bytes()
 }
-pub fn preview(path: &str, host: &mut dyn HostServices) -> Result<String, String> {
+pub fn preview(path: &str, host: &sdk::RequestContext) -> Result<String, String> {
     let mut bytes = blob(path, host)?;
     bytes.truncate(256 * 1024);
     if bytes.contains(&0) {
@@ -182,7 +182,7 @@ pub fn preview(path: &str, host: &mut dyn HostServices) -> Result<String, String
     }
     String::from_utf8(bytes).map_err(|e| e.to_string())
 }
-pub fn asset(path: &str, host: &mut dyn HostServices) -> Result<Value, String> {
+pub fn asset(path: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     use base64::engine::general_purpose::STANDARD;
     let name = Path::new(path)
         .file_name()
@@ -200,7 +200,7 @@ pub fn search(
     query: &str,
     hidden: bool,
     ignores: &[String],
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Vec<Entry>, String> {
     let query = query.to_lowercase();
     Ok(entries(path, hidden, ignores, true, host)?

@@ -10,7 +10,7 @@ fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
 }
 /// Stored as a JSON array by the list setting; older installs may still hold a
 /// comma/newline separated string, which is accepted for compatibility.
-fn stored_ignores(host: &mut dyn sdk::HostServices, key: &str) -> Vec<String> {
+fn stored_ignores(host: &sdk::RequestContext, key: &str) -> Vec<String> {
     match host.storage_get("global", key) {
         Ok(Value::Array(items)) => items
             .iter()
@@ -43,7 +43,10 @@ fn merge_ignores(params: &Value, mut stored: Vec<String>) -> Vec<String> {
     values.append(&mut stored);
     values
 }
-fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let p = ctx.params();
+    let host = &ctx;
     match method {
         "archive.compress" => {
             let paths = p
@@ -66,8 +69,8 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
             } else {
                 Vec::new()
             };
-            let ignores = merge_ignores(&p, stored);
-            let format = param(&p, "format")?;
+            let ignores = merge_ignores(p, stored);
+            let format = param(p, "format")?;
             let destination = match p.get("destination").and_then(Value::as_str) {
                 Some(value) => value.to_owned(),
                 None => archives::default_destination(&paths, format, host)
@@ -86,7 +89,7 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
             Ok(json!(result))
         }
         "archive.list" => Ok(listing::list(
-            param(&p, "path")?,
+            param(p, "path")?,
             p.get("password").and_then(Value::as_str),
             host,
         )
@@ -95,9 +98,9 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
         // for a valid archive. A password-protected archive hands control to
         // the preview panel so the user can type the password.
         "archive.beforeOpen" => {
-            let path = param(&p, "path")?;
+            let path = param(p, "path")?;
             let stored = stored_ignores(host, "extractIgnores");
-            let ignores = merge_ignores(&p, stored);
+            let ignores = merge_ignores(p, stored);
             let password = p.get("password").and_then(Value::as_str);
             match archives::extract(path, None, password, &ignores, host) {
                 Ok(destination) => Ok(json!({ "handled": true, "destination": destination })),
@@ -109,9 +112,9 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
         }
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
-            let ignores = merge_ignores(&p, stored);
+            let ignores = merge_ignores(p, stored);
             Ok(json!(archives::extract(
-                param(&p, "path")?,
+                param(p, "path")?,
                 p.get("destination").and_then(Value::as_str),
                 p.get("password").and_then(Value::as_str),
                 &ignores,
@@ -123,10 +126,7 @@ fn run(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve_with_host("org.fiex.archive", |method, p, host| {
-        let method = method.to_owned();
-        sdk::worker::with_host_worker(host, move |mut proxy| run(&method, p, &mut proxy))
-    }) {
+    if let Err(e) = sdk::serve("org.fiex.archive", run) {
         eprintln!("Archive plugin failed: {e}");
         std::process::exit(1);
     }

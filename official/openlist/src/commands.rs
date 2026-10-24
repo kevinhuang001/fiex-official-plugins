@@ -5,20 +5,20 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 
 pub(crate) fn dispatch(
-    method: &str,
-    p: Value,
+    ctx: sdk::RequestContext,
     session: &Session,
     reads: &Reads,
-    host: &mut dyn sdk::HostServices,
 ) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let p = ctx.params();
     if method == "fs.closeRead" {
-        fs::close_read(&p, reads);
+        fs::close_read(p, reads);
         return Ok(Value::Null);
     }
     match method {
-        "connection.validate" | "fs.list" => fs::list(method, &p, session, host),
-        "fs.readSmall" | "fs.openRead" => fs::read(method, &p, session, reads, host),
-        "fs.readStream" => fs::read_stream(&p, reads),
+        "connection.validate" | "fs.list" => fs::list(method, p, session, &ctx),
+        "fs.readSmall" | "fs.openRead" => fs::read(method, p, session, reads, &ctx),
+        "fs.readStream" => fs::read_stream(p, reads),
         _ => Err(RpcError::method_not_found(method)),
     }
 }

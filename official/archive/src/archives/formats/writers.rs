@@ -1,10 +1,10 @@
 //! Per-format archive readers and writers.
 use super::super::{compress::Source, err};
-use fiex_plugin_sdk::{files::FileSystem, worker::HostProxy};
+use fiex_plugin_sdk::Files;
 use std::io::{self, Seek, Write};
 
 pub(crate) fn write_zip<W: Write + Seek>(
-    files: &FileSystem<'_>,
+    files: &Files,
     sources: &[Source],
     writer: W,
     level: u32,
@@ -30,7 +30,7 @@ pub(crate) fn write_zip<W: Write + Seek>(
 }
 
 pub(crate) fn write_tar<W: Write>(
-    files: &FileSystem<'_>,
+    files: &Files,
     sources: &[Source],
     writer: W,
 ) -> Result<W, String> {
@@ -63,7 +63,7 @@ pub(crate) fn write_tar<W: Write>(
 }
 
 pub(crate) fn write_tar_gz<W: Write>(
-    files: &FileSystem<'_>,
+    files: &Files,
     sources: &[Source],
     writer: W,
     level: u32,
@@ -78,7 +78,7 @@ pub(crate) fn write_tar_gz<W: Write>(
 }
 
 pub(crate) fn write_tar_bz2<W: Write>(
-    files: &FileSystem<'_>,
+    files: &Files,
     sources: &[Source],
     writer: W,
     level: u32,
@@ -93,7 +93,7 @@ pub(crate) fn write_tar_bz2<W: Write>(
 }
 
 pub(crate) fn write_tar_xz<W: Write>(
-    files: &FileSystem<'_>,
+    files: &Files,
     sources: &[Source],
     writer: W,
     level: u32,
@@ -104,7 +104,7 @@ pub(crate) fn write_tar_xz<W: Write>(
 }
 
 pub(crate) fn write_7z<W: Write + Seek>(
-    files: &FileSystem<'_>,
+    files: &Files,
     sources: &[Source],
     writer: W,
 ) -> Result<W, String> {
@@ -134,25 +134,23 @@ pub(crate) fn write_rar<W: Write>(
     writer: W,
     level: u32,
     password: Option<&str>,
-    proxy: Option<HostProxy>,
+    files: Files,
 ) -> Result<W, String> {
     let mut builder =
         rars::Builder::new(rars::ArchiveVersion::Rar50).compression_level(Some(level.min(5) as u8));
     if let Some(password) = password {
         builder = builder.password(Some(password.as_bytes().to_vec()));
     }
-    let proxy = proxy.ok_or("RAR requires a host worker session")?;
     for source in sources {
         if source.dir {
             builder
                 .add_directory(source.name.as_bytes().to_vec(), None, None)
                 .map_err(err)?;
         } else {
-            let proxy = proxy.clone();
             let path = source.path.clone();
+            let files = files.clone();
             let input = rars::EntrySource::from_opener(source.size, move || {
-                let reader = fiex_plugin_sdk::files::OwnedFileReader::open(proxy.clone(), &path)
-                    .map_err(rars::Error::from)?;
+                let reader = files.open_read(&path).map_err(rars::Error::from)?;
                 Ok(Box::new(reader))
             });
             builder

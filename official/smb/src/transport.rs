@@ -1,4 +1,4 @@
-use fiex_plugin_sdk::{tcp::TcpStream, worker::HostProxy};
+use fiex_plugin_sdk::tcp::{TcpClient, TcpStream};
 use smb::transport::{SmbTransport, SmbTransportRead, SmbTransportWrite, TransportError};
 use std::{
     io::{Read, Write},
@@ -9,9 +9,9 @@ pub struct HostTransport {
     stream: TcpStream,
 }
 impl HostTransport {
-    pub fn open(host: HostProxy, name: &str, port: u16) -> Result<Self, TransportError> {
+    pub fn open(tcp: &TcpClient, name: &str, port: u16) -> Result<Self, TransportError> {
         Ok(Self {
-            stream: TcpStream::connect(host, name, port)?,
+            stream: tcp.connect(name, port)?,
         })
     }
 }

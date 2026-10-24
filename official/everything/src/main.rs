@@ -3,7 +3,7 @@
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]
-fn query(p: &Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let query = p.get("query").and_then(Value::as_str).unwrap_or("").trim();
     let root = p
         .get("root")
@@ -54,12 +54,13 @@ fn query(p: &Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError>
     Ok(json!({"entries":entries,"truncated":truncated}))
 }
 #[cfg(not(windows))]
-fn query(_p: &Value, _host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn query(_p: &Value, _host: &sdk::RequestContext) -> Result<Value, RpcError> {
     Ok(json!({"entries":[],"truncated":false,"warning":"Everything 搜索只在 Windows 上可用"}))
 }
-fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
     match method {
-        "search.query" => query(&p, host),
+        "search.query" => query(ctx.params(), &ctx),
         "search.status" => Ok(
             json!({"available":cfg!(windows),"provider":"everything","indexOwner":"Everything","requires":"Everything and ES command in PATH"}),
         ),
@@ -68,7 +69,7 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve_with_host("org.fiex.everything", dispatch) {
+    if let Err(e) = sdk::serve("org.fiex.everything", dispatch) {
         eprintln!("Everything IPC failed: {e}");
         std::process::exit(1);
     }

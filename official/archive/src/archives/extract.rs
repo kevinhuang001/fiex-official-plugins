@@ -6,14 +6,14 @@ use super::{
     MAX_TOTAL,
 };
 use crate::ignores::IgnoreSet;
-use fiex_plugin_sdk::{files::FileSystem, HostServices};
+use fiex_plugin_sdk::{self as sdk, Files};
 use std::{
     io::{Read, Write},
     path::Path,
 };
 
 pub(crate) fn extract_file(
-    files: &FileSystem<'_>,
+    files: &Files,
     root: &Path,
     name: &Path,
     directory: bool,
@@ -49,9 +49,8 @@ pub fn extract(
     destination: Option<&str>,
     password: Option<&str>,
     ignores: &[String],
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<String, String> {
-    let proxy = host.worker_proxy();
     let files = host.files();
     let source_path = Path::new(source);
     let base = destination
@@ -76,7 +75,7 @@ pub fn extract(
         } else if lower.ends_with(".7z") {
             formats::extract_7z(&files, &root, source, password, &ignore, &mut remaining)?;
         } else if lower.ends_with(".rar") {
-            formats::extract_rar(&files, &root, source, password, &ignore, proxy)?;
+            formats::extract_rar(&files, &root, source, password, &ignore)?;
         } else {
             formats::extract_stream(
                 &files,

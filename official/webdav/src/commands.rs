@@ -3,15 +3,15 @@ use super::client::StoredConnection;
 use super::fs::{self, Streams};
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
-use std::cell::Cell;
+use std::sync::atomic::AtomicU64;
 
 pub(crate) fn dispatch(
-    method: &str,
-    p: Value,
+    ctx: sdk::RequestContext,
     streams: &Streams,
-    next: &Cell<u64>,
-    host: &mut dyn sdk::HostServices,
+    next: &AtomicU64,
 ) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let p = ctx.params();
     if !matches!(
         method,
         "connection.validate"
@@ -25,11 +25,16 @@ pub(crate) fn dispatch(
     }
     let id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
     if method == "fs.closeRead" {
-        streams.borrow_mut().remove(id);
+        streams
+            .lock()
+            .map_err(|_| RpcError::internal("stream registry unavailable"))?
+            .remove(id);
         return Ok(Value::Null);
     }
     let (cfg, path) = if method == "fs.readStream" {
-        let streams = streams.borrow();
+        let streams = streams
+            .lock()
+            .map_err(|_| RpcError::internal("stream registry unavailable"))?;
         let stream = streams
             .get(id)
             .ok_or_else(|| RpcError::invalid_params("unknown stream"))?;
@@ -51,8 +56,8 @@ pub(crate) fn dispatch(
         (cfg, path)
     };
     match method {
-        "connection.validate" | "fs.list" => fs::list(host, &p, &cfg, &path, method),
+        "connection.validate" | "fs.list" => fs::list(&ctx, p, &cfg, &path, method),
         "fs.openRead" => fs::open_read(streams, next, cfg, path),
-        _ => fs::read(host, &p, &cfg, &path),
+        _ => fs::read(&ctx, p, &cfg, &path),
     }
 }

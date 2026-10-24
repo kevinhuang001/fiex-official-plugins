@@ -5,17 +5,19 @@ use super::client::{self, StoredConnection, DAV_BODY};
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 use std::{
-    cell::{Cell, RefCell},
     collections::HashMap,
     io::Read,
-    rc::Rc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
 };
 
 pub(crate) struct ReadStream {
     pub(crate) connection: StoredConnection,
     pub(crate) node_id: String,
 }
-pub(crate) type Streams = Rc<RefCell<HashMap<String, ReadStream>>>;
+pub(crate) type Streams = Arc<Mutex<HashMap<String, ReadStream>>>;
 
 pub(crate) fn safe_relative(value: &str) -> Result<(), RpcError> {
     if value.starts_with('/')
@@ -29,7 +31,7 @@ pub(crate) fn safe_relative(value: &str) -> Result<(), RpcError> {
 }
 
 pub(crate) fn list(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     p: &Value,
     cfg: &StoredConnection,
     path: &str,
@@ -84,16 +86,18 @@ pub(crate) fn list(
 
 pub(crate) fn open_read(
     streams: &Streams,
-    next: &Cell<u64>,
+    next: &AtomicU64,
     cfg: StoredConnection,
     path: String,
 ) -> Result<Value, RpcError> {
-    if streams.borrow().len() >= 32 {
+    let mut streams = streams
+        .lock()
+        .map_err(|_| RpcError::internal("stream registry unavailable"))?;
+    if streams.len() >= 32 {
         return Err(RpcError::internal("too many read streams"));
     }
-    next.set(next.get() + 1);
-    let id = format!("dav-read-{}", next.get());
-    streams.borrow_mut().insert(
+    let id = format!("dav-read-{}", next.fetch_add(1, Ordering::Relaxed) + 1);
+    streams.insert(
         id.clone(),
         ReadStream {
             connection: cfg,
@@ -104,7 +108,7 @@ pub(crate) fn open_read(
 }
 
 pub(crate) fn read(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     p: &Value,
     cfg: &StoredConnection,
     path: &str,

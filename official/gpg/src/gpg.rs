@@ -1,11 +1,11 @@
 //! GnuPG process invocation and status-stream parsing.
-use fiex_plugin_sdk::{ipc::ProcessResult, HostServices, RpcError};
+use fiex_plugin_sdk::{self as sdk, ipc::ProcessResult, RpcError};
 
 /// Runs the user's approved `gpg` executable. A missing installation is
 /// reported as such rather than as a GnuPG command failure.
 pub(crate) fn invoke(
     args: &[String],
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<ProcessResult, RpcError> {
     host.process_run("gpg", args, None).map_err(|error| {
         RpcError::internal(format!("无法运行 gpg，请先安装 GnuPG 并加入 PATH：{error}"))

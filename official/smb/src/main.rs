@@ -4,7 +4,14 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use smb::{GetLen, ReadAt};
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+};
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,7 +48,7 @@ fn smb_path(cfg: &StoredConnection, path: &str) -> String {
         .join("\\")
 }
 fn remote(
-    host: sdk::worker::HostProxy,
+    tcp: sdk::TcpClient,
     cfg: StoredConnection,
     path: String,
     method: String,
@@ -50,7 +57,7 @@ fn remote(
     let run = || -> Result<Value, String> {
         let port = cfg.port.unwrap_or(445);
         let transport =
-            transport::HostTransport::open(host, &cfg.host, port).map_err(|e| e.to_string())?;
+            transport::HostTransport::open(&tcp, &cfg.host, port).map_err(|e| e.to_string())?;
         let connection = smb::Connection::from_transport(
             Box::new(transport),
             &cfg.host,
@@ -162,9 +169,11 @@ fn remote(
     run().map_err(RpcError::internal)
 }
 fn main() {
-    let mut streams: HashMap<String, ReadStream> = HashMap::new();
-    let mut sequence = 0u64;
-    let result = sdk::serve_with_host("org.fiex.smb", move |method, p, host| {
+    let streams: Mutex<HashMap<String, ReadStream>> = Mutex::new(HashMap::new());
+    let sequence = AtomicU64::new(0);
+    let result = sdk::serve("org.fiex.smb", move |ctx| {
+        let method = ctx.method();
+        let p = ctx.params();
         if !matches!(
             method,
             "connection.validate"
@@ -178,10 +187,16 @@ fn main() {
         }
         let stream_id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
         if method == "fs.closeRead" {
-            streams.remove(stream_id);
+            streams
+                .lock()
+                .map_err(|_| RpcError::internal("stream registry unavailable"))?
+                .remove(stream_id);
             return Ok(Value::Null);
         }
         let (cfg, path) = if method == "fs.readStream" {
+            let streams = streams
+                .lock()
+                .map_err(|_| RpcError::internal("stream registry unavailable"))?;
             let stream = streams
                 .get(stream_id)
                 .ok_or_else(|| RpcError::invalid_params("unknown read stream"))?;
@@ -207,16 +222,15 @@ fn main() {
             connection: cfg.clone(),
             path: path.clone(),
         };
-        let method_owned = method.to_owned();
-        let mut value = sdk::worker::with_host_worker(host, move |proxy| {
-            remote(proxy, cfg, path, method_owned, p)
-        })?;
+        let mut value = remote(ctx.tcp(), cfg, path, method.to_owned(), p.clone())?;
         if method == "fs.openRead" {
+            let mut streams = streams
+                .lock()
+                .map_err(|_| RpcError::internal("stream registry unavailable"))?;
             if streams.len() >= 32 {
                 return Err(RpcError::internal("too many read streams"));
             }
-            sequence += 1;
-            let id = format!("smb-read-{sequence}");
+            let id = format!("smb-read-{}", sequence.fetch_add(1, Ordering::Relaxed) + 1);
             streams.insert(id.clone(), stored);
             value["streamId"] = json!(id);
         }

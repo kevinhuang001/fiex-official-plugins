@@ -6,8 +6,8 @@ use crate::sqlite;
 use crate::table;
 use crate::tabular;
 use serde_json::{json, Value};
-use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::sync::Mutex;
 
 pub(crate) enum Source {
     Sqlite(rusqlite::Connection),
@@ -15,7 +15,7 @@ pub(crate) enum Source {
     Sheets {
         bytes: Vec<u8>,
         extension: String,
-        cache: RefCell<BTreeMap<String, table::Table>>,
+        cache: Mutex<BTreeMap<String, table::Table>>,
     },
     Single(table::Table),
 }
@@ -56,7 +56,7 @@ pub(crate) fn page_of(source: &Source, dataset: &str, p: &Value) -> Result<Value
             extension,
             cache,
         } => {
-            let mut sheets = cache.borrow_mut();
+            let mut sheets = cache.lock().map_err(|_| "sheet cache unavailable")?;
             if !sheets.contains_key(dataset) {
                 let parsed = sheet::sheet(bytes, extension, dataset)?;
                 sheets.insert(dataset.to_string(), parsed);
@@ -131,7 +131,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
                     source: Source::Sheets {
                         bytes,
                         extension,
-                        cache: RefCell::new(cache),
+                        cache: Mutex::new(cache),
                     },
                 },
             ))

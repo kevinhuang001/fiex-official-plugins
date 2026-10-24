@@ -27,13 +27,14 @@ fn main() {
     let file = root.join("hello.txt");
     std::fs::write(&file, b"abc").unwrap();
 
-    plugin_host::set_active_directory(root.to_str().unwrap()).unwrap();
     approve("org.fiex.checksum");
     let hashes = plugin_host::global()
-        .invoke(
+        .invoke_selected(
             "org.fiex.checksum",
             "checksum.calculate",
             json!({"path": file}),
+            root.to_str().unwrap(),
+            std::slice::from_ref(&file),
         )
         .expect("checksum failed");
     assert_eq!(
@@ -46,7 +47,7 @@ fn main() {
     for format in ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "rar"] {
         let archive = root.join(format!("bundle.{format}"));
         let created = plugin_host::global()
-            .invoke(
+            .invoke_selected(
                 "org.fiex.archive",
                 "archive.compress",
                 json!({
@@ -55,6 +56,8 @@ fn main() {
                     "format": format,
                     "ignores": []
                 }),
+                root.to_str().unwrap(),
+                &[file.clone(), archive.clone()],
             )
             .expect("compress failed");
         assert_eq!(created.as_str(), Some(archive.to_string_lossy().as_ref()));
@@ -62,10 +65,12 @@ fn main() {
         let output = root.join(format!("out-{format}"));
         std::fs::create_dir_all(&output).unwrap();
         let extracted = plugin_host::global()
-            .invoke(
+            .invoke_selected(
                 "org.fiex.archive",
                 "archive.extract",
                 json!({"path": archive, "destination": output}),
+                root.to_str().unwrap(),
+                &[archive.clone(), output.clone()],
             )
             .expect("extract failed");
         let extracted = extracted.as_str().expect("extract path").to_string();

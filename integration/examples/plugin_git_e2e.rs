@@ -31,36 +31,26 @@ fn main() {
         .unwrap();
     std::fs::write(repo.join("a.txt"), "hello\n").unwrap();
     let root = repo.to_string_lossy().into_owned();
-    plugin_host::set_active_directory(&root).expect("active directory");
+    let invoke = |method: &str, params: serde_json::Value| {
+        plugin_host::global().invoke_at(id, method, params, &root)
+    };
 
-    let init = plugin_host::global()
-        .invoke(id, "git.init", json!({"root": root}))
-        .expect("git.init failed");
+    let init = invoke("git.init", json!({"root": root})).expect("git.init failed");
     assert_eq!(init["branch"], "main", "{init}");
-    plugin_host::global()
-        .invoke(
-            id,
-            "git.stage",
-            json!({"root": root, "paths": [], "all": true}),
-        )
-        .expect("git.stage failed");
-    let commit = plugin_host::global()
-        .invoke(
-            id,
-            "git.commit",
-            json!({"root": root, "message": "initial", "name": "Fiex", "email": "fiex@example.com"}),
-        )
-        .expect("git.commit failed");
+    invoke("git.stage", json!({"root": root, "paths": [], "all": true})).expect("git.stage failed");
+    let commit = invoke(
+        "git.commit",
+        json!({"root": root, "message": "initial", "name": "Fiex", "email": "fiex@example.com"}),
+    )
+    .expect("git.commit failed");
     let hash = commit.as_str().expect("commit hash").to_string();
     assert_eq!(hash.len(), 7, "{hash}");
 
-    let history = plugin_host::global()
-        .invoke(id, "git.history", json!({"root": root, "skip": 0}))
-        .expect("git.history failed");
+    let history =
+        invoke("git.history", json!({"root": root, "skip": 0})).expect("git.history failed");
     assert_eq!(history.as_array().unwrap().len(), 1, "{history}");
 
-    let reference = plugin_host::global()
-        .invoke(id, "git.browse", json!({"root": root, "reference": "main"}))
+    let reference = invoke("git.browse", json!({"root": root, "reference": "main"}))
         .expect("git.browse failed");
     let history_path = reference.as_str().expect("history path").to_string();
     assert!(history_path.starts_with("history://"), "{history_path}");

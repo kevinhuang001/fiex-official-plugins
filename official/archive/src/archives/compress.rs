@@ -2,7 +2,7 @@
 //! writer for the requested format.
 use super::{err, formats, paths::text, MAX_ENTRIES};
 use crate::ignores::IgnoreSet;
-use fiex_plugin_sdk::{files::FileSystem, HostServices};
+use fiex_plugin_sdk::{self as sdk, Files};
 use std::path::Path;
 
 pub(crate) struct Source {
@@ -13,12 +13,12 @@ pub(crate) struct Source {
 }
 
 pub(crate) fn sources(
-    files: &FileSystem<'_>,
+    files: &Files,
     paths: &[String],
     ignore: &IgnoreSet,
 ) -> Result<Vec<Source>, String> {
     fn visit(
-        files: &FileSystem<'_>,
+        files: &Files,
         path: &str,
         name: &Path,
         ignore: &IgnoreSet,
@@ -62,12 +62,11 @@ pub fn compress(
     ignores: &[String],
     level: Option<u32>,
     password: Option<&str>,
-    host: &mut dyn HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<String, String> {
     if paths.is_empty() {
         return Err("请选择文件".into());
     }
-    let proxy = host.worker_proxy();
     let files = host.files();
     let sources = sources(&files, paths, &IgnoreSet::new(ignores))?;
     let writer = files.begin_write(destination, true).map_err(err)?;
@@ -83,7 +82,7 @@ pub fn compress(
         "tar.bz2" => formats::write_tar_bz2(&files, &sources, writer, level)?,
         "tar.xz" => formats::write_tar_xz(&files, &sources, writer, level)?,
         "7z" => formats::write_7z(&files, &sources, writer)?,
-        "rar" => formats::write_rar(&sources, writer, level, password, proxy)?,
+        "rar" => formats::write_rar(&sources, writer, level, password, files.clone())?,
         _ => return Err("不支持的压缩格式".into()),
     };
     writer.commit().map_err(err)?;

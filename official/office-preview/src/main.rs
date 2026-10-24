@@ -11,14 +11,16 @@ mod sanitize;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 
-fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<Value, RpcError> {
+fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
     match method {
         "office.render" => {
-            let path = p
+            let path = ctx
+                .params()
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let bytes = host
+            let bytes = ctx
                 .files()
                 .read(path)
                 .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
@@ -29,7 +31,7 @@ fn dispatch(method: &str, p: Value, host: &mut dyn sdk::HostServices) -> Result<
 }
 
 fn main() {
-    if let Err(error) = sdk::serve_with_host("org.fiex.office-preview", dispatch) {
+    if let Err(error) = sdk::serve("org.fiex.office-preview", dispatch) {
         eprintln!("Office preview IPC failed: {error}");
         std::process::exit(1);
     }

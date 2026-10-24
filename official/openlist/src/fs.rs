@@ -6,15 +6,21 @@
 use super::client::{self, Config, Session};
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+};
 
 const MAX_READ: u64 = 32 * 1024 * 1024;
 
 /// Buffered payloads backing `fs.openRead` streams.
 #[derive(Default)]
 pub(crate) struct Reads {
-    data: RefCell<HashMap<String, Vec<u8>>>,
-    next: RefCell<u64>,
+    data: Mutex<HashMap<String, Vec<u8>>>,
+    next: AtomicU64,
 }
 
 fn api_path(relative: &str) -> String {
@@ -45,7 +51,7 @@ fn join(relative: &str, name: &str) -> String {
 }
 
 fn raw_url(
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
     cfg: &Config,
     session: &Session,
     relative: &str,
@@ -115,7 +121,7 @@ pub(crate) fn list(
     method: &str,
     p: &Value,
     session: &Session,
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, RpcError> {
     let cfg = client::config(host, p.get("connection"))?;
     let directory = p
@@ -198,7 +204,7 @@ pub(crate) fn read(
     p: &Value,
     session: &Session,
     reads: &Reads,
-    host: &mut dyn sdk::HostServices,
+    host: &sdk::RequestContext,
 ) -> Result<Value, RpcError> {
     let cfg = client::config(host, p.get("connection"))?;
     let relative = p
@@ -212,16 +218,28 @@ pub(crate) fn read(
     }
     let url = raw_url(host, &cfg, session, &relative)?;
     if method == "fs.openRead" {
-        if reads.data.borrow().len() >= 8 {
+        if reads
+            .data
+            .lock()
+            .map_err(|_| RpcError::internal("read registry unavailable"))?
+            .len()
+            >= 8
+        {
             return Err(RpcError::internal("too many open reads"));
         }
         let (bytes, _) = client::download(host, &cfg, &url)?;
         if bytes.len() as u64 > MAX_READ {
             return Err(RpcError::internal("文件超过 32 MiB，暂不支持预览"));
         }
-        *reads.next.borrow_mut() += 1;
-        let id = format!("openlist-read-{}", reads.next.borrow());
-        reads.data.borrow_mut().insert(id.clone(), bytes);
+        let id = format!(
+            "openlist-read-{}",
+            reads.next.fetch_add(1, Ordering::Relaxed) + 1
+        );
+        reads
+            .data
+            .lock()
+            .map_err(|_| RpcError::internal("read registry unavailable"))?
+            .insert(id.clone(), bytes);
         return Ok(json!({ "streamId": id }));
     }
     let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
@@ -253,7 +271,10 @@ pub(crate) fn read_stream(p: &Value, reads: &Reads) -> Result<Value, RpcError> {
         .and_then(Value::as_u64)
         .unwrap_or(262144)
         .clamp(1, 1048576) as usize;
-    let buffers = reads.data.borrow();
+    let buffers = reads
+        .data
+        .lock()
+        .map_err(|_| RpcError::internal("read registry unavailable"))?;
     let data = buffers
         .get(id)
         .ok_or_else(|| RpcError::invalid_params("unknown stream"))?;
@@ -273,7 +294,9 @@ pub(crate) fn read_stream(p: &Value, reads: &Reads) -> Result<Value, RpcError> {
 
 pub(crate) fn close_read(p: &Value, reads: &Reads) {
     let id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
-    reads.data.borrow_mut().remove(id);
+    if let Ok(mut buffers) = reads.data.lock() {
+        buffers.remove(id);
+    }
 }
 
 #[cfg(test)]

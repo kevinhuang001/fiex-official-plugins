@@ -1,7 +1,7 @@
 //! Method dispatch: turn a panel request into a GnuPG invocation and shape the
 //! result for the panel.
 use crate::{gpg, keys::keys};
-use fiex_plugin_sdk::{HostServices, RpcError};
+use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
 fn text<'a>(p: &'a Value, key: &str) -> Result<&'a str, RpcError> {
@@ -81,8 +81,10 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
     Ok(args)
 }
 
-pub fn run(method: &str, p: Value, host: &mut dyn HostServices) -> Result<Value, RpcError> {
-    let result = gpg::invoke(&args(method, &p)?, host)?;
+pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let p = ctx.params();
+    let result = gpg::invoke(&args(method, p)?, &ctx)?;
     match method {
         "gpg.info" => {
             let version = result

@@ -6,14 +6,14 @@ use super::super::{
     MAX_ENTRIES, MAX_TOTAL,
 };
 use crate::ignores::IgnoreSet;
-use fiex_plugin_sdk::{files::FileSystem, worker::HostProxy};
+use fiex_plugin_sdk::Files;
 use std::{
     io::{self, Read, Write},
     path::Path,
 };
 
 pub(crate) fn extract_zip(
-    files: &FileSystem<'_>,
+    files: &Files,
     root: &Path,
     source: &str,
     password: Option<&str>,
@@ -49,7 +49,7 @@ pub(crate) fn extract_zip(
 }
 
 pub(crate) fn extract_7z(
-    files: &FileSystem<'_>,
+    files: &Files,
     root: &Path,
     source: &str,
     password: Option<&str>,
@@ -89,15 +89,14 @@ pub(crate) fn extract_7z(
 }
 
 pub(crate) fn extract_rar(
-    files: &FileSystem<'_>,
+    files: &Files,
     root: &Path,
     source: &str,
     password: Option<&str>,
     ignore: &IgnoreSet,
-    proxy: Option<HostProxy>,
 ) -> Result<(), String> {
     use std::sync::{Arc, Mutex};
-    struct Sink(Arc<Mutex<Option<fiex_plugin_sdk::files::OwnedFileWriter>>>);
+    struct Sink(Arc<Mutex<Option<fiex_plugin_sdk::FileWriter>>>);
     impl Write for Sink {
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
             self.0
@@ -111,10 +110,8 @@ pub(crate) fn extract_rar(
             Ok(())
         }
     }
-    let proxy = proxy.ok_or("RAR requires a host worker session")?;
-    let reader =
-        fiex_plugin_sdk::files::OwnedFileReader::open(proxy.clone(), source).map_err(err)?;
-    let mut pending: Option<Arc<Mutex<Option<fiex_plugin_sdk::files::OwnedFileWriter>>>> = None;
+    let reader = files.open_read(source).map_err(err)?;
+    let mut pending: Option<Arc<Mutex<Option<fiex_plugin_sdk::FileWriter>>>> = None;
     let mut count = 0;
     let mut options = rars::ArchiveReadOptions::default();
     options.password = password.map(str::as_bytes);
@@ -157,7 +154,8 @@ pub(crate) fn extract_rar(
                     .map_err(rars::Error::from)?;
             }
             let output = Arc::new(Mutex::new(Some(
-                fiex_plugin_sdk::files::OwnedFileWriter::create(proxy.clone(), &text(&path))
+                files
+                    .begin_write(&text(&path), true)
                     .map_err(rars::Error::from)?,
             )));
             pending = Some(output.clone());
@@ -177,7 +175,7 @@ pub(crate) fn extract_rar(
 }
 
 pub(crate) fn extract_stream(
-    files: &FileSystem<'_>,
+    files: &Files,
     root: &Path,
     source: &str,
     source_path: &Path,

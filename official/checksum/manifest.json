@@ -41,19 +41,13 @@
     }
   },
   "contributions": {
-    "contextMenus": [
+    "info": [
       {
-        "id": "checksum.calculate",
-        "title": "查看校验和",
-        "when": "context.selection.isFile",
-        "panel": {
-          "title": "校验和",
-          "entry": "ui/dist/index.html",
-          "defaultSize": {
-            "width": 540,
-            "height": 300
-          }
-        }
+        "id": "checksum.info",
+        "title": "校验和",
+        "command": "checksum.info",
+        "extensions": [],
+        "priority": 100
       }
     ]
   }

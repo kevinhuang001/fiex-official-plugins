@@ -43,6 +43,21 @@ fn merge_ignores(params: &Value, mut stored: Vec<String>) -> Vec<String> {
     values.append(&mut stored);
     values
 }
+fn format_size(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit + 1 < UNITS.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
 fn max_total_bytes(ctx: &sdk::RequestContext, p: &Value) -> u64 {
     const GIB: u64 = 1024 * 1024 * 1024;
     let configured = ctx
@@ -113,6 +128,53 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 Ok(json!(result))
             })?;
             Ok(json!({"taskId": task.id()}))
+        }
+        "archive.info" => {
+            let path = param(p, "path")?;
+            let password = p.get("password").and_then(Value::as_str);
+            let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
+            let compressed = host
+                .files()
+                .metadata(path)
+                .map(|entry| entry.size)
+                .unwrap_or(0);
+            let entries = listing
+                .get("entries")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let count = entries.len();
+            let uncompressed = entries
+                .iter()
+                .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
+                .sum::<u64>();
+            let format = path
+                .rsplit_once('.')
+                .map(|(_, extension)| extension.to_ascii_uppercase())
+                .unwrap_or_else(|| "UNKNOWN".into());
+            let mut rows = vec![
+                json!({"label":"格式","value":format}),
+                json!({"label":"压缩后大小","value":format_size(compressed)}),
+                json!({"label":"解压后大小","value":format_size(uncompressed)}),
+                json!({"label":"文件数","value":count.to_string()}),
+            ];
+            if uncompressed > 0 {
+                let saved = 1.0 - compressed as f64 / uncompressed as f64;
+                rows.push(json!({"label":"压缩率","value":format!("{:.1}%", saved * 100.0)}));
+            }
+            if listing
+                .get("encrypted")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                rows.push(json!({"label":"加密","value":"是"}));
+            }
+            if listing.get("supported").and_then(Value::as_bool) == Some(false) {
+                if let Some(message) = listing.get("message").and_then(Value::as_str) {
+                    rows.push(json!({"label":"说明","value":message}));
+                }
+            }
+            Ok(json!({"rows": rows}))
         }
         "archive.list" => Ok(listing::list(
             param(p, "path")?,

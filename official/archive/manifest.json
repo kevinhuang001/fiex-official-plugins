@@ -293,6 +293,26 @@
           }
         }
       }
+    ],
+    "info": [
+      {
+        "id": "archive.info",
+        "title": "压缩包",
+        "command": "archive.info",
+        "extensions": [
+          "zip",
+          "7z",
+          "rar",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ],
+        "priority": 100
+      }
     ]
   }
 }

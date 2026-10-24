@@ -61,6 +61,19 @@
           }
         }
       }
+    ],
+    "info": [
+      {
+        "id": "office.info",
+        "title": "文档",
+        "command": "office.info",
+        "extensions": [
+          "docx",
+          "xlsx",
+          "pptx"
+        ],
+        "priority": 100
+      }
     ]
   }
 }

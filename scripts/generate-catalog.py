@@ -62,6 +62,7 @@ def main() -> None:
                 "permissions": permissions,
                 "networkDomains": manifest.get("permissions", {}).get("network", {}).get("domains", []),
                 "commands": commands,
+                "contributions": manifest.get("contributions", {}),
                 "assets": {
                     platform: f"{slug}-{platform}.fiexplugin"
                     for platform in PLATFORMS

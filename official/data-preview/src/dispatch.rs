@@ -12,6 +12,35 @@ pub(crate) fn dispatch(
     let method = ctx.method();
     let p = ctx.params();
     match method {
+        "data.info" => {
+            let path = p
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let bytes = ctx
+                .files()
+                .read(path)
+                .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
+            let (value, _) = open(path, bytes).map_err(RpcError::internal)?;
+            let datasets = value
+                .get("datasets")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let page = value.get("page").cloned().unwrap_or(Value::Null);
+            let columns = page
+                .get("columns")
+                .and_then(Value::as_array)
+                .map(|items| items.len())
+                .unwrap_or(0);
+            let rows = page.get("total").and_then(Value::as_u64).unwrap_or(0);
+            Ok(serde_json::json!({"rows": [
+                {"label":"格式","value":value.get("format").and_then(Value::as_str).unwrap_or("").to_ascii_uppercase()},
+                {"label":"数据集","value":datasets.len().to_string()},
+                {"label":"首表列数","value":columns.to_string()},
+                {"label":"首表行数","value":rows.to_string()},
+            ]}))
+        }
         "data.open" => {
             let path = p
                 .get("path")

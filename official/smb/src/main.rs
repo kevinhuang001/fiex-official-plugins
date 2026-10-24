@@ -9,8 +9,9 @@ use std::{
     str::FromStr,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex,
+        mpsc, Arc, Mutex,
     },
+    time::Duration,
 };
 
 #[derive(Clone, Default, Deserialize)]
@@ -35,6 +36,24 @@ struct OpenStream {
     tree: smb::Tree,
     file: smb::File,
     total: u64,
+}
+
+enum StreamCommand {
+    Read {
+        offset: u64,
+        max: usize,
+        reply: mpsc::Sender<Result<Value, RpcError>>,
+    },
+    Close {
+        reply: mpsc::Sender<Result<Value, RpcError>>,
+    },
+}
+
+/// The stream is owned by a background task so its TCP connection, SMB
+/// session and remote file handle stay authorized after the opening request
+/// returns and are reclaimed when the stream is closed or cancelled.
+struct StreamHandle {
+    sender: mpsc::Sender<StreamCommand>,
 }
 
 impl Drop for OpenStream {
@@ -253,7 +272,7 @@ fn remote(
     run().map_err(RpcError::internal)
 }
 fn main() {
-    let streams: Mutex<HashMap<String, Arc<Mutex<OpenStream>>>> = Mutex::new(HashMap::new());
+    let streams: Mutex<HashMap<String, Arc<StreamHandle>>> = Mutex::new(HashMap::new());
     let sequence = AtomicU64::new(0);
     let result = sdk::serve("org.fiex.smb", move |ctx| {
         let method = ctx.method();
@@ -271,10 +290,15 @@ fn main() {
         }
         let stream_id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
         if method == "fs.closeRead" {
-            streams
+            let stream = streams
                 .lock()
                 .map_err(|_| RpcError::internal("stream registry unavailable"))?
                 .remove(stream_id);
+            if let Some(stream) = stream {
+                let (reply, response) = mpsc::channel();
+                let _ = stream.sender.send(StreamCommand::Close { reply });
+                let _ = response.recv_timeout(Duration::from_secs(30));
+            }
             return Ok(Value::Null);
         }
         if method == "fs.readStream" {
@@ -284,16 +308,20 @@ fn main() {
                 .get(stream_id)
                 .cloned()
                 .ok_or_else(|| RpcError::invalid_params("unknown read stream"))?;
-            let stream = stream
-                .lock()
-                .map_err(|_| RpcError::internal("read stream unavailable"))?;
             let max = p
                 .get("maxBytes")
                 .and_then(Value::as_u64)
                 .unwrap_or(262144)
                 .clamp(1, 1048576) as usize;
             let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0);
-            return read_open_stream(&stream, offset, max);
+            let (reply, response) = mpsc::channel();
+            stream
+                .sender
+                .send(StreamCommand::Read { offset, max, reply })
+                .map_err(|_| RpcError::internal("SMB stream is closed"))?;
+            return response
+                .recv_timeout(Duration::from_secs(120))
+                .map_err(|_| RpcError::internal("SMB stream stopped responding"))?;
         }
         let cfg: StoredConnection = serde_json::from_value(
             p.get("connection")
@@ -310,16 +338,56 @@ fn main() {
         safe_relative(&path)?;
         safe_relative(&cfg.base)?;
         if method == "fs.openRead" {
-            let stream = open_stream(&ctx.tcp(), &cfg, &path)?;
-            let total = stream.total;
+            let (init_sender, init_receiver) = mpsc::channel();
+            let (sender, receiver) = mpsc::channel();
+            let task = ctx.spawn_task_with_label("SMB 读取流", move |task| {
+                let tcp = task.tcp();
+                let stream = match open_stream(&tcp, &cfg, &path) {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        let _ = init_sender.send(Err(error.clone()));
+                        return Err(error);
+                    }
+                };
+                let _ = init_sender.send(Ok(stream.total));
+                loop {
+                    if task.is_cancelled() {
+                        break;
+                    }
+                    match receiver.recv_timeout(Duration::from_millis(200)) {
+                        Ok(StreamCommand::Read { offset, max, reply }) => {
+                            let _ = reply.send(read_open_stream(&stream, offset, max));
+                        }
+                        Ok(StreamCommand::Close { reply }) => {
+                            let _ = reply.send(Ok(Value::Null));
+                            break;
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    }
+                }
+                Ok(Value::Null)
+            })?;
+            let total = match init_receiver.recv_timeout(Duration::from_secs(30)) {
+                Ok(Ok(total)) => total,
+                Ok(Err(error)) => {
+                    task.cancel();
+                    return Err(error);
+                }
+                Err(_) => {
+                    task.cancel();
+                    return Err(RpcError::internal("SMB stream did not open"));
+                }
+            };
             let mut streams = streams
                 .lock()
                 .map_err(|_| RpcError::internal("stream registry unavailable"))?;
-            if streams.len() >= 32 {
+            if streams.len() >= 8 {
+                task.cancel();
                 return Err(RpcError::internal("too many read streams"));
             }
             let id = format!("smb-read-{}", sequence.fetch_add(1, Ordering::Relaxed) + 1);
-            streams.insert(id.clone(), Arc::new(Mutex::new(stream)));
+            streams.insert(id.clone(), Arc::new(StreamHandle { sender }));
             return Ok(json!({"size": total, "streamId": id}));
         }
         remote(ctx.tcp(), cfg, path, method.to_owned(), p.clone())

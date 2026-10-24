@@ -73,6 +73,22 @@ def main() -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("Created", target)
+    # One description file for every plugin; the store reads its text as the
+    # plugin introduction, so copy can change without repackaging binaries.
+    descriptions = {
+        "schemaVersion": 1,
+        "plugins": [
+            {
+                "id": plugin["id"],
+                "name": plugin["name"],
+                "description": plugin["description"],
+            }
+            for plugin in out["plugins"]
+        ],
+    }
+    intro = target.parent / "plugin-descriptions.json"
+    intro.write_text(json.dumps(descriptions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print("Created", intro)
 
 if __name__ == "__main__":
     main()

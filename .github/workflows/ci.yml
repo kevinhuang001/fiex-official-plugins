@@ -291,4 +291,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."
+          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."

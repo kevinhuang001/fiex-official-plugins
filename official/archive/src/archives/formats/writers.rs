@@ -1,0 +1,168 @@
+//! Per-format archive readers and writers.
+use super::super::{compress::Source, err};
+use fiex_plugin_sdk::{files::FileSystem, worker::HostProxy};
+use std::io::{self, Seek, Write};
+
+pub(crate) fn write_zip<W: Write + Seek>(
+    files: &FileSystem<'_>,
+    sources: &[Source],
+    writer: W,
+    level: u32,
+    password: Option<&str>,
+) -> Result<W, String> {
+    let mut zip = zip::ZipWriter::new(writer);
+    for source in sources {
+        let mut options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated)
+            .compression_level(Some(level as i64));
+        if let Some(password) = password {
+            options = options.with_aes_encryption(zip::AesMode::Aes256, password);
+        }
+        if source.dir {
+            zip.add_directory(format!("{}/", source.name), options)
+                .map_err(err)?;
+        } else {
+            zip.start_file(&source.name, options).map_err(err)?;
+            io::copy(&mut files.open_read(&source.path).map_err(err)?, &mut zip).map_err(err)?;
+        }
+    }
+    zip.finish().map_err(err)
+}
+
+pub(crate) fn write_tar<W: Write>(
+    files: &FileSystem<'_>,
+    sources: &[Source],
+    writer: W,
+) -> Result<W, String> {
+    let mut builder = tar::Builder::new(writer);
+    for source in sources {
+        let mut header = tar::Header::new_gnu();
+        header.set_mode(if source.dir { 0o755 } else { 0o644 });
+        header.set_size(if source.dir { 0 } else { source.size });
+        header.set_entry_type(if source.dir {
+            tar::EntryType::Directory
+        } else {
+            tar::EntryType::Regular
+        });
+        header.set_cksum();
+        if source.dir {
+            builder
+                .append_data(&mut header, &source.name, io::empty())
+                .map_err(err)?;
+        } else {
+            builder
+                .append_data(
+                    &mut header,
+                    &source.name,
+                    files.open_read(&source.path).map_err(err)?,
+                )
+                .map_err(err)?;
+        }
+    }
+    builder.into_inner().map_err(err)
+}
+
+pub(crate) fn write_tar_gz<W: Write>(
+    files: &FileSystem<'_>,
+    sources: &[Source],
+    writer: W,
+    level: u32,
+) -> Result<W, String> {
+    write_tar(
+        files,
+        sources,
+        flate2::write::GzEncoder::new(writer, flate2::Compression::new(level)),
+    )?
+    .finish()
+    .map_err(err)
+}
+
+pub(crate) fn write_tar_bz2<W: Write>(
+    files: &FileSystem<'_>,
+    sources: &[Source],
+    writer: W,
+    level: u32,
+) -> Result<W, String> {
+    write_tar(
+        files,
+        sources,
+        bzip2::write::BzEncoder::new(writer, bzip2::Compression::new(level.max(1))),
+    )?
+    .finish()
+    .map_err(err)
+}
+
+pub(crate) fn write_tar_xz<W: Write>(
+    files: &FileSystem<'_>,
+    sources: &[Source],
+    writer: W,
+    level: u32,
+) -> Result<W, String> {
+    write_tar(files, sources, xz2::write::XzEncoder::new(writer, level))?
+        .finish()
+        .map_err(err)
+}
+
+pub(crate) fn write_7z<W: Write + Seek>(
+    files: &FileSystem<'_>,
+    sources: &[Source],
+    writer: W,
+) -> Result<W, String> {
+    let mut archive = sevenz_rust2::ArchiveWriter::new(writer).map_err(err)?;
+    for source in sources {
+        if source.dir {
+            archive
+                .push_archive_entry::<io::Empty>(
+                    sevenz_rust2::ArchiveEntry::new_directory(&source.name),
+                    None,
+                )
+                .map_err(err)?;
+        } else {
+            archive
+                .push_archive_entry(
+                    sevenz_rust2::ArchiveEntry::new_file(&source.name),
+                    Some(files.open_read(&source.path).map_err(err)?),
+                )
+                .map_err(err)?;
+        }
+    }
+    archive.finish().map_err(err)
+}
+
+pub(crate) fn write_rar<W: Write>(
+    sources: &[Source],
+    writer: W,
+    level: u32,
+    password: Option<&str>,
+    proxy: Option<HostProxy>,
+) -> Result<W, String> {
+    let mut builder =
+        rars::Builder::new(rars::ArchiveVersion::Rar50).compression_level(Some(level.min(5) as u8));
+    if let Some(password) = password {
+        builder = builder.password(Some(password.as_bytes().to_vec()));
+    }
+    let proxy = proxy.ok_or("RAR requires a host worker session")?;
+    for source in sources {
+        if source.dir {
+            builder
+                .add_directory(source.name.as_bytes().to_vec(), None, None)
+                .map_err(err)?;
+        } else {
+            let proxy = proxy.clone();
+            let path = source.path.clone();
+            let input = rars::EntrySource::from_opener(source.size, move || {
+                let reader = fiex_plugin_sdk::files::OwnedFileReader::open(proxy.clone(), &path)
+                    .map_err(rars::Error::from)?;
+                Ok(Box::new(reader))
+            });
+            builder
+                .add_source(source.name.as_bytes().to_vec(), input, None, None)
+                .map_err(err)?;
+        }
+    }
+    let mut writer = writer;
+    builder
+        .write_to(&mut writer, &rars::WriterResources::default(), None)
+        .map_err(err)?;
+    Ok(writer)
+}

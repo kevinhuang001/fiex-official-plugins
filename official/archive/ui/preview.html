@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>压缩包预览</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1d2430; --muted: #6b7684; --surface: #fff; --canvas: #f6f7f9;
+        --line: rgba(20, 30, 45, 0.12); --accent: #2f6fed; --danger: #b4443d;
+        font: 12px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body { margin: 0; display: flex; flex-direction: column; background: var(--surface); color: var(--text); }
+      header {
+        display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+        border-bottom: 1px solid var(--line); min-height: 40px;
+      }
+      header strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      header .spacer { flex: 1; }
+      button {
+        border: 1px solid var(--line); background: var(--surface); color: var(--text);
+        border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer;
+      }
+      button.primary { border-color: var(--accent); color: var(--accent); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .password { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+      .password input { flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; background: var(--surface); color: var(--text); }
+      .password[hidden] { display: none; }
+      main { flex: 1; overflow: auto; min-height: 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: left; }
+      th { position: sticky; top: 0; background: var(--canvas); font-weight: 600; }
+      td.size { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .dir { color: var(--accent); }
+      .hint, .error { padding: 18px; text-align: center; color: var(--muted); }
+      .error { color: var(--danger); white-space: pre-wrap; }
+      .status { padding: 6px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+      .status[hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong id="title">压缩包</strong>
+      <span id="summary" style="color: var(--muted)"></span>
+      <span class="spacer"></span>
+      <button id="extract" class="primary" type="button" disabled>解压到当前目录</button>
+    </header>
+    <div class="password" id="password-row" hidden>
+      <input id="password" type="password" placeholder="压缩包密码" aria-label="压缩包密码" />
+      <button id="unlock" type="button">解锁</button>
+    </div>
+    <main id="content"><p class="hint">正在读取…</p></main>
+    <div class="status" id="status" hidden></div>
+    <script>
+      (() => {
+        const content = document.getElementById('content')
+        const title = document.getElementById('title')
+        const summary = document.getElementById('summary')
+        const passwordRow = document.getElementById('password-row')
+        const password = document.getElementById('password')
+        const unlock = document.getElementById('unlock')
+        const extract = document.getElementById('extract')
+        const status = document.getElementById('status')
+        let port = null, sessionId = '', nonce = '', seq = 0, path = '', passwordValue = ''
+        const pending = new Map()
+
+        const setToken = (tokens) => {
+          for (const [key, value] of Object.entries(tokens || {})) {
+            if (key === 'mode' || !value) continue
+            document.documentElement.style.setProperty(`--${key}`, value)
+          }
+        }
+        const invoke = (method, params) =>
+          new Promise((resolve, reject) => {
+            if (!port) return reject(new Error('bridge not ready'))
+            const requestId = `archive-${++seq}`
+            const timer = setTimeout(() => { pending.delete(requestId); reject(new Error('请求超时')) }, 20000)
+            pending.set(requestId, { resolve, reject, timer })
+            port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
+          })
+        const fail = (error) => { content.innerHTML = ''; const p = document.createElement('p'); p.className = 'error'; p.textContent = String(error?.message || error); content.append(p) }
+        const human = (size) => size < 1024 ? `${size} B` : size < 1048576 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1048576).toFixed(1)} MB`
+        const setStatus = (text) => { status.hidden = !text; status.textContent = text }
+
+        const load = async () => {
+          setStatus('')
+          try {
+            const value = await invoke('plugin.invoke', { method: 'archive.list', params: { path, password: passwordValue || undefined } })
+            if (value.supported === false) {
+              content.innerHTML = ''
+              const p = document.createElement('p'); p.className = 'hint'; p.textContent = value.message || '暂不支持预览此格式'; content.append(p)
+              extract.disabled = false
+              return
+            }
+            passwordRow.hidden = !value.encrypted
+            const entries = value.entries || []
+            summary.textContent = `${entries.length} 项${value.encrypted ? ' · 加密' : ''}`
+            content.innerHTML = ''
+            const table = document.createElement('table')
+            table.innerHTML = '<thead><tr><th>名称</th><th style="width:96px">大小</th></tr></thead>'
+            const body = document.createElement('tbody')
+            for (const entry of entries) {
+              const row = document.createElement('tr')
+              const name = document.createElement('td')
+              name.textContent = entry.name
+              if (entry.isDir) name.className = 'dir'
+              const size = document.createElement('td')
+              size.className = 'size'
+              size.textContent = entry.isDir ? '—' : human(entry.size || 0)
+              row.append(name, size)
+              body.append(row)
+            }
+            table.append(body)
+            content.append(table)
+            extract.disabled = false
+          } catch (error) {
+            const message = String(error?.message || error)
+            if (message.includes('需要密码') || message.toLowerCase().includes('password')) {
+              passwordRow.hidden = false
+              content.innerHTML = '<p class="hint">这个压缩包需要密码。</p>'
+              return
+            }
+            fail(error)
+          }
+        }
+
+        const start = async () => {
+          try {
+            setToken((await invoke('theme.get')).tokens)
+            const context = await invoke('context.get')
+            path = context.preview?.path || ''
+            title.textContent = context.preview?.name || '压缩包'
+            if (!path) return fail(new Error('没有文件上下文'))
+            await load()
+          } catch (error) { fail(error) }
+        }
+
+        unlock.addEventListener('click', () => { passwordValue = password.value; void load() })
+        password.addEventListener('keydown', (event) => { if (event.key === 'Enter') { passwordValue = password.value; void load() } })
+        extract.addEventListener('click', async () => {
+          extract.disabled = true
+          setStatus('正在解压…')
+          try {
+            const destination = await invoke('plugin.invoke', { method: 'archive.extract', params: { path, password: passwordValue || undefined } })
+            setStatus(`已解压到 ${destination}`)
+          } catch (error) { setStatus(''); fail(error) }
+          finally { extract.disabled = false }
+        })
+
+        window.addEventListener('message', (event) => {
+          if (event.source !== window.parent) return
+          const data = event.data
+          if (!data || data.type !== 'fiex.bridge.init' || event.ports.length !== 1) return
+          port = event.ports[0]
+          sessionId = data.sessionId
+          nonce = data.nonce
+          port.onmessage = (message) => {
+            const payload = message.data
+            if (payload?.type === 'response' && payload.requestId) {
+              const entry = pending.get(payload.requestId)
+              if (!entry) return
+              pending.delete(payload.requestId)
+              clearTimeout(entry.timer)
+              if (payload.error) entry.reject(new Error(payload.error.message || '请求失败'))
+              else entry.resolve(payload.result)
+              return
+            }
+            if (payload?.type === 'event' && payload.name === 'theme.changed') setToken(payload.payload?.tokens)
+          }
+          port.start()
+          port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
+          start()
+        })
+        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+      })()
+    </script>
+  </body>
+</html>

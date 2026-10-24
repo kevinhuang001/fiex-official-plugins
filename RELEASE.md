@@ -1,3 +1,8 @@
+# Fiex plugins 0.3.0
+
+- Archive registers a `beforeOpen` hook: double-clicking an archive extracts it into the archive's folder (conflict-safe folder names) instead of opening the system app. Password-protected archives hand off to the preview.
+- Archive gains an archive preview panel: list entries before extracting, enter a password when needed, and extract to the current directory from the preview.
+
 # Fiex plugins 0.2.10
 
 - Office preview now parses DOCX/XLSX/PPTX with the `office_oxide` Office library instead of hand-written XML walks: headings, lists, tables, sheet boundaries and slide boundaries are rendered as structured HTML.

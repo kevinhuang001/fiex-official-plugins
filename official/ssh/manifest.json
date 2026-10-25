@@ -3,7 +3,7 @@
   "id": "org.fiex.ssh",
   "name": "SSH",
   "version": "0.1.0",
-  "description": "SSH 连接入口；终端由 Fiex 内置的 PTY 与 xterm.js 提供。",
+  "description": "SSH 连接插件：经 Host TCP Broker 连接，终端由 Core 的 xterm.js 渲染。",
   "icon": "terminal",
   "author": {
     "name": "Fiex Contributors",
@@ -59,6 +59,11 @@
           "label": "终端类型",
           "type": "text",
           "defaultValue": "xterm-256color"
+        },
+        {
+          "id": "password",
+          "label": "密码（可选，也可使用私钥）",
+          "type": "secret"
         }
       ]
     }

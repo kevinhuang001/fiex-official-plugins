@@ -28,22 +28,29 @@
       .password { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
       .password input { flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; background: var(--surface); color: var(--text); }
       .password[hidden] { display: none; }
-      main { flex: 1; overflow: auto; min-height: 0; padding: 6px 0; }
-      .listing { display: flex; flex-direction: column; }
+      main { flex: 1; overflow: auto; min-height: 0; padding: 6px 0 8px; }
+      .listing { display: flex; flex-direction: column; gap: 1px; }
       .entry {
-        display: flex; align-items: center; gap: 10px;
-        height: 32px; padding: 0 14px; margin: 0 6px; border-radius: 6px;
-        cursor: default;
+        display: flex; align-items: center; gap: 8px;
+        height: 34px; padding: 0 12px; margin: 0 8px; border-radius: 7px;
+        cursor: default; outline: none;
       }
-      .entry:hover { background: var(--canvas); }
+      .entry:hover, .entry:focus-visible { background: var(--canvas); }
+      .entry.dir { cursor: pointer; }
+      .entry.selected { background: color-mix(in srgb, var(--accent) 12%, transparent); }
       .entry-icon { flex: 0 0 18px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
       .entry-icon svg { width: 17px; height: 17px; display: block; }
-      .folder-icon { color: #d9a441; }
+      .folder-icon { color: #e0a33a; }
       .file-icon { color: var(--muted); }
       .entry-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .entry-name.dir { color: var(--accent); font-weight: 500; }
-      .entry-kind { flex: 0 0 96px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .entry-size { flex: 0 0 80px; text-align: right; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .entry-kind { flex: 0 0 92px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .entry-size { flex: 0 0 76px; text-align: right; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .entry-chevron { flex: 0 0 14px; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+      .entry-chevron svg { width: 13px; height: 13px; transition: transform 120ms ease; }
+      .entry-chevron.open svg { transform: rotate(90deg); }
+      .entry-chevron.empty { visibility: hidden; }
+      .empty { padding: 42px 18px; text-align: center; color: var(--muted); }
       .hint, .error { padding: 18px; text-align: center; color: var(--muted); }
       .error { color: var(--danger); white-space: pre-wrap; }
       .status { padding: 6px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
@@ -72,6 +79,8 @@
         const extract = document.getElementById('extract')
         const status = document.getElementById('status')
         let port = null, sessionId = '', nonce = '', seq = 0, path = '', passwordValue = ''
+        let allEntries = []
+        const expanded = new Set()
         const pending = new Map()
 
         const setToken = (tokens) => {
@@ -92,6 +101,98 @@
         const human = (size) => size < 1024 ? `${size} B` : size < 1048576 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1048576).toFixed(1)} MB`
         const setStatus = (text) => { status.hidden = !text; status.textContent = text }
 
+        const clean = (name) => String(name || '').replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/, '')
+
+        const childrenFor = (directory) => {
+          const prefix = directory ? `${directory}/` : ''
+          const values = new Map()
+          for (const entry of allEntries) {
+            const full = clean(entry.name)
+            if (!full || (prefix && !full.startsWith(prefix))) continue
+            const rest = prefix ? full.slice(prefix.length) : full
+            if (!rest) continue
+            const parts = rest.split('/')
+            const head = parts[0]
+            if (!head || head === '.' || head === '..') continue
+            const nested = parts.length > 1 || Boolean(entry.isDir)
+            const path = prefix + head
+            const value = values.get(head) || { name: head, path, isDir: false, size: 0 }
+            if (nested) value.isDir = true
+            else { value.isDir = false; value.size = Number(entry.size) || 0 }
+            values.set(head, value)
+          }
+          return [...values.values()].sort((a, b) => {
+            if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+            return a.name.localeCompare(b.name)
+          })
+        }
+
+        const chevron = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>'
+
+        const render = () => {
+          content.innerHTML = ''
+          const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>'
+          const file = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v5h5"/></svg>'
+          const listing = document.createElement('div')
+          listing.className = 'listing'
+          listing.setAttribute('role', 'tree')
+          let painted = 0
+
+          const append = (directory, depth) => {
+            for (const entry of childrenFor(directory)) {
+              painted += 1
+              const row = document.createElement('div')
+              row.className = 'entry' + (entry.isDir ? ' dir' : '')
+              row.setAttribute('role', 'treeitem')
+              row.tabIndex = 0
+              row.style.paddingLeft = `${12 + depth * 18}px`
+              const marker = document.createElement('span')
+              marker.className = 'entry-chevron' + (entry.isDir ? (expanded.has(entry.path) ? ' open' : '') : ' empty')
+              marker.innerHTML = chevron
+              const icon = document.createElement('span')
+              icon.className = 'entry-icon ' + (entry.isDir ? 'folder-icon' : 'file-icon')
+              icon.innerHTML = entry.isDir ? folder : file
+              const name = document.createElement('span')
+              name.className = 'entry-name' + (entry.isDir ? ' dir' : '')
+              name.textContent = entry.name
+              name.title = entry.path
+              const kind = document.createElement('span')
+              kind.className = 'entry-kind'
+              const ext = entry.name.includes('.') ? entry.name.split('.').pop().toUpperCase() : ''
+              kind.textContent = entry.isDir ? '文件夹' : ext ? `${ext} 文件` : '文件'
+              const size = document.createElement('span')
+              size.className = 'entry-size'
+              size.textContent = entry.isDir ? '—' : human(entry.size || 0)
+              row.append(marker, icon, name, kind, size)
+              if (entry.isDir) {
+                const open = expanded.has(entry.path)
+                row.setAttribute('aria-expanded', open ? 'true' : 'false')
+                const toggle = () => {
+                  if (expanded.has(entry.path)) expanded.delete(entry.path)
+                  else expanded.add(entry.path)
+                  render()
+                }
+                row.addEventListener('click', toggle)
+                row.addEventListener('keydown', (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle() }
+                })
+              }
+              listing.append(row)
+              if (entry.isDir && expanded.has(entry.path)) append(entry.path, depth + 1)
+            }
+          }
+
+          append('', 0)
+          if (!painted) {
+            const empty = document.createElement('div')
+            empty.className = 'empty'
+            empty.textContent = '压缩包是空的'
+            content.append(empty)
+            return
+          }
+          content.append(listing)
+        }
+
         const load = async () => {
           setStatus('')
           try {
@@ -103,41 +204,10 @@
               return
             }
             passwordRow.hidden = !value.encrypted
-            const entries = value.entries || []
-            summary.textContent = `${entries.length} 项${value.encrypted ? ' · 加密' : ''}`
-            content.innerHTML = ''
-            const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>'
-            const file = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v5h5"/></svg>'
-            const listing = document.createElement('div')
-            listing.className = 'listing'
-            listing.setAttribute('role', 'list')
-            const ordered = [...entries].sort((a, b) => {
-              if (Boolean(a.isDir) !== Boolean(b.isDir)) return a.isDir ? -1 : 1
-              return String(a.name).localeCompare(String(b.name))
-            })
-            for (const entry of ordered) {
-              const row = document.createElement('div')
-              row.className = 'entry'
-              row.setAttribute('role', 'listitem')
-              const icon = document.createElement('span')
-              icon.className = 'entry-icon ' + (entry.isDir ? 'folder-icon' : 'file-icon')
-              icon.innerHTML = entry.isDir ? folder : file
-              const name = document.createElement('span')
-              name.className = 'entry-name' + (entry.isDir ? ' dir' : '')
-              name.textContent = entry.name
-              name.title = entry.name
-              const kind = document.createElement('span')
-              kind.className = 'entry-kind'
-              const base = String(entry.name).replace(/\/$/, '').split('/').pop() || ''
-              const ext = base.includes('.') ? base.split('.').pop().toUpperCase() : ''
-              kind.textContent = entry.isDir ? '文件夹' : ext ? `${ext} 文件` : '文件'
-              const size = document.createElement('span')
-              size.className = 'entry-size'
-              size.textContent = entry.isDir ? '—' : human(entry.size || 0)
-              row.append(icon, name, kind, size)
-              listing.append(row)
-            }
-            content.append(listing)
+            allEntries = value.entries || []
+            expanded.clear()
+            summary.textContent = `${allEntries.length} 项${value.encrypted ? ' · 加密' : ''}`
+            render()
             extract.disabled = false
           } catch (error) {
             const message = String(error?.message || error)

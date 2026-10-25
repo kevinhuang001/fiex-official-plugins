@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.theme.win11",
   "name": "Windows 11",
   "version": "0.1.0",
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "permissions": {},
-  "contributions": {
+  "extensions": {
     "themes": [
       {
         "path": "theme.json"

@@ -56,7 +56,7 @@ files. All panels consume the Host theme tokens through the UI SDK.
 
 Vista Aero and Windows 11 are declarative theme packages: no executable, no iframe,
 no permissions. Install and enable them, then select the theme in Appearance.
-`manifest.json` declares `contributions.themes: [{"path":"theme.json"}]`.
+`manifest.json` declares `extensions.themes: [{"path":"theme.json"}]`.
 The JSON theme contains `id`, `name`, `mode` (`light` or `dark`) and a `tokens`
 map. Core namespaces IDs by plugin and validates package-confined paths and token
 values. Tokens define colors, radii, shadows, gradients and fonts; raw CSS and
@@ -96,7 +96,7 @@ Core's own CI uses the standalone SDK mock process.
 
 ## Core-owned virtual views and connection I/O
 
-Standalone virtual trees declare `contributions.vfs`; connection factories declare `contributions.connections` and implicitly provide their instance tree. No provider declares a URI scheme or a `capabilities` block. Core generates all `fiex://mount/<id>/` navigation URIs and enforces contribution ownership and selected-resource scope.
+Standalone virtual trees declare `extensions.vfs`; connection factories declare `extensions.connections` and also register `extensions.vfs` when they expose files. No provider declares a URI scheme or a `capabilities` block. Core generates all `fiex://mount/<id>/` navigation URIs and enforces provider ownership and selected-resource scope.
 
 Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `vfs.*` through the supplied `viewContext` and opaque `nodeId`. It does not snapshot repositories or participate in connection sync.
 

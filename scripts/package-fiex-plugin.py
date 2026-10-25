@@ -22,7 +22,7 @@ def main():
     manifest_path=root/"manifest.json"
     manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
     entry=manifest.get("runtime",{}).get("entrypoints",{}).get(platform)
-    theme = bool(manifest.get("contributions", {}).get("themes"))
+    theme = bool(manifest.get("extensions", {}).get("themes"))
     if not entry and not theme:
         print("Skipping",args.slug,"for",platform,"(no entrypoint)")
         return
@@ -35,7 +35,7 @@ def main():
     with zipfile.ZipFile(archive_path,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         archive.write(manifest_path,"manifest.json")
         if binary: archive.write(binary,entry)
-        for contribution in manifest.get("contributions", {}).get("themes", []):
+        for contribution in manifest.get("extensions", {}).get("themes", []):
             archive.write(root/contribution["path"], contribution["path"])
         ui=root/"ui"/"dist" if (root/"ui"/"dist").is_dir() else root/"ui"
         if ui.is_dir():

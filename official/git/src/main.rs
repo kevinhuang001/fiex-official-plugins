@@ -83,7 +83,7 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             p.get("branch").and_then(Value::as_str),
             host,
         )),
-        // Core routes registered views (declared in contributions.vfs)
+        // Core routes registered views (declared in extensions.vfs)
         // through the same generic VFS methods for every plugin.
         "vfs.list" => {
             let path = param(p, "nodeId")?;

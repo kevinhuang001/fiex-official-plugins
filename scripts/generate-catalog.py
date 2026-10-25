@@ -62,11 +62,11 @@ def main() -> None:
                 "permissions": permissions,
                 "networkDomains": manifest.get("permissions", {}).get("network", {}).get("domains", []),
                 "commands": commands,
-                "contributions": manifest.get("contributions", {}),
+                "extensions": manifest.get("extensions", {}),
                 "assets": {
                     platform: f"{slug}-{platform}.fiexplugin"
                     for platform in PLATFORMS
-                    if platform in manifest.get("runtime", {}).get("entrypoints", {}) or manifest.get("contributions", {}).get("themes")
+                    if platform in manifest.get("runtime", {}).get("entrypoints", {}) or manifest.get("extensions", {}).get("themes")
                 },
             }
         )

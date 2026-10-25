@@ -14,7 +14,7 @@
 
 ## 提供者扩展协议
 
-连接只声明 `contributions.connections`。Core 根据实际文件版本与 I/O 操作结果协调缓存，不再读取 `capabilities` 或同步开关。官方插件没有特权，调用前检查插件启用状态和全部授权。
+连接只声明 `extensions.connections`。Core 根据实际文件版本与 I/O 操作结果协调缓存，不再读取 `capabilities` 或同步开关。官方插件没有特权，调用前检查插件启用状态和全部授权。
 
 `fs.list` 的每个条目返回 `nodeId`、`name`、`kind`、`size`、`modified` 和不透明字符串 `revision`。Core 保存逻辑路径到稳定节点 ID 的映射。目录分页成功后保存离线元数据，失败时读取上次完整快照。
 

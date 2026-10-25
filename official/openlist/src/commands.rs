@@ -14,7 +14,7 @@ pub(crate) fn dispatch(
         let mount = ctx.params()["mountId"]
             .as_str()
             .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-        return Ok(serde_json::json!({"kind":"vfs","mountId":mount}));
+        return Ok(serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}));
     }
     if matches!(method, "fs.stat" | "fs.writeFile") {
         return super::sync::dispatch(&ctx, session);

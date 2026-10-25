@@ -35,7 +35,12 @@ def main():
     with zipfile.ZipFile(archive_path,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         archive.write(manifest_path,"manifest.json")
         if binary: archive.write(binary,entry)
-        for contribution in manifest.get("extensions", {}).get("themes", []):
+        themes = manifest.get("extensions", {}).get("themes")
+        if isinstance(themes, dict):
+            themes = [themes]
+        elif not isinstance(themes, list):
+            themes = []
+        for contribution in themes:
             archive.write(root/contribution["path"], contribution["path"])
         ui_dist=root/"ui"/"dist"
         ui=ui_dist if ui_dist.is_dir() else root/"ui"

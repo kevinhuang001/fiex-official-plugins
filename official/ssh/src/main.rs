@@ -4,10 +4,12 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use fiex_plugin_sdk::tcp::TcpStream;
 use fiex_plugin_sdk::{self as sdk, RpcError};
+#[cfg(unix)]
+use russh::keys::agent::client::AgentClient;
 use russh::{
     client::{self, Handler},
     keys::PublicKeyOrCertificate,
-    keys::{agent::client::AgentClient, load_secret_key, PrivateKeyWithHashAlg},
+    keys::{load_secret_key, PrivateKeyWithHashAlg},
 };
 use serde_json::{json, Value};
 use std::{

@@ -8,6 +8,8 @@
 
 示例插件在 [`hello/`](hello/)，包 ID 是 `org.example.hello`。
 
+每个扩展点另有一篇文档（原理 + manifest + Rust 代码）：[`docs/README.md`](docs/README.md)。
+
 > 所有路径都相对于 `fiex-official-plugins` 仓库根目录。示例代码故意不访问用户文件和网络，方便先跑通再扩展。
 
 ---

@@ -11,7 +11,6 @@ mod sanitize;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 
-
 fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
     let bytes = ctx
         .files()

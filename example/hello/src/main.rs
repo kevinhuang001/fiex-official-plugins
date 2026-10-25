@@ -89,7 +89,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                         // Name-cell badge + color. The same `style` shape also
                         // works for modified/size/kind through `fields`.
                         decorations.push(json!({
-                            "path": path,
+                            "name": name,
                             "badge": {
                                 "text": "MD",
                                 "color": "blue",
@@ -103,7 +103,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                         // add a badge to the size cell. `row` paints the whole
                         // row; leave it unselected-friendly.
                         decorations.push(json!({
-                            "path": path,
+                            "name": name,
                             "fields": {
                                 "modified": {"style": {"color": "#b4443d"}},
                                 "size": {"badges": [{"text": "TODO", "color": "orange"}]}

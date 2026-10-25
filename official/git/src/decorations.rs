@@ -43,6 +43,9 @@ pub fn list(params: &Value, host: &sdk::RequestContext) -> Result<Value, String>
             let Some(path) = entry.get("path").and_then(Value::as_str) else {
                 continue;
             };
+            let Some(name) = entry.get("name").and_then(Value::as_str) else {
+                continue;
+            };
             let Some(code) = statuses.get(&normalize(path)) else {
                 continue;
             };
@@ -50,7 +53,7 @@ pub fn list(params: &Value, host: &sdk::RequestContext) -> Result<Value, String>
                 continue;
             };
             decorations.push(json!({
-                "path": path,
+                "name": name,
                 "badge": {"text": text, "color": color, "tooltip": tooltip},
                 "style": {"color": hex, "fontWeight": "600"}
             }));

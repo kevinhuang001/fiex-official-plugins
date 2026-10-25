@@ -210,13 +210,15 @@ Manifest 只有动态模式：
 {
   "decorations": [
     {
-      "path": "/Users/me/project/src/main.ts",
+      "name": "main.ts",
       "badge": { "text": "M", "color": "orange", "tooltip": "Git：已修改" },
       "style": { "color": "#c2710c", "fontWeight": "600" }
     }
   ]
 }
 ```
+
+响应只需要 `name`，Core 会在当前目录的可见成员里解析成真实 `path`；插件不要返回绝对路径。请求里的 entries 仍带 `path`，方便 Git 等插件做内部查询。
 
 `badge` / `style` 是“文件名单元格”的简写。要精确控制每一列，用 `fields`：
 

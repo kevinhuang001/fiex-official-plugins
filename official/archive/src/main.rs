@@ -185,7 +185,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         let mut decorations = Vec::new();
         if let Some(entries) = params.get("entries").and_then(Value::as_array) {
             for entry in entries {
-                let Some(path) = entry.get("path").and_then(Value::as_str) else {
+                let Some(name) = entry.get("name").and_then(Value::as_str) else {
                     continue;
                 };
                 if entry.get("isDir").and_then(Value::as_bool) == Some(true) {
@@ -207,7 +207,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                     _ => continue,
                 };
                 decorations.push(json!({
-                    "path": path,
+                    "name": name,
                     "badge": {"text": label, "color": "neutral", "tooltip": "压缩包"}
                 }));
             }

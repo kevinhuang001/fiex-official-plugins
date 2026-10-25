@@ -80,8 +80,8 @@ fn archive_error(error: String) -> RpcError {
     }
 }
 fn archive_menu(params: &Value) -> Value {
-    let names = params["selectionNames"].as_array();
-    let selection = names.map_or(0, Vec::len);
+    let targets = params.get("targets").and_then(Value::as_array);
+    let selection = targets.map_or(0, Vec::len);
     if selection == 0 {
         return json!({"items":[]});
     }
@@ -93,8 +93,9 @@ fn archive_menu(params: &Value) -> Value {
         .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
     };
     let only_archive = selection == 1
-        && names
-            .and_then(|names| names.first())
+        && targets
+            .and_then(|targets| targets.first())
+            .and_then(|target| target.pointer("/metadata/name"))
             .and_then(Value::as_str)
             .is_some_and(archive);
     if only_archive {
@@ -123,12 +124,6 @@ fn archive_menu(params: &Value) -> Value {
     json!({"items":items})
 }
 
-fn context_name(params: &Value) -> Result<&str, RpcError> {
-    params
-        .pointer("/resource/metadata/name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
-}
 
 fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let path = param(p, "path")?;
@@ -215,7 +210,10 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         return Ok(json!({"decorations": decorations}));
     }
     if method == "info.resolve" {
-        let name = context_name(&params)?.to_owned();
+        let name = ctx.targets()
+            .first()
+            .and_then(sdk::ResourceContext::name)
+            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?.to_owned();
         let rows = archive_info(&json!({"path": name}), &ctx)?;
         return Ok(
             json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),

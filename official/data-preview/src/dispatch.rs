@@ -5,12 +5,6 @@ use fiex_plugin_sdk::RpcError;
 use serde_json::Value;
 use std::sync::Mutex;
 
-fn context_name(params: &Value) -> Result<&str, RpcError> {
-    params
-        .pointer("/resource/metadata/name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
-}
 
 fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
     let bytes = ctx
@@ -55,7 +49,10 @@ pub(crate) fn dispatch(
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let name = context_name(p)?;
+        let name = ctx.targets()
+            .first()
+            .and_then(sdk::ResourceContext::name)
+            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;
         let rows = info_rows(&ctx, name)?;
         return Ok(serde_json::json!({
             "sections": [{"id":"data","title":"数据表","rows": rows["rows"].clone()}]

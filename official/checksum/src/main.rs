@@ -1,12 +1,6 @@
 mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-fn context_name(params: &Value) -> Result<&str, RpcError> {
-    params
-        .pointer("/resource/metadata/name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
-}
 
 fn checksum_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Vec<Value>, RpcError> {
     let files = ctx.files();
@@ -30,7 +24,10 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let path = context_name(p)?;
+        let path = ctx.targets()
+            .first()
+            .and_then(sdk::ResourceContext::name)
+            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;
         let rows = checksum_rows(&ctx, path)?;
         return Ok(json!({"sections":[{"id":"checksum","title":"校验和","rows":rows}]}));
     }

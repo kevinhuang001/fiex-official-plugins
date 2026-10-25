@@ -23,6 +23,8 @@ DESCRIPTIONS = {
     "office-preview": "Word、Excel、PowerPoint 的只读预览（文本级）。",
     "data-preview": "表格数据预览：SQLite、CSV、Excel、Parquet、Arrow、Avro，支持分页排序。",
     "smb": "通过独立进程连接 SMB / NAS 共享。",
+    "gdrive": "Google Drive 按需下载、离线副本与双向同步。",
+    "gpg": "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。",
     "archive": "压缩与解压 ZIP、7z、TAR 等格式。",
     "checksum": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",
     "everything": "借用 Everything 的 Windows 本地索引进行秒级文件名搜索。",
@@ -36,20 +38,28 @@ def main() -> None:
         permissions = []
         requested = manifest.get("permissions", {})
         folders = requested.get("folders", {})
-        if folders.get("read", {}).get("enabled"):
+        files = requested.get("files", {})
+        # Every operation is an object with an explicit `enabled` flag. A
+        # present-but-disabled object must not be reported as a grant, or the
+        # store would ask the user for permissions the plugin never declared.
+        def enabled(value):
+            return isinstance(value, dict) and value.get("enabled") is True
+
+        if enabled(requested.get("metadata")):
+            permissions.append("metadata")
+        if enabled(folders.get("read")):
             permissions.append("folders.read")
         for action in ("create", "delete", "rename"):
-            if folders.get(action):
+            if enabled(folders.get(action)):
                 permissions.append("folders." + action)
-        for action in ("read", "write"):
-            if requested.get("files", {}).get(action):
+        for action in ("read", "write", "create", "delete", "rename"):
+            if enabled(files.get(action)):
                 permissions.append("files." + action)
-        if requested.get("commands", {}).get("enabled"):
-            permissions.append("commands")
-        network = manifest.get("permissions", {}).get("network", {})
+        network = requested.get("network", {})
         if network.get("enabled"):
             permissions.append("network")
-        permissions.sort()
+        if requested.get("commands", {}).get("enabled"):
+            permissions.append("commands")
         commands = manifest.get("permissions", {}).get("commands", {}).get("allow", [])
         out["plugins"].append(
             {

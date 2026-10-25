@@ -75,7 +75,7 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             host,
         )),
         "git.remoteRemove" => response(remote_host::remove(root()?, param(p, "name")?, host)),
-        "decorations.list" => decorations::list(p, host).map_err(RpcError::internal),
+        "decorations.resolve" => decorations::list(p, host).map_err(RpcError::internal),
         "git.remoteSync" => response(remote_host::sync(
             root()?,
             param(p, "remote")?,

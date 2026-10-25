@@ -43,6 +43,13 @@ The end-to-end guides live in the Core repository:
 - [Runtime UI panels](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/09-RUNTIME-UI-PANELS.md)
   — panel sessions, themes and the sandboxed UI bridge.
 
+## Plugin development example
+
+New to native plugins? [`example/README.md`](example/README.md) is a beginner
+manual with a buildable plugin under `example/hello/` covering connections,
+VFS navigation, decorations (colors/badges/row and column styles) and toolbar
+panels/commands.
+
 ## Info and preview contracts
 
 Info and preview are standard events, not command/panel declarations. A plugin

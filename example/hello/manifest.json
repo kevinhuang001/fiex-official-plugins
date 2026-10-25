@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 2,
+  "id": "org.example.hello",
+  "name": "示例插件",
+  "version": "0.1.0",
+  "description": "连接、装饰和工具栏的新手示例。",
+  "icon": "puzzle",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "3.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-example.exe",
+      "macos-aarch64": "fiex-plugin-example",
+      "macos-x86_64": "fiex-plugin-example",
+      "linux-x86_64": "fiex-plugin-example"
+    }
+  },
+  "permissions": {
+    "metadata": { "enabled": true },
+    "folders": {
+      "read": { "enabled": true },
+      "create": { "enabled": false },
+      "delete": { "enabled": false },
+      "rename": { "enabled": false }
+    },
+    "files": {
+      "read": { "enabled": true },
+      "write": { "enabled": false },
+      "create": { "enabled": false },
+      "delete": { "enabled": false },
+      "rename": { "enabled": false }
+    },
+    "network": { "enabled": false, "domains": [] },
+    "commands": { "enabled": false, "allow": [] }
+  },
+  "extensions": {
+    "connections": [
+      {
+        "id": "example-files",
+        "title": "示例文件",
+        "fields": [
+          {
+            "id": "server",
+            "label": "服务器地址",
+            "type": "text",
+            "required": true,
+            "placeholder": "demo.example.com"
+          }
+        ]
+      },
+      {
+        "id": "example-account",
+        "title": "示例账号",
+        "fields": [
+          {
+            "id": "account",
+            "label": "账号",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "password",
+            "label": "密码",
+            "type": "secret",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "vfs": [
+      {
+        "id": "example-files",
+        "title": "示例文件",
+        "readOnly": true
+      }
+    ],
+    "decorations": {
+      "mode": "dynamic",
+      "method": "decorations.resolve",
+      "priority": 80
+    },
+    "toolbar": [
+      {
+        "id": "example.home",
+        "title": "示例插件",
+        "icon": "puzzle",
+        "panel": {
+          "entry": "ui/index.html",
+          "title": "示例插件",
+          "defaultSize": { "width": 460, "height": 340 }
+        }
+      },
+      {
+        "id": "example.refresh",
+        "title": "刷新示例",
+        "icon": "refresh-cw",
+        "command": "example.refresh"
+      }
+    ]
+  }
+}

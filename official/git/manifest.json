@@ -99,7 +99,7 @@
     ],
     "decorations": {
       "match": {
-        "markers": [
+        "contains": [
           ".git"
         ]
       },

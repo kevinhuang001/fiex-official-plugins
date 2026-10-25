@@ -148,7 +148,8 @@
         ],
         "kinds": [
           "file"
-        ]
+        ],
+        "selection": "single"
       }
     },
     "info": [

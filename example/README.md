@@ -188,7 +188,7 @@ Manifest 只有动态模式：
 ```json
 "decorations": {
   "match": {
-    "markers": [".git"],
+    "contains": [".git"],
     "extensions": ["ts", "js", "md"],
     "mimeTypes": ["text/*"]
   },
@@ -199,7 +199,7 @@ Manifest 只有动态模式：
 - `decorations` 只有动态模式；不存在 `mode`、`method`、`scope`、`rules`；
 - Core 固定调用标准方法 `decorations.resolve`，**方法名不用写**；
 - `match` 是包含谓词：不满足时 Core 不会调用插件；
-  - `markers`：目录或祖先目录包含 `.git` 等标记文件/目录；
+  - `contains`：目录或祖先目录包含 `.git` 等名称（仅 decorations）；
   - `extensions` / `mimeTypes` / `kinds`：当前可见成员中至少有一项匹配；
   - 缺省/空 `match` 表示所有目录、所有成员都参与；
 - 动态 decorations 仍要求 `permissions.folders.read`；没有权限时 Core 直接跳过。
@@ -394,7 +394,7 @@ for (const [key, value] of Object.entries(tokens)) {
   "extensions": ["md", "txt"],
   "mimeTypes": ["text/*"],
   "kinds": ["file"],
-  "markers": [".git"]
+  "contains": [".git"]
 }
 ```
 
@@ -402,8 +402,11 @@ for (const [key, value] of Object.entries(tokens)) {
 - `extensions` 支持 `md`、`.md`、`*.md`、`*`；
 - `mimeTypes` 支持精确值或 `text/*`、`image/*`、`*/*`；
 - `kinds` 为 `file` / `directory`；
-- `markers` 用于目录（主要给 decorations）；
-- 不满足就不会调用插件；空 `match` 表示不过滤。
+- `contains` 仅用于 decorations：目录或其祖先包含这些名称；
+- `selection` 仅用于 contextMenus：`single` / `multi` / `any`；
+- 不满足就不会调用插件；空 `match` 表示不过滤；
+- `info` / `preview` 只针对用户当前选中的**单个资源**评估；
+- `contextMenus` 的 `selection` 先过滤单选/多选，再对选中项做类型过滤。
 
 ### 7.1 Info：标准事件 `info.resolve`
 
@@ -437,6 +440,7 @@ Core 会构造 `InfoContext`：
       "name": "notes.md",
       "kind": "file",
       "extension": "md",
+      "mime": "text/markdown",
       "size": 2451,
       "modified": 1792920000
     },
@@ -525,6 +529,7 @@ Manifest：
 ```json
 "contextMenus": {
   "match": {
+    "selection": "single",
     "extensions": ["txt", "md", "log"],
     "kinds": ["file"]
   }

@@ -63,15 +63,13 @@
     }
   },
   "extensions": {
-    "info": [
-      {
-        "id": "checksum.info",
-        "title": "校验和",
-        "priority": 100,
-        "match": {
-          "extensions": []
-        }
+    "info": {
+      "id": "checksum.info",
+      "title": "校验和",
+      "priority": 100,
+      "match": {
+        "extensions": []
       }
-    ]
+    }
   }
 }

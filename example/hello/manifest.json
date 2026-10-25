@@ -149,43 +149,39 @@
         "kinds": [
           "file"
         ],
-        "selection": 1
+        "selection": "single"
       }
     },
-    "info": [
-      {
-        "id": "example.info",
-        "title": "示例信息",
-        "priority": 80,
-        "match": {
-          "extensions": [
-            "txt",
-            "md",
-            "log"
-          ],
-          "kinds": [
-            "file"
-          ]
-        }
+    "info": {
+      "id": "example.info",
+      "title": "示例信息",
+      "priority": 80,
+      "match": {
+        "extensions": [
+          "txt",
+          "md",
+          "log"
+        ],
+        "kinds": [
+          "file"
+        ]
       }
-    ],
-    "preview": [
-      {
-        "id": "example.preview",
-        "title": "示例预览",
-        "priority": 60,
-        "match": {
-          "extensions": [
-            "txt",
-            "md",
-            "log"
-          ],
-          "kinds": [
-            "file"
-          ]
-        }
+    },
+    "preview": {
+      "id": "example.preview",
+      "title": "示例预览",
+      "priority": 60,
+      "match": {
+        "extensions": [
+          "txt",
+          "md",
+          "log"
+        ],
+        "kinds": [
+          "file"
+        ]
       }
-    ],
+    },
     "search": [
       {
         "id": "example.search",

@@ -377,8 +377,8 @@ for (const [key, value] of Object.entries(tokens)) {
 | --- | --- | --- |
 | `contextMenus` | `true` 或 `{match}` | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
 | `decorations` | `{match?,priority?}` | 目录切换 → 标准 `decorations.resolve`（仅动态） |
-| `info` | `[{id,title,match?,priority?}]` | 用户“显示简介” → `info.resolve` |
-| `preview` | `[{id,title,match?,priority?,maxBytes?}]` | 用户预览 → `preview.open` |
+| `info` | `{id,title,match?,priority?}` | 用户“显示简介” → `info.resolve` |
+| `preview` | `{id,title,match?,priority?,maxBytes?}` | 用户预览 → `preview.open` |
 | `connections` | `[{id,title,fields}]` | 添加连接 / 点击连接 → `connection.create/open` |
 | `vfs` | `[{id,title,readOnly?}]` | Core Explorer 的文件树请求 |
 | `search` | `[{id,title,icon?,command}]` | 搜索框 → `search.query` |
@@ -403,28 +403,26 @@ for (const [key, value] of Object.entries(tokens)) {
 - `mimeTypes` 支持精确值或 `text/*`、`image/*`、`*/*`；
 - `kinds` 为 `file` / `directory`；
 - `contains` 仅用于 decorations：目录或其祖先包含这些名称；
-- `selection` 仅用于 contextMenus：写一个正整数，表示恰好选中几项时才调用；缺省不限；
+- `selection` 仅用于 contextMenus：`single` / `multi` / `any`（默认 any）；
 - 不满足就不会调用插件；空 `match` 表示不过滤；
-- `info` / `preview` 只针对用户当前选中的**单个资源**评估；
-- `contextMenus` 的 `selection` 先按选中数量精确过滤（例如 `1`、`2`），再对选中项做类型过滤。
+- `info` / `preview` 只针对用户当前选中的**单个资源**评估，并且只在点击“显示简介 / 快速查看”时才调用；
+- `contextMenus` 的 `selection` 先按单选/多选过滤，再对选中项做类型过滤。
 
 ### 7.1 Info：标准事件 `info.resolve`
 
 Manifest：
 
 ```json
-"info": [
-  {
-    "id": "example.info",
-    "title": "示例信息",
-    "match": {
-      "extensions": ["txt", "md", "log"],
-      "mimeTypes": ["text/*"],
-      "kinds": ["file"]
-    },
-    "priority": 80
-  }
-]
+"info": {
+  "id": "example.info",
+  "title": "示例信息",
+  "match": {
+    "extensions": ["txt", "md", "log"],
+    "mimeTypes": ["text/*"],
+    "kinds": ["file"]
+  },
+  "priority": 80
+}
 ```
 
 Core 会构造 `InfoContext`：
@@ -480,19 +478,17 @@ Core 会构造 `InfoContext`：
 Manifest：
 
 ```json
-"preview": [
-  {
-    "id": "example.preview",
-    "title": "示例预览",
-    "match": {
-      "extensions": ["txt", "md", "log"],
-      "mimeTypes": ["text/*"],
-      "kinds": ["file"]
-    },
-    "priority": 60,
-    "maxBytes": 1048576
-  }
-]
+"preview": {
+  "id": "example.preview",
+  "title": "示例预览",
+  "match": {
+    "extensions": ["txt", "md", "log"],
+    "mimeTypes": ["text/*"],
+    "kinds": ["file"]
+  },
+  "priority": 60,
+  "maxBytes": 1048576
+}
 ```
 
 Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）。插件返回 `PreviewView`：
@@ -529,7 +525,7 @@ Manifest：
 ```json
 "contextMenus": {
   "match": {
-    "selection": 1,
+    "selection": "single",
     "extensions": ["txt", "md", "log"],
     "kinds": ["file"]
   }

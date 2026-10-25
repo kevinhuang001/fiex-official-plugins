@@ -114,48 +114,44 @@
         ]
       }
     ],
-    "preview": [
-      {
-        "id": "archive",
-        "title": "压缩包预览",
-        "priority": 100,
-        "match": {
-          "extensions": [
-            "zip",
-            "rar",
-            "7z",
-            "tar",
-            "gz",
-            "tgz",
-            "bz2",
-            "tbz2",
-            "xz",
-            "txz"
-          ]
-        }
+    "preview": {
+      "id": "archive",
+      "title": "压缩包预览",
+      "priority": 100,
+      "match": {
+        "extensions": [
+          "zip",
+          "rar",
+          "7z",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ]
       }
-    ],
-    "info": [
-      {
-        "id": "archive.info",
-        "title": "压缩包",
-        "priority": 100,
-        "match": {
-          "extensions": [
-            "zip",
-            "7z",
-            "rar",
-            "tar",
-            "gz",
-            "tgz",
-            "bz2",
-            "tbz2",
-            "xz",
-            "txz"
-          ]
-        }
+    },
+    "info": {
+      "id": "archive.info",
+      "title": "压缩包",
+      "priority": 100,
+      "match": {
+        "extensions": [
+          "zip",
+          "7z",
+          "rar",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ]
       }
-    ],
+    },
     "decorations": {
       "match": {
         "extensions": [

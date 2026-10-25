@@ -117,7 +117,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 4d51cdee5cde36145630c93b3380e54cc55ec513
+          ref: 6f43e4e0c0877bb9a5283282d65fed314115be08
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -163,7 +163,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 4d51cdee5cde36145630c93b3380e54cc55ec513
+          ref: 6f43e4e0c0877bb9a5283282d65fed314115be08
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk

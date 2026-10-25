@@ -63,52 +63,48 @@
     }
   },
   "extensions": {
-    "preview": [
-      {
-        "id": "data",
-        "title": "数据预览",
-        "priority": 110,
-        "maxBytes": 268435456,
-        "match": {
-          "extensions": [
-            "db",
-            "sqlite",
-            "sqlite3",
-            "csv",
-            "tsv",
-            "xlsx",
-            "xls",
-            "parquet",
-            "arrow",
-            "feather",
-            "ipc",
-            "avro"
-          ]
-        }
+    "preview": {
+      "id": "data",
+      "title": "数据预览",
+      "priority": 110,
+      "maxBytes": 268435456,
+      "match": {
+        "extensions": [
+          "db",
+          "sqlite",
+          "sqlite3",
+          "csv",
+          "tsv",
+          "xlsx",
+          "xls",
+          "parquet",
+          "arrow",
+          "feather",
+          "ipc",
+          "avro"
+        ]
       }
-    ],
-    "info": [
-      {
-        "id": "data.info",
-        "title": "数据表",
-        "priority": 100,
-        "match": {
-          "extensions": [
-            "db",
-            "sqlite",
-            "sqlite3",
-            "csv",
-            "tsv",
-            "xlsx",
-            "xls",
-            "parquet",
-            "arrow",
-            "feather",
-            "ipc",
-            "avro"
-          ]
-        }
+    },
+    "info": {
+      "id": "data.info",
+      "title": "数据表",
+      "priority": 100,
+      "match": {
+        "extensions": [
+          "db",
+          "sqlite",
+          "sqlite3",
+          "csv",
+          "tsv",
+          "xlsx",
+          "xls",
+          "parquet",
+          "arrow",
+          "feather",
+          "ipc",
+          "avro"
+        ]
       }
-    ]
+    }
   }
 }

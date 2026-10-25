@@ -67,43 +67,47 @@
       {
         "id": "data",
         "title": "数据预览",
-        "extensions": [
-          "db",
-          "sqlite",
-          "sqlite3",
-          "csv",
-          "tsv",
-          "xlsx",
-          "xls",
-          "parquet",
-          "arrow",
-          "feather",
-          "ipc",
-          "avro"
-        ],
         "priority": 110,
-        "maxBytes": 268435456
+        "maxBytes": 268435456,
+        "match": {
+          "extensions": [
+            "db",
+            "sqlite",
+            "sqlite3",
+            "csv",
+            "tsv",
+            "xlsx",
+            "xls",
+            "parquet",
+            "arrow",
+            "feather",
+            "ipc",
+            "avro"
+          ]
+        }
       }
     ],
     "info": [
       {
         "id": "data.info",
         "title": "数据表",
-        "extensions": [
-          "db",
-          "sqlite",
-          "sqlite3",
-          "csv",
-          "tsv",
-          "xlsx",
-          "xls",
-          "parquet",
-          "arrow",
-          "feather",
-          "ipc",
-          "avro"
-        ],
-        "priority": 100
+        "priority": 100,
+        "match": {
+          "extensions": [
+            "db",
+            "sqlite",
+            "sqlite3",
+            "csv",
+            "tsv",
+            "xlsx",
+            "xls",
+            "parquet",
+            "arrow",
+            "feather",
+            "ipc",
+            "avro"
+          ]
+        }
       }
     ]
   }

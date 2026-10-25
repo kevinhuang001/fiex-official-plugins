@@ -107,8 +107,15 @@
       }
     ],
     "decorations": {
-      "mode": "dynamic",
-      "method": "decorations.resolve",
+      "match": {
+        "extensions": [
+          "md",
+          "txt"
+        ],
+        "kinds": [
+          "file"
+        ]
+      },
       "priority": 80
     },
     "toolbar": [
@@ -132,29 +139,50 @@
         "command": "example.refresh"
       }
     ],
-    "contextMenus": true,
-    "info": [
-      {
-        "id": "example.info",
-        "title": "示例信息",
+    "contextMenus": {
+      "match": {
         "extensions": [
           "txt",
           "md",
           "log"
         ],
-        "priority": 80
+        "kinds": [
+          "file"
+        ]
+      }
+    },
+    "info": [
+      {
+        "id": "example.info",
+        "title": "示例信息",
+        "priority": 80,
+        "match": {
+          "extensions": [
+            "txt",
+            "md",
+            "log"
+          ],
+          "kinds": [
+            "file"
+          ]
+        }
       }
     ],
     "preview": [
       {
         "id": "example.preview",
         "title": "示例预览",
-        "extensions": [
-          "txt",
-          "md",
-          "log"
-        ],
-        "priority": 60
+        "priority": 60,
+        "match": {
+          "extensions": [
+            "txt",
+            "md",
+            "log"
+          ],
+          "kinds": [
+            "file"
+          ]
+        }
       }
     ],
     "search": [

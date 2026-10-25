@@ -67,25 +67,29 @@
       {
         "id": "office",
         "title": "Office 预览",
-        "extensions": [
-          "docx",
-          "xlsx",
-          "pptx"
-        ],
         "priority": 100,
-        "maxBytes": 33554432
+        "maxBytes": 33554432,
+        "match": {
+          "extensions": [
+            "docx",
+            "xlsx",
+            "pptx"
+          ]
+        }
       }
     ],
     "info": [
       {
         "id": "office.info",
         "title": "文档",
-        "extensions": [
-          "docx",
-          "xlsx",
-          "pptx"
-        ],
-        "priority": 100
+        "priority": 100,
+        "match": {
+          "extensions": [
+            "docx",
+            "xlsx",
+            "pptx"
+          ]
+        }
       }
     ]
   }

@@ -183,40 +183,25 @@ fs.writeFile { connection, nodeId, source, size, ifRevision } -> { revision }
 
 Decoration 是**只读展示**，不能借它读文件内容，也不能改变文件本身。
 
-Manifest 两种写法：
-
-### 4.1 静态规则（declarative）
-
-适合“按扩展名/目录名匹配”的固定角标，Core 本地计算，不启动插件进程：
+Manifest 只有动态模式：
 
 ```json
 "decorations": {
-  "mode": "declarative",
-  "priority": 10,
-  "rules": [
-    {
-      "match": { "isDir": false, "extensions": ["zip", "rar", "7z"] },
-      "badge": { "text": "ZIP", "color": "neutral" }
-    }
-  ]
+  "match": {
+    "markers": [".git"],
+    "extensions": ["ts", "js", "md"],
+    "mimeTypes": ["text/*"]
+  },
+  "priority": 80
 }
 ```
 
-### 4.2 动态事件（dynamic）
-
-适合需要读取 Git 状态、文件内容特征等运行时信息：
-
-```json
-"decorations": {
-  "mode": "dynamic",
-  "method": "decorations.resolve",
-  "priority": 80,
-  "scope": { "marker": ".git" }
-}
-```
-
-- `method` 是插件进程的方法名；Core 会带 `{ directory, entries }` 调用。
-- `scope.marker` 可选：只有目录下存在该文件/目录时才调用（例如 `.git`）。不写表示所有目录都调用。
+- `decorations` 只有动态模式；不存在 `mode`、`method`、`scope`、`rules`；
+- Core 固定调用标准方法 `decorations.resolve`，**方法名不用写**；
+- `match` 是包含谓词：不满足时 Core 不会调用插件；
+  - `markers`：目录或祖先目录包含 `.git` 等标记文件/目录；
+  - `extensions` / `mimeTypes` / `kinds`：当前可见成员中至少有一项匹配；
+  - 缺省/空 `match` 表示所有目录、所有成员都参与；
 - 动态 decorations 仍要求 `permissions.folders.read`；没有权限时 Core 直接跳过。
 
 插件返回：
@@ -390,17 +375,35 @@ for (const [key, value] of Object.entries(tokens)) {
 
 | 扩展点 | 声明 | 触发 |
 | --- | --- | --- |
-| `contextMenus` | `true` | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
-| `decorations` | `{mode,method,priority,scope?,rules?}` | 目录切换 → `decorations.resolve` 或 Core 本地规则 |
-| `info` | `[{id,title,extensions?,priority?}]` | 用户“显示简介” → `info.resolve` |
-| `preview` | `[{id,title,extensions?,priority?,maxBytes?}]` | 用户预览 → `preview.open` |
+| `contextMenus` | `true` 或 `{match}` | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
+| `decorations` | `{match?,priority?}` | 目录切换 → 标准 `decorations.resolve`（仅动态） |
+| `info` | `[{id,title,match?,priority?}]` | 用户“显示简介” → `info.resolve` |
+| `preview` | `[{id,title,match?,priority?,maxBytes?}]` | 用户预览 → `preview.open` |
 | `connections` | `[{id,title,fields}]` | 添加连接 / 点击连接 → `connection.create/open` |
 | `vfs` | `[{id,title,readOnly?}]` | Core Explorer 的文件树请求 |
 | `search` | `[{id,title,icon?,command}]` | 搜索框 → `search.query` |
 | `toolbar` | `[{id,title,icon?,panel?/command?}]` | 工具栏点击 |
 | `settings` | `[{id,label,type,...}]` | 设置页渲染；值通过 `ctx.storage_*` |
-| `hooks` | `[{id,event,method,priority?,extensions?}]` | 文件生命周期（见下方状态） |
+| `hooks` | `[{id,event,method,priority?,match?}]` | 文件生命周期（见下方状态） |
 | `themes` | `[{path}]` | 主题包；声明式 JSON，不含代码 |
+
+`match` 对所有带条件的扩展点通用：
+
+```json
+"match": {
+  "extensions": ["md", "txt"],
+  "mimeTypes": ["text/*"],
+  "kinds": ["file"],
+  "markers": [".git"]
+}
+```
+
+- 同一字段内 OR，不同字段 AND；
+- `extensions` 支持 `md`、`.md`、`*.md`、`*`；
+- `mimeTypes` 支持精确值或 `text/*`、`image/*`、`*/*`；
+- `kinds` 为 `file` / `directory`；
+- `markers` 用于目录（主要给 decorations）；
+- 不满足就不会调用插件；空 `match` 表示不过滤。
 
 ### 7.1 Info：标准事件 `info.resolve`
 
@@ -411,7 +414,11 @@ Manifest：
   {
     "id": "example.info",
     "title": "示例信息",
-    "extensions": ["txt", "md", "log"],
+    "match": {
+      "extensions": ["txt", "md", "log"],
+      "mimeTypes": ["text/*"],
+      "kinds": ["file"]
+    },
     "priority": 80
   }
 ]
@@ -473,7 +480,11 @@ Manifest：
   {
     "id": "example.preview",
     "title": "示例预览",
-    "extensions": ["txt", "md", "log"],
+    "match": {
+      "extensions": ["txt", "md", "log"],
+      "mimeTypes": ["text/*"],
+      "kinds": ["file"]
+    },
     "priority": 60,
     "maxBytes": 1048576
   }
@@ -512,7 +523,12 @@ Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）�
 Manifest：
 
 ```json
-"contextMenus": true
+"contextMenus": {
+  "match": {
+    "extensions": ["txt", "md", "log"],
+    "kinds": ["file"]
+  }
+}
 ```
 
 `contextMenu.resolve` 返回：
@@ -640,7 +656,7 @@ Manifest：
       "event": "beforeOpen",
       "method": "example.beforeOpen",
       "priority": 100,
-      "extensions": ["txt", "md"]
+      "match": { "extensions": ["txt", "md"], "kinds": ["file"] }
     }
   ]
 }
@@ -721,7 +737,7 @@ toolbar                    → 源代码管理面板
 - 先跑 `check_plugin.py`，再安装到 Core；安装后看设置里的插件错误。
 - 权限没批准时 Core 不会启动进程；`plugin.ping` 失败先检查启用/授权。
 - `pluginView`/`panel` 找不到资源时，检查 HTML 是否真的在 `.fiexplugin` 包内（`ui/` 目录），以及路径是否单层相对路径。
-- 动态 decoration 不生效：确认 `mode:"dynamic"`、`method` 拼写、`folders.read` 已批准、`scope.marker` 条件满足。
+- 动态 decoration 不生效：确认 `extensions.decorations` 存在、`match` 条件满足、`folders.read` 已批准；Core 固定调用 `decorations.resolve`。
 - 颜色/角标被丢弃：检查是否用了未列出的颜色名、超过 4 字符的 badge、超过 3 个 badge。
 - 连接点击报 `PermissionDenied`：检查是否声明了 `extensions.vfs`、`mountId` 是否等于 Core 传入值、连接是否绑定到本插件。
 

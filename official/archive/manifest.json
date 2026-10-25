@@ -118,29 +118,50 @@
       {
         "id": "archive",
         "title": "压缩包预览",
-        "extensions": [
-          "zip",
-          "rar",
-          "7z",
-          "tar",
-          "gz",
-          "tgz",
-          "bz2",
-          "tbz2",
-          "xz",
-          "txz"
-        ],
-        "priority": 100
+        "priority": 100,
+        "match": {
+          "extensions": [
+            "zip",
+            "rar",
+            "7z",
+            "tar",
+            "gz",
+            "tgz",
+            "bz2",
+            "tbz2",
+            "xz",
+            "txz"
+          ]
+        }
       }
     ],
     "info": [
       {
         "id": "archive.info",
         "title": "压缩包",
+        "priority": 100,
+        "match": {
+          "extensions": [
+            "zip",
+            "7z",
+            "rar",
+            "tar",
+            "gz",
+            "tgz",
+            "bz2",
+            "tbz2",
+            "xz",
+            "txz"
+          ]
+        }
+      }
+    ],
+    "decorations": {
+      "match": {
         "extensions": [
           "zip",
-          "7z",
           "rar",
+          "7z",
           "tar",
           "gz",
           "tgz",
@@ -149,101 +170,11 @@
           "xz",
           "txz"
         ],
-        "priority": 100
-      }
-    ],
-    "decorations": {
-      "mode": "declarative",
-      "priority": 10,
-      "rules": [
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "zip"
-            ]
-          },
-          "badge": {
-            "text": "ZIP",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "rar"
-            ]
-          },
-          "badge": {
-            "text": "RAR",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "7z"
-            ]
-          },
-          "badge": {
-            "text": "7Z",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "tar"
-            ]
-          },
-          "badge": {
-            "text": "TAR",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "gz",
-              "tgz"
-            ]
-          },
-          "badge": {
-            "text": "TGZ",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "bz2",
-              "tbz2"
-            ]
-          },
-          "badge": {
-            "text": "TBZ",
-            "color": "neutral"
-          }
-        },
-        {
-          "match": {
-            "isDir": false,
-            "extensions": [
-              "xz",
-              "txz"
-            ]
-          },
-          "badge": {
-            "text": "TXZ",
-            "color": "neutral"
-          }
-        }
-      ]
+        "kinds": [
+          "file"
+        ]
+      },
+      "priority": 10
     }
   }
 }

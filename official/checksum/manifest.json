@@ -67,8 +67,10 @@
       {
         "id": "checksum.info",
         "title": "校验和",
-        "extensions": [],
-        "priority": 100
+        "priority": 100,
+        "match": {
+          "extensions": []
+        }
       }
     ]
   }

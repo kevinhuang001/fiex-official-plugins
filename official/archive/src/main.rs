@@ -181,6 +181,39 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let mut params = ctx.params().clone();
+    if method == "decorations.resolve" {
+        let mut decorations = Vec::new();
+        if let Some(entries) = params.get("entries").and_then(Value::as_array) {
+            for entry in entries {
+                let Some(path) = entry.get("path").and_then(Value::as_str) else {
+                    continue;
+                };
+                if entry.get("isDir").and_then(Value::as_bool) == Some(true) {
+                    continue;
+                }
+                let extension = entry
+                    .get("extension")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                let label = match extension.as_str() {
+                    "zip" => "ZIP",
+                    "rar" => "RAR",
+                    "7z" => "7Z",
+                    "tar" => "TAR",
+                    "gz" | "tgz" => "TGZ",
+                    "bz2" | "tbz2" => "TBZ",
+                    "xz" | "txz" => "TXZ",
+                    _ => continue,
+                };
+                decorations.push(json!({
+                    "path": path,
+                    "badge": {"text": label, "color": "neutral", "tooltip": "压缩包"}
+                }));
+            }
+        }
+        return Ok(json!({"decorations": decorations}));
+    }
     if method == "info.resolve" {
         let name = context_name(&params)?.to_owned();
         let rows = archive_info(&json!({"path": name}), &ctx)?;

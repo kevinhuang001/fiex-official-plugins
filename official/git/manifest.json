@@ -98,12 +98,12 @@
       }
     ],
     "decorations": {
-      "mode": "dynamic",
-      "method": "decorations.list",
-      "priority": 50,
-      "scope": {
-        "marker": ".git"
-      }
+      "match": {
+        "markers": [
+          ".git"
+        ]
+      },
+      "priority": 50
     }
   }
 }

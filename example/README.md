@@ -513,14 +513,12 @@ Manifest：
 }
 ```
 
-Core 会构造 `InfoContext`：
+Core 为 `info.resolve` 构造统一 `EventContext`，目标资源保存在 `targets` 中：
 
 ```json
 {
-  "version": 1,
   "sessionId": "opaque",
-  "intent": "info",
-  "resource": {
+  "targets": [{
     "ref": { "mountId": "local", "nodeId": "fiex-resource:..." },
     "metadata": {
       "name": "notes.md",
@@ -531,7 +529,7 @@ Core 会构造 `InfoContext`：
       "modified": 1792920000
     },
     "read": { "resourceId": "fiex-read:..." }
-  }
+  }]
 }
 ```
 
@@ -577,7 +575,7 @@ Manifest：
 }
 ```
 
-Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）。插件返回 `PreviewView`：
+Core 传入相同的 `EventContext`，事件类型直接由 JSON-RPC 的 `method: "preview.open"` 标识。插件返回 `PreviewView`：
 
 ```json
 {
@@ -598,7 +596,7 @@ Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）�
 - `kind: "html"` 的 `entry` 必须是包内单层相对路径；Core 会校验并注入 CSP；
 - **Manifest 不再写 `panel`**；页面由 `preview.open` 的返回值决定；
 - 预览页面不要再画标题栏，Core 已经提供；
-- 需要读文件时用 `resource.metadata.name` + `ctx.files()`，或用 `read.resourceId` + `ctx.files().open_resource(...)`；
+- 需要读文件时用 `ctx.targets().first()` 读取已投影的元数据，再通过 `ctx.files()` 进行受限读取；
 - 内置 text/image/media/pdf/fallback 与插件都走同一个 Registry，按 priority 和用户偏好排序。
 
 示例实现见 `hello/src/main.rs` 的 `preview.open`，页面见 `hello/ui/preview.html`。

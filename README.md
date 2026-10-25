@@ -54,11 +54,11 @@ panels/commands.
 ## Info and preview contracts
 
 Info and preview are standard events, not command/panel declarations. A plugin
-registers `extensions.info` / `extensions.preview` with `id`, `title`,
-`match`, optional `priority`/`maxBytes`, then implements `info.resolve`
-with an `InfoContext` and `preview.open` with a `PreviewContext`. Core projects
-`metadata` and a scoped `read.resourceId` according to the plugin's grants and
-returns the decoded `InfoResponse` / `PreviewView`; preview HTML is returned as
+registers `extensions.info` / `extensions.preview` with `match` and
+optional `priority`/`maxBytes` (no per-contribution id/title). Both fixed
+methods receive an `EventContext` with `targets`; `ctx.targets()` and
+`ctx.metadata(ref)` expose permission-projected metadata without extra RPCs.
+Core validates `InfoResponse` / `PreviewView`; preview HTML is returned as
 a package-confined `view.entry` instead of being listed in the manifest. See
 `fiex/docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
 

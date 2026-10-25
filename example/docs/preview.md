@@ -8,7 +8,7 @@ Preview 也只在用户点击“快速查看”时调用。每个插件最多注
 用户点“快速查看”
       │
       ▼
-Core 构造 PreviewContext（单个资源）
+Core 构造 EventContext（targets 数组）
       │  match 命中？
       ▼
 preview.open
@@ -28,7 +28,6 @@ PreviewView: html | text | unsupported
 },
 "extensions": {
   "preview": {
-    "id": "example.preview",
     "match": {
       "extensions": ["txt", "md"],
       "mimeTypes": ["text/*"],
@@ -80,12 +79,12 @@ PreviewView: html | text | unsupported
 
 ```js
 const context = await invoke("context.get");
-const name = context.resource?.metadata?.name;
+const name = context.targets?.[0]?.metadata?.name;
 ```
 
 - 不要自己画标题栏、关闭按钮；
 - 可用 tabs/toolbar，但不要重复 Core 的文件头；
-- 需要读文件时用 `context.resource.read.resourceId` + `ctx.files().open_resource(...)`，或 `metadata.name` 在 operation scope 内读；
+- 需要读文件时用 `context.targets?.[0]?.read?.resourceId` 与会话绑定的读取接口，或 `ctx.targets()` 的已投影文件名在 operation scope 内读；
 - HTML 不能引用包外资源，Core 会校验入口并注入 CSP。
 
 ## 权限与坑

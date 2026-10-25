@@ -43,10 +43,11 @@ hooks.invoke(event, resourceRef, operationSession)
 ## Rust 实现
 
 ```rust
-"example.beforeOpen" => {
-    let name = p
-        .pointer("/resource/metadata/name")
-        .and_then(Value::as_str)
+"hooks.invoke" => {
+    let name = ctx.targets()
+        .first()
+        .and_then(|target| target.metadata.as_ref())
+        .map(|meta| meta.name.as_str())
         .unwrap_or("");
     if name.ends_with(".zip") {
         // 目标合同：返回 handled=true 表示插件接管；

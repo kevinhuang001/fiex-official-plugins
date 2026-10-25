@@ -119,14 +119,9 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // Info / Preview
         // ------------------------------------------------------------------
         "info.resolve" => {
-            let name = p
-                .pointer("/resource/metadata/name")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown");
-            let extension = p
-                .pointer("/resource/metadata/extension")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let meta = ctx.targets().first().and_then(|target| target.metadata.as_ref());
+            let name = meta.map(|value| value.name.as_str()).unwrap_or("unknown");
+            let extension = meta.and_then(|value| value.extension.as_deref()).unwrap_or("");
             let greeting = ctx
                 .storage_get("global", "greeting")
                 .ok()

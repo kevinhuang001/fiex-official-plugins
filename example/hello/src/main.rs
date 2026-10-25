@@ -146,7 +146,6 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         }
         "preview.open" => Ok(json!({
             "kind": "html",
-            "title": "示例预览",
             "view": {"source": "package", "entry": "ui/preview.html"}
         })),
         // ------------------------------------------------------------------

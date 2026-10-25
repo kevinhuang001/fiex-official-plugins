@@ -50,7 +50,6 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     if method == "preview.open" {
         return Ok(serde_json::json!({
             "kind": "html",
-            "title": "Office 预览",
             "view": {"source":"package","entry":"ui/index.html"}
         }));
     }

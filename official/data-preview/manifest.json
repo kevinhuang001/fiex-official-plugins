@@ -65,7 +65,6 @@
   "extensions": {
     "preview": {
       "id": "data",
-      "title": "数据预览",
       "priority": 110,
       "maxBytes": 268435456,
       "match": {
@@ -87,7 +86,6 @@
     },
     "info": {
       "id": "data.info",
-      "title": "数据表",
       "priority": 100,
       "match": {
         "extensions": [

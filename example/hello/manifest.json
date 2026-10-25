@@ -154,7 +154,6 @@
     },
     "info": {
       "id": "example.info",
-      "title": "示例信息",
       "priority": 80,
       "match": {
         "extensions": [
@@ -169,7 +168,6 @@
     },
     "preview": {
       "id": "example.preview",
-      "title": "示例预览",
       "priority": 60,
       "match": {
         "extensions": [

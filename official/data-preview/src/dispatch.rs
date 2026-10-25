@@ -64,7 +64,6 @@ pub(crate) fn dispatch(
     if method == "preview.open" {
         return Ok(serde_json::json!({
             "kind": "html",
-            "title": "数据预览",
             "view": {"source":"package","entry":"ui/index.html"}
         }));
     }

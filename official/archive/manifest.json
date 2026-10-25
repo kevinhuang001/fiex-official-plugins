@@ -116,7 +116,6 @@
     ],
     "preview": {
       "id": "archive",
-      "title": "压缩包预览",
       "priority": 100,
       "match": {
         "extensions": [
@@ -135,7 +134,6 @@
     },
     "info": {
       "id": "archive.info",
-      "title": "压缩包",
       "priority": 100,
       "match": {
         "extensions": [

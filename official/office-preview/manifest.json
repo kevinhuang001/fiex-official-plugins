@@ -65,7 +65,6 @@
   "extensions": {
     "preview": {
       "id": "office",
-      "title": "Office 预览",
       "priority": 100,
       "maxBytes": 33554432,
       "match": {
@@ -78,7 +77,6 @@
     },
     "info": {
       "id": "office.info",
-      "title": "文档",
       "priority": 100,
       "match": {
         "extensions": [

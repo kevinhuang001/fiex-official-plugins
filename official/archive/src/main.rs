@@ -224,7 +224,6 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     if method == "preview.open" {
         return Ok(json!({
             "kind": "html",
-            "title": "压缩包预览",
             "view": {"source":"package","entry":"ui/preview.html"}
         }));
     }

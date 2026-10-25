@@ -377,8 +377,8 @@ for (const [key, value] of Object.entries(tokens)) {
 | --- | --- | --- |
 | `contextMenus` | `true` 或 `{match}` | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
 | `decorations` | `{match?,priority?}` | 目录切换 → 标准 `decorations.resolve`（仅动态） |
-| `info` | `{id,title,match?,priority?}` | 用户“显示简介” → `info.resolve` |
-| `preview` | `{id,title,match?,priority?,maxBytes?}` | 用户预览 → `preview.open` |
+| `info` | `{id,match?,priority?}` | 用户“显示简介” → `info.resolve` |
+| `preview` | `{id,match?,priority?,maxBytes?}` | 用户预览 → `preview.open` |
 | `connections` | `[{id,title,fields}]` | 添加连接 / 点击连接 → `connection.create/open` |
 | `vfs` | `[{id,title,readOnly?}]` | Core Explorer 的文件树请求 |
 | `search` | `[{id,title,icon?,command}]` | 搜索框 → `search.query` |
@@ -415,7 +415,6 @@ Manifest：
 ```json
 "info": {
   "id": "example.info",
-  "title": "示例信息",
   "match": {
     "extensions": ["txt", "md", "log"],
     "mimeTypes": ["text/*"],
@@ -480,7 +479,6 @@ Manifest：
 ```json
 "preview": {
   "id": "example.preview",
-  "title": "示例预览",
   "match": {
     "extensions": ["txt", "md", "log"],
     "mimeTypes": ["text/*"],
@@ -496,7 +494,6 @@ Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）�
 ```json
 {
   "kind": "html",
-  "title": "示例预览",
   "view": { "source": "package", "entry": "ui/preview.html" }
 }
 ```

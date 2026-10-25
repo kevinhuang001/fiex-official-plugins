@@ -91,19 +91,20 @@ fn bridge(tcp: TcpStream) -> Result<DuplexStream, RpcError> {
     });
     let (mut server_reader, mut server_writer) = tokio::io::split(server);
     tokio::spawn(async move {
+        while let Some(data) = from_sdk_rx.recv().await {
+            if server_writer.write_all(&data).await.is_err() {
+                break;
+            }
+        }
+    });
+    tokio::spawn(async move {
         let mut buffer = [0u8; 16 * 1024];
         loop {
-            tokio::select! {
-                incoming = from_sdk_rx.recv() => {
-                    let Some(data) = incoming else { break };
-                    if server_writer.write_all(&data).await.is_err() { break; }
-                }
-                result = server_reader.read(&mut buffer) => {
-                    match result {
-                        Ok(0) | Err(_) => break,
-                        Ok(size) => {
-                            if to_sdk.send(buffer[..size].to_vec()).await.is_err() { break; }
-                        }
+            match server_reader.read(&mut buffer).await {
+                Ok(0) | Err(_) => break,
+                Ok(size) => {
+                    if to_sdk.send(buffer[..size].to_vec()).await.is_err() {
+                        break;
                     }
                 }
             }

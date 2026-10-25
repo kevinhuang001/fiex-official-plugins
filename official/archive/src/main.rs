@@ -175,6 +175,9 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let mut params = ctx.params().clone();
+    if method == "hooks.invoke" {
+        return Ok(json!({"handled":false}));
+    }
     if method == "decorations.resolve" {
         let mut decorations = Vec::new();
         if let Some(entries) = params.get("entries").and_then(Value::as_array) {

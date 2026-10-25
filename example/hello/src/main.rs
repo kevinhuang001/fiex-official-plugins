@@ -80,12 +80,14 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // direct child names, never absolute paths.
         "decorations.resolve" => {
             let mut decorations = Vec::new();
-            if let Some(entries) = p.get("entries").and_then(Value::as_array) {
-                for entry in entries {
-                    let Some(path) = entry.get("path").and_then(Value::as_str) else {
+            {
+                for resource in ctx.selection() {
+                    let Some(entry) = resource.get("metadata") else {
                         continue;
                     };
-                    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+                    let Some(name) = entry.get("name").and_then(Value::as_str) else {
+                        continue;
+                    };
                     if name.ends_with(".md") {
                         // Name-cell badge + color. The same `style` shape also
                         // works for modified/size/kind through `fields`.

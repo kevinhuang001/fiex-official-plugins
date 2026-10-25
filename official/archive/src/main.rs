@@ -183,8 +183,11 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let mut params = ctx.params().clone();
     if method == "decorations.resolve" {
         let mut decorations = Vec::new();
-        if let Some(entries) = params.get("entries").and_then(Value::as_array) {
-            for entry in entries {
+        {
+            for resource in ctx.selection() {
+                let Some(entry) = resource.get("metadata") else {
+                    continue;
+                };
                 let Some(name) = entry.get("name").and_then(Value::as_str) else {
                     continue;
                 };

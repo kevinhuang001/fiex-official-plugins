@@ -28,12 +28,22 @@
       .password { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
       .password input { flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; background: var(--surface); color: var(--text); }
       .password[hidden] { display: none; }
-      main { flex: 1; overflow: auto; min-height: 0; }
-      table { width: 100%; border-collapse: collapse; font-size: 11px; }
-      th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: left; }
-      th { position: sticky; top: 0; background: var(--canvas); font-weight: 600; }
-      td.size { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .dir { color: var(--accent); }
+      main { flex: 1; overflow: auto; min-height: 0; padding: 6px 0; }
+      .listing { display: flex; flex-direction: column; }
+      .entry {
+        display: flex; align-items: center; gap: 10px;
+        height: 32px; padding: 0 14px; margin: 0 6px; border-radius: 6px;
+        cursor: default;
+      }
+      .entry:hover { background: var(--canvas); }
+      .entry-icon { flex: 0 0 18px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+      .entry-icon svg { width: 17px; height: 17px; display: block; }
+      .folder-icon { color: #d9a441; }
+      .file-icon { color: var(--muted); }
+      .entry-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .entry-name.dir { color: var(--accent); font-weight: 500; }
+      .entry-kind { flex: 0 0 96px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .entry-size { flex: 0 0 80px; text-align: right; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .hint, .error { padding: 18px; text-align: center; color: var(--muted); }
       .error { color: var(--danger); white-space: pre-wrap; }
       .status { padding: 6px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
@@ -96,22 +106,38 @@
             const entries = value.entries || []
             summary.textContent = `${entries.length} 项${value.encrypted ? ' · 加密' : ''}`
             content.innerHTML = ''
-            const table = document.createElement('table')
-            table.innerHTML = '<thead><tr><th>名称</th><th style="width:96px">大小</th></tr></thead>'
-            const body = document.createElement('tbody')
-            for (const entry of entries) {
-              const row = document.createElement('tr')
-              const name = document.createElement('td')
+            const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>'
+            const file = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v5h5"/></svg>'
+            const listing = document.createElement('div')
+            listing.className = 'listing'
+            listing.setAttribute('role', 'list')
+            const ordered = [...entries].sort((a, b) => {
+              if (Boolean(a.isDir) !== Boolean(b.isDir)) return a.isDir ? -1 : 1
+              return String(a.name).localeCompare(String(b.name))
+            })
+            for (const entry of ordered) {
+              const row = document.createElement('div')
+              row.className = 'entry'
+              row.setAttribute('role', 'listitem')
+              const icon = document.createElement('span')
+              icon.className = 'entry-icon ' + (entry.isDir ? 'folder-icon' : 'file-icon')
+              icon.innerHTML = entry.isDir ? folder : file
+              const name = document.createElement('span')
+              name.className = 'entry-name' + (entry.isDir ? ' dir' : '')
               name.textContent = entry.name
-              if (entry.isDir) name.className = 'dir'
-              const size = document.createElement('td')
-              size.className = 'size'
+              name.title = entry.name
+              const kind = document.createElement('span')
+              kind.className = 'entry-kind'
+              const base = String(entry.name).replace(/\/$/, '').split('/').pop() || ''
+              const ext = base.includes('.') ? base.split('.').pop().toUpperCase() : ''
+              kind.textContent = entry.isDir ? '文件夹' : ext ? `${ext} 文件` : '文件'
+              const size = document.createElement('span')
+              size.className = 'entry-size'
               size.textContent = entry.isDir ? '—' : human(entry.size || 0)
-              row.append(name, size)
-              body.append(row)
+              row.append(icon, name, kind, size)
+              listing.append(row)
             }
-            table.append(body)
-            content.append(table)
+            content.append(listing)
             extract.disabled = false
           } catch (error) {
             const message = String(error?.message || error)

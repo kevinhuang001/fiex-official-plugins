@@ -64,7 +64,6 @@
   },
   "extensions": {
     "info": {
-      "id": "checksum.info",
       "priority": 100,
       "match": {
         "extensions": []

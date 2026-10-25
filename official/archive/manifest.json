@@ -96,9 +96,7 @@
     ],
     "hooks": [
       {
-        "id": "beforeOpen",
         "event": "beforeOpen",
-        "method": "archive.beforeOpen",
         "priority": 100,
         "extensions": [
           "zip",
@@ -133,7 +131,6 @@
       }
     },
     "info": {
-      "id": "archive.info",
       "priority": 100,
       "match": {
         "extensions": [

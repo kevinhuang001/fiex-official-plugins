@@ -177,7 +177,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // ------------------------------------------------------------------
         // Hooks (contract only in this example)
         // ------------------------------------------------------------------
-        "example.beforeOpen" => Ok(json!({"handled": false})),
+        "hooks.invoke" => Ok(json!({"handled": false})),
         // ------------------------------------------------------------------
         // Toolbar / custom UI commands
         // ------------------------------------------------------------------

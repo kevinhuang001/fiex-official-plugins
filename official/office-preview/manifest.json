@@ -76,7 +76,6 @@
       }
     },
     "info": {
-      "id": "office.info",
       "priority": 100,
       "match": {
         "extensions": [

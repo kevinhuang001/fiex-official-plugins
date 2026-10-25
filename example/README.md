@@ -169,9 +169,9 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 | `info`              | `info.resolve`                                                                            |
 | `preview`           | `preview.open`                                                                            |
 | `contextMenus`      | `contextMenu.resolve` / `contextMenu.execute`                                             |
-| `search[].command`  | 默认 `search.query`，也可写自己的命令名                                                   |
+| `search[].id`       | Core 固定调用 `search.query`，没有 command 字段                                           |
 | `toolbar[].command` | 自己的命令名，例如 `example.refresh`                                                      |
-| `hooks[].method`    | 自己的 hook 方法，例如 `example.beforeOpen`                                               |
+| `hooks[].event`     | Core 固定调用 `hooks.invoke`，插件按 event 分支                                           |
 
 完整分支见 [`hello/src/main.rs`](hello/src/main.rs)：
 
@@ -182,7 +182,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 - `preview.open` 返回 `PreviewView` 的 `{kind:"html", view:{...}}`；
 - `contextMenu.resolve/execute` 返回扁平菜单；
 - `search.query` 返回空结果，展示 SearchResponse 外形；
-- `example.beforeOpen` 是 hooks 合同示例（Core 生命周期接线前不会自动调用）。
+- `hooks.invoke` 是 hooks 合同示例（Core 生命周期接线前不会自动调用）。
 
 ### 编译和自测
 
@@ -488,19 +488,19 @@ for (const [key, value] of Object.entries(tokens)) {
 
 `extensions` 里每个扩展点都是独立的注册项；可以只实现其中一个。
 
-| 扩展点         | 声明                                   | 触发                                                       |
-| -------------- | -------------------------------------- | ---------------------------------------------------------- |
-| `contextMenus` | `true` 或 `{match}`                    | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
-| `decorations`  | `{match?,priority?}`                   | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
-| `info`         | `{id,match?,priority?}`                | 用户“显示简介” → `info.resolve`                            |
-| `preview`      | `{id,match?,priority?,maxBytes?}`      | 用户预览 → `preview.open`                                  |
-| `connections`  | `[{id,title,fields}]`                  | 添加连接 / 点击连接 → `connection.create/open`             |
-| `vfs`          | `[{id,title,readOnly?}]`               | Core Explorer 的文件树请求                                 |
-| `search`       | `[{id,title,icon?,command}]`           | 搜索框 → `search.query`                                    |
-| `toolbar`      | `[{id,title,icon?,panel?/command?}]`   | 工具栏点击                                                 |
-| `settings`     | `[{id,label,type,...}]`                | 设置页渲染；值通过 `ctx.storage_*`                         |
-| `hooks`        | `[{id,event,method,priority?,match?}]` | 文件生命周期（见下方状态）                                 |
-| `themes`       | `[{path}]`                             | 主题包；声明式 JSON，不含代码                              |
+| 扩展点         | 声明                                 | 触发                                                       |
+| -------------- | ------------------------------------ | ---------------------------------------------------------- |
+| `contextMenus` | `true` 或 `{match}`                  | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
+| `decorations`  | `{match?,priority?}`                 | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
+| `info`         | `{match?,priority?,command?}`        | 用户“显示简介” → `info.resolve`                            |
+| `preview`      | `{id,match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
+| `connections`  | `[{id,title,fields}]`                | 添加连接 / 点击连接 → `connection.create/open`             |
+| `vfs`          | `[{id,title,readOnly?}]`             | Core Explorer 的文件树请求                                 |
+| `search`       | `[{icon?,scope?}]`                   | 搜索框 → 固定 `search.query`                               |
+| `toolbar`      | `[{id,title,icon?,panel?/command?}]` | 工具栏点击                                                 |
+| `settings`     | `[{id,label,type,...}]`              | 设置页渲染；值通过 `ctx.storage_*`                         |
+| `hooks`        | `[{event,priority?,match?}]`         | 文件生命周期 → 固定 `hooks.invoke`                         |
+| `themes`       | `[{path}]`                           | 主题包；声明式 JSON，不含代码                              |
 
 `match` 对所有带条件的扩展点通用：
 
@@ -529,7 +529,6 @@ Manifest：
 
 ```json
 "info": {
-  "id": "example.info",
   "match": {
     "extensions": ["txt", "md", "log"],
     "mimeTypes": ["text/*"],
@@ -673,12 +672,7 @@ Manifest：
 
 ```json
 "search": [
-  {
-    "id": "example.search",
-    "title": "示例搜索",
-    "icon": "magnifying-glass",
-    "command": "search.query"
-  }
+  { "icon": "magnifying-glass", "scope": "global" }
 ]
 ```
 
@@ -765,9 +759,7 @@ Manifest：
 "extensions": {
   "hooks": [
     {
-      "id": "example.beforeOpen",
       "event": "beforeOpen",
-      "method": "example.beforeOpen",
       "priority": 100,
       "match": { "extensions": ["txt", "md"], "kinds": ["file"] }
     }
@@ -778,7 +770,7 @@ Manifest：
 插件侧：
 
 ```rust
-"example.beforeOpen" => Ok(json!({
+"hooks.invoke" => Ok(json!({
     "handled": false
 })),
 ```

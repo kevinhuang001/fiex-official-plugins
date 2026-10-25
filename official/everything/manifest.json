@@ -64,11 +64,8 @@
   "extensions": {
     "search": [
       {
-        "id": "everything",
-        "title": "Everything",
         "icon": "magnifying-glass",
-        "scope": "global",
-        "command": "search.query"
+        "scope": "global"
       }
     ]
   }

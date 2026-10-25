@@ -326,7 +326,10 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // Runs before Core opens the file: extract in place, never fall through
         // for a valid archive. A password-protected archive hands control to
         // the preview panel so the user can type the password.
-        "archive.beforeOpen" => {
+        "hooks.invoke" => {
+            if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
+                return Ok(json!({ "handled": false }));
+            }
             let path = param(p, "path")?;
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);

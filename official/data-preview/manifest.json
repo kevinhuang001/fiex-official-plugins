@@ -85,7 +85,6 @@
       }
     },
     "info": {
-      "id": "data.info",
       "priority": 100,
       "match": {
         "extensions": [

@@ -31,7 +31,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                     "view": {"source": "package", "entry": "ui/account.html"},
                     "state": {
                         "connectionId": p.get("connectionId").cloned().unwrap_or(Value::Null)
-                    }
+                    },
+                    "tabTitle": "示例账号"
                 })),
                 // The files factory navigates to Core's native Explorer. Core
                 // validates that this plugin registered extensions.vfs and owns

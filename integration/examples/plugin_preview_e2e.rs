@@ -75,6 +75,44 @@ fn main() {
     assert_eq!(context["resource"]["metadata"]["extension"], "zip");
     assert!(context["resource"]["read"]["resourceId"].is_string());
     assert_eq!(context["intent"], "preview");
+    let unified = fiex_lib::plugin_preview::open_provider(
+        archive.to_str().unwrap(),
+        archive.to_str().unwrap(),
+        Some("plugin:org.fiex.archive:archive"),
+    )
+    .expect("unified plugin preview failed");
+    assert_eq!(unified["provider"], "压缩与解压");
+    assert_eq!(unified["view"]["kind"], "html", "{unified}");
+    assert_eq!(unified["view"]["pluginId"], "org.fiex.archive");
+
+    let text = root.join("hello.txt");
+    let builtin = fiex_lib::plugin_preview::open_provider(
+        text.to_str().unwrap(),
+        text.to_str().unwrap(),
+        Some("builtin:text"),
+    )
+    .expect("builtin text preview failed");
+    assert_eq!(builtin["view"]["kind"], "text");
+    assert_eq!(builtin["provider"], "Fiex");
+    assert!(builtin["view"]["text"]
+        .as_str()
+        .unwrap()
+        .contains("hello preview"));
+
+    let pdf = root.join("sample.pdf");
+    std::fs::write(
+        &pdf,
+        b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n",
+    )
+    .unwrap();
+    let pdf_view = fiex_lib::plugin_preview::open_provider(
+        pdf.to_str().unwrap(),
+        pdf.to_str().unwrap(),
+        Some("builtin:pdf"),
+    )
+    .expect("builtin pdf preview failed");
+    assert_eq!(pdf_view["view"]["kind"], "pdf");
+
     let (directory, paths) = fiex_lib::plugin_preview::session_scope(
         opened["sessionId"].as_str().unwrap(),
         "org.fiex.archive",

@@ -37,10 +37,20 @@ def main():
         if binary: archive.write(binary,entry)
         for contribution in manifest.get("extensions", {}).get("themes", []):
             archive.write(root/contribution["path"], contribution["path"])
-        ui=root/"ui"/"dist" if (root/"ui"/"dist").is_dir() else root/"ui"
+        ui_dist=root/"ui"/"dist"
+        ui=ui_dist if ui_dist.is_dir() else root/"ui"
         if ui.is_dir():
             for file in sorted(ui.rglob("*")):
                 if file.is_file() and not file.is_symlink():
                     archive.write(file,file.relative_to(root).as_posix())
+        # Panels may reference a source-level standalone document (for example
+        # archive's ui/preview.html) while the rest of the UI is built into
+        # ui/dist. Include those root documents as well, otherwise the packaged
+        # manifest points at a file that does not exist.
+        if ui_dist.is_dir() and (root/"ui").is_dir():
+            for file in sorted((root/"ui").glob("*.html")):
+                arcname=file.relative_to(root).as_posix()
+                if arcname not in archive.namelist():
+                    archive.write(file,arcname)
     print("Created",archive_path,archive_path.stat().st_size,"bytes")
 if __name__=="__main__":main()

@@ -91,6 +91,12 @@ fn main() {
     let state = Mutex::new(writes::State::default());
     if let Err(e) = sdk::serve("org.fiex.gdrive", move |ctx| {
         let method = ctx.method();
+        if method == "connection.open" {
+            let mount = ctx.params()["mountId"]
+                .as_str()
+                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+            return Ok(json!({"kind":"vfs","mountId":mount}));
+        }
         match method {
             "connection.validate"
             | "fs.list"

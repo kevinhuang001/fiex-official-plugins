@@ -278,6 +278,12 @@ fn main() {
     let sequence = AtomicU64::new(0);
     let result = sdk::serve("org.fiex.smb", move |ctx| {
         let method = ctx.method();
+        if method == "connection.open" {
+            let mount = ctx.params()["mountId"]
+                .as_str()
+                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+            return Ok(json!({"kind":"vfs","mountId":mount}));
+        }
         if matches!(method, "fs.stat" | "fs.writeFile") {
             return sync::dispatch(&ctx);
         }

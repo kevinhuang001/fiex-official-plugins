@@ -152,13 +152,17 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // ------------------------------------------------------------------
         // Context menu
         // ------------------------------------------------------------------
-        "contextMenu.resolve" => Ok(json!({
-            "items": [
+        "contextMenu.resolve" => {
+            if p.get("parentId").and_then(Value::as_str) == Some("example.more") {
+                return Ok(json!({"items": [
+                    {"id": "example.copy-path", "title": "示例：复制路径", "kind": "action"}
+                ]}));
+            }
+            Ok(json!({"items": [
                 {"id": "example.inspect", "title": "示例：检查文件", "kind": "action"},
-                {"id": "example.more", "title": "示例", "kind": "submenu"},
-                {"id": "example.copy-path", "title": "示例：复制路径", "kind": "action", "parentId": "example.more"}
-            ]
-        })),
+                {"id": "example.more", "title": "示例", "kind": "submenu"}
+            ]}))
+        },
         "contextMenu.execute" => {
             let item = p.get("itemId").and_then(Value::as_str).unwrap_or("");
             if !matches!(item, "example.inspect" | "example.copy-path") {

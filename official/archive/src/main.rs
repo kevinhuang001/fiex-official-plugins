@@ -79,11 +79,91 @@ fn archive_error(error: String) -> RpcError {
         RpcError::internal(error)
     }
 }
+fn archive_menu(params: &Value) -> Value {
+    let names = params["selectionNames"].as_array();
+    let selection = names.map_or(0, Vec::len);
+    if selection == 0 {
+        return json!({"items":[]});
+    }
+    let archive = |name: &str| {
+        ["zip","rar","7z","tar","gz","tgz","bz2","tbz2","xz","txz"]
+            .iter()
+            .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
+    };
+    let only_archive = selection == 1
+        && names
+            .and_then(|names| names.first())
+            .and_then(Value::as_str)
+            .is_some_and(archive);
+    if only_archive {
+        return json!({"items":[
+            {"id":"archive.extract","title":"解压缩","kind":"action"}
+        ]});
+    }
+    let formats = [
+        ("archive.zip", "ZIP"), ("archive.rar", "RAR"),
+        ("archive.7z", "7z"), ("archive.tar", "TAR"),
+        ("archive.tar.gz", "TAR.GZ"),
+        ("archive.tar.bz2", "TAR.BZ2"),
+        ("archive.tar.xz", "TAR.XZ"),
+        ("archive.advanced", "高级压缩…")
+    ];
+    let mut items = vec![json!({
+        "id":"archive.compress", "title":"压缩", "kind":"submenu"
+    })];
+    items.extend(formats.into_iter().map(|(id,title)| json!({
+        "id":id, "title":title, "kind":"action", "parentId":"archive.compress"
+    })));
+    json!({"items":items})
+}
+
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
-    let p = ctx.params();
+    let mut params = ctx.params().clone();
+    if method == "contextMenu.resolve" {
+        return Ok(archive_menu(&params));
+    }
+    let operation = if method == "contextMenu.execute" {
+        let item = params["itemId"]
+            .as_str()
+            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        if item == "archive.advanced" {
+            return Ok(json!({
+                "kind": "panel", "entry": "ui/dist/index.html",
+                "panelId": item, "title": "高级压缩",
+                "size": {"width":400,"height":420}
+            }));
+        }
+        let format = match item {
+            "archive.zip" => "zip",
+            "archive.rar" => "rar",
+            "archive.7z" => "7z",
+            "archive.tar" => "tar",
+            "archive.tar.gz" => "tar.gz",
+            "archive.tar.bz2" => "tar.bz2",
+            "archive.tar.xz" => "tar.xz",
+            "archive.extract" => "",
+            _ => return Err(RpcError::invalid_params("unknown menu action")),
+        };
+        if !format.is_empty() {
+            params["format"] = json!(format);
+            "archive.compress"
+        } else {
+            let selected = params["paths"]
+                .as_array()
+                .and_then(|paths| paths.first())
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing selection"))?
+                .to_owned();
+            params["path"] = json!(selected);
+            "archive.extract"
+        }
+    } else {
+        method
+    };
+    let p = &params;
     let host = &ctx;
-    match method {
+    match operation {
         "archive.compress" => {
             let paths = p
                 .get("paths")

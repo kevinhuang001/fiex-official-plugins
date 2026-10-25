@@ -84,6 +84,39 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
 pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
+    if method == "contextMenu.resolve" {
+        let count = p["selectionCount"].as_u64().unwrap_or(0);
+        if count == 0 {
+            return Ok(json!({"items":[]}));
+        }
+        let mut items = vec![json!({"id":"gpg.menu","title":"GPG","kind":"submenu"})];
+        for (id, title) in [
+            ("gpg.encrypt","加密…"),
+            ("gpg.decrypt","解密…"),
+            ("gpg.sign","签名…"),
+        ] {
+            items.push(json!({"id":id,"title":title,"kind":"action","parentId":"gpg.menu"}));
+        }
+        if count == 1 {
+            items.push(json!({"id":"gpg.verify","title":"验证签名…","kind":"action","parentId":"gpg.menu"}));
+        }
+        return Ok(json!({"items":items}));
+    }
+    if method == "contextMenu.execute" {
+        let item = p["itemId"].as_str().ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        let (title,width,height) = match item {
+            "gpg.encrypt" => ("GPG 加密",560,520),
+            "gpg.decrypt" => ("GPG 解密",520,400),
+            "gpg.sign" => ("GPG 签名",540,470),
+            "gpg.verify" if p["paths"].as_array().is_some_and(|paths| paths.len() == 1) => ("验证签名",520,420),
+            _ => return Err(RpcError::invalid_params("unknown or invalid GPG menu action")),
+        };
+        return Ok(json!({
+            "kind":"panel", "entry":"ui/dist/index.html",
+            "panelId":item, "title":title,
+            "size":{"width":width,"height":height}
+        }));
+    }
     let result = gpg::invoke(&args(method, p)?, &ctx)?;
     match method {
         "gpg.info" => {

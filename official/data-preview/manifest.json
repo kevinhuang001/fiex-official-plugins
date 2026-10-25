@@ -64,7 +64,6 @@
   },
   "extensions": {
     "preview": {
-      "id": "data",
       "priority": 110,
       "maxBytes": 268435456,
       "match": {

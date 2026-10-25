@@ -63,21 +63,18 @@
     }
   },
   "extensions": {
-    "connections": [
-      {
-        "id": "openlist",
-        "title": "OpenList",
-        "fields": [
-          {
-            "id": "url",
-            "label": "服务器地址",
-            "type": "url",
-            "required": true,
-            "placeholder": "https://openlist.example.com"
-          }
-        ]
-      }
-    ],
+    "connections": {
+      "title": "OpenList",
+      "fields": [
+        {
+          "id": "url",
+          "label": "服务器地址",
+          "type": "url",
+          "required": true,
+          "placeholder": "https://openlist.example.com"
+        }
+      ]
+    },
     "settings": [
       {
         "id": "username",
@@ -96,11 +93,8 @@
         "defaultValue": "30"
       }
     ],
-    "vfs": [
-      {
-        "id": "openlist",
-        "title": "OpenList"
-      }
-    ]
+    "vfs": {
+      "title": "OpenList"
+    }
   }
 }

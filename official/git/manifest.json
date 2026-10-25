@@ -67,21 +67,18 @@
     }
   },
   "extensions": {
-    "toolbar": [
-      {
-        "id": "git.main",
+    "toolbar": {
+      "title": "源代码管理",
+      "icon": "git-branch",
+      "panel": {
         "title": "源代码管理",
-        "icon": "git-branch",
-        "panel": {
-          "title": "源代码管理",
-          "entry": "ui/dist/index.html",
-          "defaultSize": {
-            "width": 480,
-            "height": 300
-          }
+        "entry": "ui/dist/index.html",
+        "defaultSize": {
+          "width": 480,
+          "height": 300
         }
       }
-    ],
+    },
     "settings": [
       {
         "id": "historyLimit",
@@ -90,13 +87,10 @@
         "defaultValue": "50"
       }
     ],
-    "vfs": [
-      {
-        "id": "history",
-        "title": "Git 历史",
-        "readOnly": true
-      }
-    ],
+    "vfs": {
+      "title": "Git 历史",
+      "readOnly": true
+    },
     "decorations": {
       "match": {
         "contains": [

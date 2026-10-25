@@ -26,44 +26,41 @@
     }
   },
   "extensions": {
-    "connections": [
-      {
-        "id": "ssh",
-        "title": "SSH",
-        "fields": [
-          {
-            "id": "host",
-            "label": "主机",
-            "type": "text",
-            "required": true,
-            "placeholder": "server.example.com"
-          },
-          {
-            "id": "port",
-            "label": "端口",
-            "type": "number",
-            "defaultValue": 22
-          },
-          {
-            "id": "username",
-            "label": "用户名",
-            "type": "text",
-            "placeholder": "root"
-          },
-          {
-            "id": "identityFile",
-            "label": "私钥文件（可选）",
-            "type": "text",
-            "placeholder": "~/.ssh/id_ed25519"
-          },
-          {
-            "id": "terminalType",
-            "label": "终端类型",
-            "type": "text",
-            "defaultValue": "xterm-256color"
-          }
-        ]
-      }
-    ]
+    "connections": {
+      "title": "SSH",
+      "fields": [
+        {
+          "id": "host",
+          "label": "主机",
+          "type": "text",
+          "required": true,
+          "placeholder": "server.example.com"
+        },
+        {
+          "id": "port",
+          "label": "端口",
+          "type": "number",
+          "defaultValue": 22
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text",
+          "placeholder": "root"
+        },
+        {
+          "id": "identityFile",
+          "label": "私钥文件（可选）",
+          "type": "text",
+          "placeholder": "~/.ssh/id_ed25519"
+        },
+        {
+          "id": "terminalType",
+          "label": "终端类型",
+          "type": "text",
+          "defaultValue": "xterm-256color"
+        }
+      ]
+    }
   }
 }

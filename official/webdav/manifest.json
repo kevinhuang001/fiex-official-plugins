@@ -79,41 +79,35 @@
         "defaultValue": "60"
       }
     ],
-    "connections": [
-      {
-        "id": "webdav",
-        "title": "WebDAV",
-        "fields": [
-          {
-            "id": "url",
-            "label": "服务器地址",
-            "type": "url",
-            "required": true,
-            "placeholder": "https://example.com/dav"
-          },
-          {
-            "id": "username",
-            "label": "用户名",
-            "type": "text"
-          },
-          {
-            "id": "password",
-            "label": "密码",
-            "type": "secret"
-          },
-          {
-            "id": "allowInvalidCerts",
-            "label": "允许自签名证书",
-            "type": "checkbox"
-          }
-        ]
-      }
-    ],
-    "vfs": [
-      {
-        "id": "webdav",
-        "title": "WebDAV"
-      }
-    ]
+    "connections": {
+      "title": "WebDAV",
+      "fields": [
+        {
+          "id": "url",
+          "label": "服务器地址",
+          "type": "url",
+          "required": true,
+          "placeholder": "https://example.com/dav"
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text"
+        },
+        {
+          "id": "password",
+          "label": "密码",
+          "type": "secret"
+        },
+        {
+          "id": "allowInvalidCerts",
+          "label": "允许自签名证书",
+          "type": "checkbox"
+        }
+      ]
+    },
+    "vfs": {
+      "title": "WebDAV"
+    }
   }
 }

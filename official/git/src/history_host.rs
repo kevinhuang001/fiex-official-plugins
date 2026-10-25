@@ -35,9 +35,6 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
     })
 }
 fn request_route(path: &str, host: &sdk::RequestContext) -> Result<Route, String> {
-    if host.params()["contributionId"].as_str() != Some("history") {
-        return Err("unknown VFS contribution".into());
-    }
     route(path, &host.params()["viewContext"]).ok_or_else(|| "无效历史上下文".into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.

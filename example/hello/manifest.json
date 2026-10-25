@@ -66,46 +66,22 @@
     }
   },
   "extensions": {
-    "connections": [
-      {
-        "id": "example-files",
-        "title": "示例文件",
-        "fields": [
-          {
-            "id": "server",
-            "label": "服务器地址",
-            "type": "text",
-            "required": true,
-            "placeholder": "demo.example.com"
-          }
-        ]
-      },
-      {
-        "id": "example-account",
-        "title": "示例账号",
-        "fields": [
-          {
-            "id": "account",
-            "label": "账号",
-            "type": "text",
-            "required": true
-          },
-          {
-            "id": "password",
-            "label": "密码",
-            "type": "secret",
-            "required": true
-          }
-        ]
-      }
-    ],
-    "vfs": [
-      {
-        "id": "example-files",
-        "title": "示例文件",
-        "readOnly": true
-      }
-    ],
+    "connections": {
+      "title": "示例文件",
+      "fields": [
+        {
+          "id": "server",
+          "label": "服务器地址",
+          "type": "text",
+          "required": true,
+          "placeholder": "demo.example.com"
+        }
+      ]
+    },
+    "vfs": {
+      "title": "示例文件",
+      "readOnly": true
+    },
     "decorations": {
       "match": {
         "extensions": [
@@ -118,27 +94,18 @@
       },
       "priority": 80
     },
-    "toolbar": [
-      {
-        "id": "example.home",
+    "toolbar": {
+      "title": "示例插件",
+      "icon": "puzzle",
+      "panel": {
+        "entry": "ui/index.html",
         "title": "示例插件",
-        "icon": "puzzle",
-        "panel": {
-          "entry": "ui/index.html",
-          "title": "示例插件",
-          "defaultSize": {
-            "width": 460,
-            "height": 340
-          }
+        "defaultSize": {
+          "width": 460,
+          "height": 340
         }
-      },
-      {
-        "id": "example.refresh",
-        "title": "刷新示例",
-        "icon": "refresh-cw",
-        "command": "example.refresh"
       }
-    ],
+    },
     "contextMenus": {
       "match": {
         "extensions": [
@@ -166,7 +133,6 @@
       }
     },
     "preview": {
-      "id": "example.preview",
       "priority": 60,
       "match": {
         "extensions": [
@@ -179,11 +145,9 @@
         ]
       }
     },
-    "search": [
-      {
-        "icon": "magnifying-glass"
-      }
-    ],
+    "search": {
+      "icon": "magnifying-glass"
+    },
     "settings": [
       {
         "id": "greeting",
@@ -192,15 +156,13 @@
         "defaultValue": "你好"
       }
     ],
-    "hooks": [
-      {
-        "event": "beforeOpen",
-        "priority": 100,
-        "extensions": [
-          "txt",
-          "md"
-        ]
-      }
-    ]
+    "hooks": {
+      "event": "beforeOpen",
+      "priority": 100,
+      "extensions": [
+        "txt",
+        "md"
+      ]
+    }
   }
 }

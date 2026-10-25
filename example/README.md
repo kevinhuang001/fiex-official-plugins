@@ -161,17 +161,17 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 ### Manifest 方法 ↔ Rust `match` 分支
 
-| Manifest            | Rust 侧处理                                                                               |
-| ------------------- | ----------------------------------------------------------------------------------------- |
-| `connections[].id`  | `connection.validate` / `connection.open` / `connection.create`                           |
-| `vfs[]`             | `fs.list` / `fs.stat` / `fs.readSmall` / `fs.openRead` / `fs.readStream` / `fs.closeRead` |
-| `decorations`       | `decorations.resolve`                                                                     |
-| `info`              | `info.resolve`                                                                            |
-| `preview`           | `preview.open`                                                                            |
-| `contextMenus`      | `contextMenu.resolve` / `contextMenu.execute`                                             |
-| `search[].id`       | Core 固定调用 `search.query`，没有 command 字段                                           |
-| `toolbar[].command` | 自己的命令名，例如 `example.refresh`                                                      |
-| `hooks[].event`     | Core 固定调用 `hooks.invoke`，插件按 event 分支                                           |
+| Manifest           | Rust 侧处理                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `connections[].id` | `connection.validate` / `connection.open` / `connection.create`                           |
+| `vfs[]`            | `fs.list` / `fs.stat` / `fs.readSmall` / `fs.openRead` / `fs.readStream` / `fs.closeRead` |
+| `decorations`      | `decorations.resolve`                                                                     |
+| `info`             | `info.resolve`                                                                            |
+| `preview`          | `preview.open`                                                                            |
+| `contextMenus`     | `contextMenu.resolve` / `contextMenu.execute`                                             |
+| `search[].id`      | Core 固定调用 `search.query`，没有 command 字段                                           |
+| `toolbar`          | 固定调用 `toolbar.invoke`；有 panel 时由 Core 打开面板                                    |
+| `hooks[].event`    | Core 固定调用 `hooks.invoke`，插件按 event 分支                                           |
 
 完整分支见 [`hello/src/main.rs`](hello/src/main.rs)：
 
@@ -205,27 +205,13 @@ Manifest 示例：
 
 ```json
 "extensions": {
-  "connections": [
-    {
-      "id": "example-files",
-      "title": "示例文件",
-      "fields": [
-        { "id": "server", "label": "服务器地址", "type": "text", "required": true }
-      ]
-    },
-    {
-      "id": "example-account",
-      "title": "示例账号",
-      "fields": [
-        { "id": "account", "label": "账号", "type": "text", "required": true },
-        { "id": "password", "label": "密码", "type": "secret", "required": true }
-      ]
-    }
-  ],
-  "vfs": [
-    { "id": "example-files", "title": "示例文件", "readOnly": true }
-  ]
-}
+  "connections": {
+    "title": "示例文件",
+    "fields": [
+      { "id": "server", "label": "服务器地址", "type": "text", "required": true }
+    ]
+  },
+  "vfs": { "title": "示例文件", "readOnly": true }
 ```
 
 要点：
@@ -383,24 +369,15 @@ Core 会审核动态返回值，非法值会被丢弃：
 Manifest：
 
 ```json
-"toolbar": [
-  {
-    "id": "example.home",
+"toolbar": {
+  "title": "示例插件",
+  "icon": "puzzle",
+  "panel": {
+    "entry": "ui/index.html",
     "title": "示例插件",
-    "icon": "puzzle",
-    "panel": {
-      "entry": "ui/index.html",
-      "title": "示例插件",
-      "defaultSize": { "width": 460, "height": 340 }
-    }
-  },
-  {
-    "id": "example.refresh",
-    "title": "刷新示例",
-    "icon": "refresh-cw",
-    "command": "example.refresh"
+    "defaultSize": { "width": 460, "height": 340 }
   }
-]
+}
 ```
 
 两种形态：
@@ -425,22 +402,20 @@ const value = await invoke("plugin.invoke", {
 
 `plugin.invoke` 只能调用插件自己的业务方法；`host.*`、`fs.*`、`vfs.*`、`connection.*` 等宿主方法会被 Core 拒绝。
 
-### 5.2 `command`：只执行一个 native 方法
+### 5.2 没有 panel：固定调用 `toolbar.invoke`
 
-Core 用 `plugin_invoke` 调用：
+工具栏每个插件只有一个入口。没有 `panel` 时，Core 调用：
 
 ```json
 {
-  "method": "example.refresh",
-  "params": { "root": "/Users/me/Documents" },
+  "method": "toolbar.invoke",
+  "params": { "root": "/Users/me/Documents", "selection": [] },
   "directory": "/Users/me/Documents",
   "selectedPaths": ["/Users/me/Documents"]
 }
 ```
 
-适合“立即执行、不需要 UI”的动作。要展示结果，请改用 `panel`。
-
----
+插件在 `toolbar.invoke` 里按当前上下文自行分支，不再声明 command。
 
 ## 6. UI Bridge 最小协议
 
@@ -488,19 +463,19 @@ for (const [key, value] of Object.entries(tokens)) {
 
 `extensions` 里每个扩展点都是独立的注册项；可以只实现其中一个。
 
-| 扩展点         | 声明                                 | 触发                                                       |
-| -------------- | ------------------------------------ | ---------------------------------------------------------- |
-| `contextMenus` | `true` 或 `{match}`                  | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
-| `decorations`  | `{match?,priority?}`                 | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
-| `info`         | `{match?,priority?,command?}`        | 用户“显示简介” → `info.resolve`                            |
-| `preview`      | `{id,match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
-| `connections`  | `[{id,title,fields}]`                | 添加连接 / 点击连接 → `connection.create/open`             |
-| `vfs`          | `[{id,title,readOnly?}]`             | Core Explorer 的文件树请求                                 |
-| `search`       | `[{icon?,scope?}]`                   | 搜索框 → 固定 `search.query`                               |
-| `toolbar`      | `[{id,title,icon?,panel?/command?}]` | 工具栏点击                                                 |
-| `settings`     | `[{id,label,type,...}]`              | 设置页渲染；值通过 `ctx.storage_*`                         |
-| `hooks`        | `[{event,priority?,match?}]`         | 文件生命周期 → 固定 `hooks.invoke`                         |
-| `themes`       | `[{path}]`                           | 主题包；声明式 JSON，不含代码                              |
+| 扩展点         | 声明                              | 触发                                                       |
+| -------------- | --------------------------------- | ---------------------------------------------------------- |
+| `contextMenus` | `true` 或 `{match}`               | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
+| `decorations`  | `{match?,priority?}`              | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
+| `info`         | `{match?,priority?}`              | 用户“显示简介” → 固定 `info.resolve`                       |
+| `preview`      | `{id,match?,priority?,maxBytes?}` | 用户预览 → `preview.open`                                  |
+| `connections`  | `[{id,title,fields}]`             | 添加连接 / 点击连接 → `connection.create/open`             |
+| `vfs`          | `[{id,title,readOnly?}]`          | Core Explorer 的文件树请求                                 |
+| `search`       | `[{icon?,scope?}]`                | 搜索框 → 固定 `search.query`                               |
+| `toolbar`      | `{title,icon?,panel?}`            | 工具栏点击 → 固定 `toolbar.invoke`                         |
+| `settings`     | `[{id,label,type,...}]`           | 设置页渲染；值通过 `ctx.storage_*`                         |
+| `hooks`        | `[{event,priority?,match?}]`      | 文件生命周期 → 固定 `hooks.invoke`                         |
+| `themes`       | `[{path}]`                        | 主题包；声明式 JSON，不含代码                              |
 
 `match` 对所有带条件的扩展点通用：
 
@@ -592,7 +567,6 @@ Manifest：
 
 ```json
 "preview": {
-  "id": "example.preview",
   "match": {
     "extensions": ["txt", "md", "log"],
     "mimeTypes": ["text/*"],
@@ -671,9 +645,10 @@ Manifest：
 Manifest：
 
 ```json
-"search": [
-  { "icon": "magnifying-glass", "scope": "global" }
-]
+"search": {
+  "icon": "magnifying-glass",
+  "scope": "global"
+}
 ```
 
 Core 传入：
@@ -757,13 +732,11 @@ Manifest：
   "hooks": { "enabled": true }
 },
 "extensions": {
-  "hooks": [
-    {
-      "event": "beforeOpen",
-      "priority": 100,
-      "match": { "extensions": ["txt", "md"], "kinds": ["file"] }
-    }
-  ]
+  "hooks": {
+    "event": "beforeOpen",
+    "priority": 100,
+    "match": { "extensions": ["txt", "md"], "kinds": ["file"] }
+  }
 }
 ```
 

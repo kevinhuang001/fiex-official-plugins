@@ -66,37 +66,31 @@
     }
   },
   "extensions": {
-    "connections": [
-      {
-        "id": "gdrive",
-        "title": "Google Drive",
-        "fields": [
-          {
-            "id": "clientId",
-            "label": "OAuth 客户端 ID",
-            "type": "text",
-            "required": true
-          },
-          {
-            "id": "clientSecret",
-            "label": "OAuth 客户端密钥",
-            "type": "secret",
-            "required": true
-          },
-          {
-            "id": "refreshToken",
-            "label": "OAuth 刷新令牌（Drive 读写权限）",
-            "type": "secret",
-            "required": true
-          }
-        ]
-      }
-    ],
-    "vfs": [
-      {
-        "id": "gdrive",
-        "title": "Google Drive"
-      }
-    ]
+    "connections": {
+      "title": "Google Drive",
+      "fields": [
+        {
+          "id": "clientId",
+          "label": "OAuth 客户端 ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "clientSecret",
+          "label": "OAuth 客户端密钥",
+          "type": "secret",
+          "required": true
+        },
+        {
+          "id": "refreshToken",
+          "label": "OAuth 刷新令牌（Drive 读写权限）",
+          "type": "secret",
+          "required": true
+        }
+      ]
+    },
+    "vfs": {
+      "title": "Google Drive"
+    }
   }
 }

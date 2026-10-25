@@ -64,7 +64,6 @@
   },
   "extensions": {
     "preview": {
-      "id": "office",
       "priority": 100,
       "maxBytes": 33554432,
       "match": {

@@ -28,20 +28,17 @@
   },
   "extensions": {
     "contextMenus": true,
-    "toolbar": [
-      {
-        "id": "gpg.keys",
-        "title": "公钥管理",
-        "icon": "key-round",
-        "panel": {
-          "entry": "ui/dist/index.html",
-          "title": "GPG 公钥管理",
-          "defaultSize": {
-            "width": 420,
-            "height": 460
-          }
+    "toolbar": {
+      "title": "公钥管理",
+      "icon": "key-round",
+      "panel": {
+        "entry": "ui/dist/index.html",
+        "title": "GPG 公钥管理",
+        "defaultSize": {
+          "width": 420,
+          "height": 460
         }
       }
-    ]
+    }
   }
 }

@@ -64,7 +64,7 @@ fn main() {
         archive.to_str().unwrap(),
         archive.to_str().unwrap(),
         "org.fiex.archive",
-        "archive",
+        "org.fiex.archive",
     )
     .expect("archive preview.open failed");
     assert_eq!(opened["view"]["kind"], "html", "{opened}");
@@ -78,7 +78,7 @@ fn main() {
     let unified = fiex_lib::plugin_preview::open_provider(
         archive.to_str().unwrap(),
         archive.to_str().unwrap(),
-        Some("plugin:org.fiex.archive:archive"),
+        Some("plugin:org.fiex.archive"),
     )
     .expect("unified plugin preview failed");
     assert_eq!(unified["provider"], "压缩与解压");

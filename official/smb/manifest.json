@@ -73,54 +73,48 @@
         "defaultValue": "90"
       }
     ],
-    "connections": [
-      {
-        "id": "smb",
-        "title": "SMB 网络共享",
-        "fields": [
-          {
-            "id": "host",
-            "label": "主机",
-            "type": "text",
-            "required": true,
-            "placeholder": "nas.local"
-          },
-          {
-            "id": "port",
-            "label": "端口",
-            "type": "number",
-            "defaultValue": "445"
-          },
-          {
-            "id": "share",
-            "label": "共享名",
-            "type": "text",
-            "required": true,
-            "placeholder": "Public"
-          },
-          {
-            "id": "base",
-            "label": "子路径",
-            "type": "text"
-          },
-          {
-            "id": "username",
-            "label": "用户名",
-            "type": "text"
-          },
-          {
-            "id": "password",
-            "label": "密码",
-            "type": "secret"
-          }
-        ]
-      }
-    ],
-    "vfs": [
-      {
-        "id": "smb",
-        "title": "SMB / NAS"
-      }
-    ]
+    "connections": {
+      "title": "SMB 网络共享",
+      "fields": [
+        {
+          "id": "host",
+          "label": "主机",
+          "type": "text",
+          "required": true,
+          "placeholder": "nas.local"
+        },
+        {
+          "id": "port",
+          "label": "端口",
+          "type": "number",
+          "defaultValue": "445"
+        },
+        {
+          "id": "share",
+          "label": "共享名",
+          "type": "text",
+          "required": true,
+          "placeholder": "Public"
+        },
+        {
+          "id": "base",
+          "label": "子路径",
+          "type": "text"
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text"
+        },
+        {
+          "id": "password",
+          "label": "密码",
+          "type": "secret"
+        }
+      ]
+    },
+    "vfs": {
+      "title": "SMB / NAS"
+    }
   }
 }

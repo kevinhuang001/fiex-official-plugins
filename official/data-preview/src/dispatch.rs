@@ -5,7 +5,6 @@ use fiex_plugin_sdk::RpcError;
 use serde_json::Value;
 use std::sync::Mutex;
 
-
 fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
     let bytes = ctx
         .files()

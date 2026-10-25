@@ -24,7 +24,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let path = ctx.targets()
+        let path = ctx
+            .targets()
             .first()
             .and_then(sdk::ResourceContext::name)
             .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;

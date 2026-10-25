@@ -49,7 +49,8 @@ pub(crate) fn dispatch(
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let name = ctx.targets()
+        let name = ctx
+            .targets()
             .first()
             .and_then(sdk::ResourceContext::name)
             .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;

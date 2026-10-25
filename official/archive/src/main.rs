@@ -210,7 +210,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         return Ok(json!({"decorations": decorations}));
     }
     if method == "info.resolve" {
-        let name = ctx.targets()
+        let name = ctx
+            .targets()
             .first()
             .and_then(sdk::ResourceContext::name)
             .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?.to_owned();

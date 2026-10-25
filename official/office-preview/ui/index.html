@@ -81,7 +81,7 @@
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
             const name =
-              context.resource?.metadata?.name || context.preview?.name || ''
+              context.target?.metadata?.name || context.preview?.name || ''
             if (!name) throw new Error('没有文件上下文')
             const value = await invoke('plugin.invoke', {
               method: 'office.render',

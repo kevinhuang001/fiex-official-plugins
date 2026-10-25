@@ -55,7 +55,7 @@
                 document.documentElement.style.setProperty(`--${key}`, value)
             }
             const view = await invoke('context.get')
-            const metadata = view.resource?.metadata || {}
+            const metadata = view.target?.metadata || {}
             document.getElementById('name').textContent = metadata.name || '—'
             document.getElementById('extension').textContent = metadata.extension || '—'
             document.getElementById('session').textContent = view.sessionId || sessionId

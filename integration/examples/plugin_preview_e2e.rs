@@ -1,4 +1,4 @@
-//! Cross-repository test for the standard PreviewContext/PreviewView contract.
+//! Cross-repository test for the standard event request/PreviewView contract.
 use fiex_lib::plugin_host;
 use serde_json::json;
 
@@ -71,10 +71,12 @@ fn main() {
     let html = opened["view"]["html"].as_str().unwrap();
     assert!(html.to_ascii_lowercase().contains("<html"), "{opened}");
     let context = &opened["context"];
-    assert_eq!(context["resource"]["metadata"]["name"], "bundle.zip");
-    assert_eq!(context["resource"]["metadata"]["extension"], "zip");
-    assert!(context["resource"]["read"]["resourceId"].is_string());
-    assert_eq!(context["intent"], "preview");
+    assert_eq!(context["target"]["metadata"]["name"], "bundle.zip");
+    assert_eq!(context["target"]["metadata"]["extension"], "zip");
+    assert!(context["target"]["ref"]["nodeId"].is_string());
+    assert!(context["target"].get("read").is_none());
+    assert!(context["options"].is_object());
+    assert!(context.get("intent").is_none());
     let unified = fiex_lib::plugin_preview::open_provider(
         archive.to_str().unwrap(),
         archive.to_str().unwrap(),
@@ -113,13 +115,17 @@ fn main() {
     .expect("builtin pdf preview failed");
     assert_eq!(pdf_view["view"]["kind"], "pdf");
 
-    let (directory, paths) = fiex_lib::plugin_preview::session_scope(
+    let scope = fiex_lib::plugin_preview::session_scope(
         opened["sessionId"].as_str().unwrap(),
         "org.fiex.archive",
     )
     .expect("preview session scope");
-    assert_eq!(std::path::Path::new(&directory), root);
-    assert_eq!(paths, vec![archive.clone()]);
+    assert_eq!(scope.path(), root);
+    assert_eq!(
+        scope.resolve_reference(&context["target"]["ref"]).unwrap(),
+        archive.to_str().unwrap()
+    );
+    assert!(scope.authorize(source.to_str().unwrap()).is_err());
 
     // Without files.read Core must not project a read capability.
     let (manifest, _) = plugin_host::installed_manifests()
@@ -138,5 +144,5 @@ fn main() {
 
     plugin_host::global().stop("org.fiex.archive");
     std::fs::remove_dir_all(&root).ok();
-    println!("PASS: standard PreviewContext/PreviewView and scoped preview session");
+    println!("PASS: standard event request/PreviewView and scoped preview session");
 }

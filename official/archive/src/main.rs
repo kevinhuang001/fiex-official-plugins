@@ -123,9 +123,9 @@ fn archive_menu(params: &Value) -> Value {
     json!({"items":items})
 }
 
-fn context_name(params: &Value) -> Result<&str, RpcError> {
-    params
-        .pointer("/resource/metadata/name")
+fn context_name(ctx: &sdk::RequestContext) -> Result<&str, RpcError> {
+    ctx.target()
+        .and_then(|target| target.pointer("/metadata/name"))
         .and_then(Value::as_str)
         .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
 }
@@ -215,7 +215,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         return Ok(json!({"decorations": decorations}));
     }
     if method == "info.resolve" {
-        let name = context_name(&params)?.to_owned();
+        let name = context_name(&ctx)?.to_owned();
         let rows = archive_info(&json!({"path": name}), &ctx)?;
         return Ok(
             json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),

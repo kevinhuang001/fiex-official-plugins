@@ -1,18 +1,15 @@
 mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-fn context_name(params: &Value) -> Result<&str, RpcError> {
-    params
-        .pointer("/resource/metadata/name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
-}
-
 fn checksum_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Vec<Value>, RpcError> {
     let files = ctx.files();
     let reader = files
         .open_read(path)
         .map_err(|error| RpcError::internal(error.to_string()))?;
+    hash_rows(reader)
+}
+
+fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
     let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
     Ok(hashes
         .into_iter()
@@ -30,8 +27,17 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let path = context_name(p)?;
-        let rows = checksum_rows(&ctx, path)?;
+        let reference = ctx
+            .target()
+            .and_then(|target| target.get("ref"))
+            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        let reference: sdk::ResourceRef = serde_json::from_value(reference.clone())
+            .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+        let reader = ctx
+            .files()
+            .open_ref(&reference)
+            .map_err(|error| RpcError::internal(error.to_string()))?;
+        let rows = hash_rows(reader)?;
         return Ok(json!({"sections":[{"id":"checksum","title":"校验和","rows":rows}]}));
     }
     match method {

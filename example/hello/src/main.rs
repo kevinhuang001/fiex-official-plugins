@@ -119,12 +119,14 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // Info / Preview
         // ------------------------------------------------------------------
         "info.resolve" => {
-            let name = p
-                .pointer("/resource/metadata/name")
+            let name = ctx
+                .target()
+                .and_then(|target| target.pointer("/metadata/name"))
                 .and_then(Value::as_str)
                 .unwrap_or("unknown");
-            let extension = p
-                .pointer("/resource/metadata/extension")
+            let extension = ctx
+                .target()
+                .and_then(|target| target.pointer("/metadata/extension"))
                 .and_then(Value::as_str)
                 .unwrap_or("");
             let greeting = ctx

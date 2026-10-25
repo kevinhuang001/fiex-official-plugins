@@ -53,14 +53,12 @@ panels/commands.
 
 ## Info and preview contracts
 
-Info and preview are standard events, not command/panel declarations. A plugin
-registers `extensions.info` / `extensions.preview` with `id`, `title`,
-`match`, optional `priority`/`maxBytes`, then implements `info.resolve`
-with an `InfoContext` and `preview.open` with a `PreviewContext`. Core projects
-`metadata` and a scoped `read.resourceId` according to the plugin's grants and
-returns the decoded `InfoResponse` / `PreviewView`; preview HTML is returned as
-a package-confined `view.entry` instead of being listed in the manifest. See
-`fiex/docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
+Info and Preview share the `target / selection / options` request envelope.
+Use `ctx.target()` / `ctx.selection()` and business-specific `ctx.params()`;
+open resource references through `ctx.files().open_ref(&reference)`. Core applies
+metadata projection and operation scope checks. Info returns bounded sections,
+Preview returns its own package-confined view. See Core's
+`docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
 
 ## UI builds
 

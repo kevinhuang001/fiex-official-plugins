@@ -8,13 +8,13 @@ Info 只在用户点击“显示简介”时调用，不会在目录列表阶段
 用户点“显示简介”
       │
       ▼
-Core 构造 InfoContext（单个资源）
+Core 构造 统一事件请求（单个资源）
       │  match 命中？
       ▼
 info.resolve
       │
       ▼
-InfoResponse.sections → Core 合并 core.metadata
+sections → Core 合并 core.metadata
 ```
 
 每个插件最多注册**一个** info 对象，不是数组。
@@ -45,12 +45,10 @@ InfoResponse.sections → Core 合并 core.metadata
 
 ```rust
 "info.resolve" => {
-    let name = p
-        .pointer("/resource/metadata/name")
+    let name = ctx.target().and_then(|target| target.pointer("/metadata/name"))
         .and_then(Value::as_str)
         .unwrap_or("unknown");
-    let extension = p
-        .pointer("/resource/metadata/extension")
+    let extension = ctx.target().and_then(|target| target.pointer("/metadata/extension"))
         .and_then(Value::as_str)
         .unwrap_or("");
     let greeting = ctx

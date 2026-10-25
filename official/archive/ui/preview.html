@@ -224,7 +224,7 @@
           try {
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
-            path = context.resource?.metadata?.name || context.preview?.name || ''
+            path = context.target?.metadata?.name || context.preview?.name || ''
             if (!path) return fail(new Error('没有文件上下文'))
             await load()
           } catch (error) { fail(error) }

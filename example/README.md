@@ -144,7 +144,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let setting = ctx.storage_get("global", "greeting")?;
     ctx.storage_set("global", "greeting", json!("嗨"))?;
 
-    let mut reader = ctx.files().open_resource("fiex-read:...", "session")?;
+    let reference: sdk::ResourceRef = serde_json::from_value(ctx.target().unwrap()["ref"].clone())?;
+    let mut reader = ctx.files().open_ref(&reference)?;
     let output = ctx.process_run("git", &["status".into()], None)?;
     Ok(json!({"method": method, "params": p, "setting": setting}))
 }
@@ -152,7 +153,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 | 方法                       | 用途                          | 需要的权限                |
 | -------------------------- | ----------------------------- | ------------------------- |
-| `ctx.files()`              | 读/写/列目录、`open_resource` | `files.*` / `folders.*`   |
+| `ctx.files()`              | 读/写/列目录、`open_ref` | `files.*` / `folders.*`   |
 | `ctx.process_run()`        | 运行声明过的外部命令          | `commands.enabled/allow`  |
 | `ctx.http()` / `ctx.tcp()` | 经 Core 代理访问网络          | `network.enabled/domains` |
 | `ctx.storage_get/set()`    | 普通设置                      | 无                        |
@@ -178,7 +179,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 - `connection.open` 返回 `vfs` 或 `pluginView`；
 - `fs.*` 返回 Core 要求的 VFS 结构；
 - `decorations.resolve` 只返回当前目录成员的 `name`；
-- `info.resolve` 返回标准 `InfoResponse`；
+- `info.resolve` 返回标准 `sections 响应`；
 - `preview.open` 返回 `PreviewView` 的 `{kind:"html", view:{...}}`；
 - `contextMenu.resolve/execute` 返回扁平菜单；
 - `search.query` 返回空结果，展示 SearchResponse 外形；
@@ -513,14 +514,13 @@ Manifest：
 }
 ```
 
-Core 会构造 `InfoContext`：
+Core 会构造 `统一事件请求`：
 
 ```json
 {
-  "version": 1,
-  "sessionId": "opaque",
-  "intent": "info",
-  "resource": {
+  "selection": [],
+  "options": {},
+  "target": {
     "ref": { "mountId": "local", "nodeId": "fiex-resource:..." },
     "metadata": {
       "name": "notes.md",
@@ -529,13 +529,12 @@ Core 会构造 `InfoContext`：
       "mime": "text/markdown",
       "size": 2451,
       "modified": 1792920000
-    },
-    "read": { "resourceId": "fiex-read:..." }
+    }
   }
 }
 ```
 
-`metadata` 只在 `permissions.metadata.enabled` 时出现；`read` 只在 `permissions.files.read.enabled` 时出现。
+`metadata` 按 Metadata 权限投影；读取 `ref` 仍需通过当前操作 Scope 与 FilesRead 检查。
 
 插件返回：
 
@@ -577,7 +576,7 @@ Manifest：
 }
 ```
 
-Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）。插件返回 `PreviewView`：
+Core 传入 `统一事件请求`（与 Info 共用 target、selection、options）。插件返回 `PreviewView`：
 
 ```json
 {
@@ -598,7 +597,7 @@ Core 传入 `PreviewContext`（和 InfoContext 同形，`intent: "preview"`）�
 - `kind: "html"` 的 `entry` 必须是包内单层相对路径；Core 会校验并注入 CSP；
 - **Manifest 不再写 `panel`**；页面由 `preview.open` 的返回值决定；
 - 预览页面不要再画标题栏，Core 已经提供；
-- 需要读文件时用 `resource.metadata.name` + `ctx.files()`，或用 `read.resourceId` + `ctx.files().open_resource(...)`；
+资源引用不携带权限；读取使用 `ctx.files().open_ref(&reference)`，Core 校验当前操作 Scope 和 FilesRead。
 - 内置 text/image/media/pdf/fallback 与插件都走同一个 Registry，按 priority 和用户偏好排序。
 
 示例实现见 `hello/src/main.rs` 的 `preview.open`，页面见 `hello/ui/preview.html`。

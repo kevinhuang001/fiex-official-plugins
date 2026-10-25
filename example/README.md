@@ -3,7 +3,7 @@
 这个目录是一份**可以直接编译、安装、改着玩**的插件示例，重点是三件事：
 
 1. **Connection**：连接入口怎么声明，`connection.open` 怎么返回 VFS 或全宽 `pluginView`。
-2. **Decoration**：怎么给文件名、时间、大小、种类加颜色和 badge；静态规则和动态事件各怎么写。
+2. **Decoration**：怎么给文件名、时间、大小、种类加颜色和 badge；Core 现在只支持动态 decorations。
 3. **Toolbar**：工具栏按钮怎么声明成面板或命令，面板里的 UI 怎么和 native 进程通信。
 
 示例插件在 [`hello/`](hello/)，包 ID 是 `org.example.hello`。
@@ -34,6 +34,7 @@ org.example.hello/
   ui/
     index.html
     account.html
+    preview.html
 ```
 
 然后放到 Fiex 的插件目录（开发时可用 `FIEX_PLUGIN_DIR` 指向它），在设置里启用并逐项批准权限。
@@ -85,6 +86,116 @@ org.example.hello/
 `metadata` 只给属性，不等于能读文件内容；`folders.read` 才能列目录；`files.read` 才能读字节。需要写文件时再分别申请 `files.write` / `files.create` / `files.delete` / `files.rename`。
 
 ---
+
+## 2.5 Rust 端：从 `main` 到 `dispatch`
+
+`example/hello/src/main.rs` 就是完整的 native 端实现。最小结构只有三部分：
+
+```rust
+use fiex_plugin_sdk::{self as sdk, RpcError};
+use serde_json::{json, Value};
+
+fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    match ctx.method() {
+        "example.greet" => Ok(json!({"message": "你好，Fiex！"})),
+        _ => Err(RpcError::method_not_found(ctx.method())),
+    }
+}
+
+fn main() {
+    if let Err(error) = sdk::serve("org.example.hello", run) {
+        eprintln!("插件启动失败：{error}");
+        std::process::exit(1);
+    }
+}
+```
+
+`Cargo.toml`：
+
+```toml
+[package]
+name = "fiex-plugin-example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fiex-plugin-sdk = { path = "../../sdk/rust" }
+serde_json = "1"
+```
+
+`sdk::serve` 负责：
+
+- 读写 Content-Length + JSON-RPC 2.0 帧；
+- 处理 `initialize` 握手、并发请求、取消和退出；
+- 把 `method` / `params` 包成 `RequestContext` 交给 `run`；
+- 把 `Ok(Value)` / `Err(RpcError)` 编码回 Core。
+
+**不要**自己往 stdout 打印日志或调试信息；stdout 是 IPC 通道。日志写 `stderr`。
+
+### `RequestContext` 常用方法
+
+```rust
+fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let p = ctx.params();                    // 原始 JSON 参数
+
+    let setting = ctx.storage_get("global", "greeting")?;
+    ctx.storage_set("global", "greeting", json!("嗨"))?;
+
+    let mut reader = ctx.files().open_resource("fiex-read:...", "session")?;
+    let output = ctx.process_run("git", &["status".into()], None)?;
+    Ok(json!({"method": method, "params": p, "setting": setting}))
+}
+```
+
+| 方法                       | 用途                          | 需要的权限                |
+| -------------------------- | ----------------------------- | ------------------------- |
+| `ctx.files()`              | 读/写/列目录、`open_resource` | `files.*` / `folders.*`   |
+| `ctx.process_run()`        | 运行声明过的外部命令          | `commands.enabled/allow`  |
+| `ctx.http()` / `ctx.tcp()` | 经 Core 代理访问网络          | `network.enabled/domains` |
+| `ctx.storage_get/set()`    | 普通设置                      | 无                        |
+| `ctx.secret_get/set()`     | 钥匙串                        | 无                        |
+| `ctx.report_error()`       | 上报 UI 错误                  | 无                        |
+
+### Manifest 方法 ↔ Rust `match` 分支
+
+| Manifest            | Rust 侧处理                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `connections[].id`  | `connection.validate` / `connection.open` / `connection.create`                           |
+| `vfs[]`             | `fs.list` / `fs.stat` / `fs.readSmall` / `fs.openRead` / `fs.readStream` / `fs.closeRead` |
+| `decorations`       | `decorations.resolve`                                                                     |
+| `info`              | `info.resolve`                                                                            |
+| `preview`           | `preview.open`                                                                            |
+| `contextMenus`      | `contextMenu.resolve` / `contextMenu.execute`                                             |
+| `search[].command`  | 默认 `search.query`，也可写自己的命令名                                                   |
+| `toolbar[].command` | 自己的命令名，例如 `example.refresh`                                                      |
+| `hooks[].method`    | 自己的 hook 方法，例如 `example.beforeOpen`                                               |
+
+完整分支见 [`hello/src/main.rs`](hello/src/main.rs)：
+
+- `connection.open` 返回 `vfs` 或 `pluginView`；
+- `fs.*` 返回 Core 要求的 VFS 结构；
+- `decorations.resolve` 只返回当前目录成员的 `name`；
+- `info.resolve` 返回标准 `InfoResponse`；
+- `preview.open` 返回 `PreviewView` 的 `{kind:"html", view:{...}}`；
+- `contextMenu.resolve/execute` 返回扁平菜单；
+- `search.query` 返回空结果，展示 SearchResponse 外形；
+- `example.beforeOpen` 是 hooks 合同示例（Core 生命周期接线前不会自动调用）。
+
+### 编译和自测
+
+```sh
+cargo fmt --manifest-path example/hello/Cargo.toml
+cargo clippy --manifest-path example/hello/Cargo.toml -- -D warnings
+cargo build --manifest-path example/hello/Cargo.toml
+
+python sdk/rust/examples/check_plugin.py \
+  --binary example/hello/target/debug/fiex-plugin-example \
+  --plugin-id org.example.hello \
+  --method example.greet
+```
+
+`check_plugin.py` 会验证 `initialize` 握手、一次方法调用和正常退出；CI 也会对示例跑 fmt/clippy/build。
 
 ## 3. Connections：两种导航目标，没有第三种
 
@@ -148,10 +259,10 @@ Core 会带上 `factoryId`、`connectionId`、`mountId`、`interactionId`、`con
 
 `kind` **只能是**：
 
-| kind | 结果 |
-| --- | --- |
-| `vfs` | Core 用**原生 Explorer** 打开该连接的挂载点。必须属于本插件、且已声明 `extensions.vfs`。 |
-| `pluginView` | Core 用插件包内 HTML **完整替换右侧主内容区**（保留左侧栏和全局标签页）。 |
+| kind         | 结果                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| `vfs`        | Core 用**原生 Explorer** 打开该连接的挂载点。必须属于本插件、且已声明 `extensions.vfs`。 |
+| `pluginView` | Core 用插件包内 HTML **完整替换右侧主内容区**（保留左侧栏和全局标签页）。                |
 
 `pluginView` 的 `view.entry` 必须是插件包内相对路径；不能是外链、`file://`、绝对路径或其他插件的 HTML。`state` 是业务状态，不是令牌，不能放密码或 OAuth refresh token。
 
@@ -242,11 +353,11 @@ Manifest 只有动态模式：
 
 可用的字段：
 
-| 字段 | 作用 |
-| --- | --- |
-| `name` | 文件名文字颜色、字重、斜体、badge |
-| `modified` / `size` / `kind` | 对应列的单独颜色/badge/背景 |
-| `row` | 整行背景；**选中时 Core 会用选中色覆盖整行背景**，不会被装饰色盖住 |
+| 字段                         | 作用                                                               |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `name`                       | 文件名文字颜色、字重、斜体、badge                                  |
+| `modified` / `size` / `kind` | 对应列的单独颜色/badge/背景                                        |
+| `row`                        | 整行背景；**选中时 Core 会用选中色覆盖整行背景**，不会被装饰色盖住 |
 
 ### 4.3 颜色和 badge 的硬限制
 
@@ -302,12 +413,12 @@ Manifest：
 面板里常用：
 
 ```js
-const context = await invoke('context.get')
+const context = await invoke("context.get");
 // context.directoryPath, context.selectionPaths, context.source = 'toolbar'
-const value = await invoke('plugin.invoke', {
-  method: 'example.greet',
-  params: {}
-})
+const value = await invoke("plugin.invoke", {
+  method: "example.greet",
+  params: {},
+});
 ```
 
 `plugin.invoke` 只能调用插件自己的业务方法；`host.*`、`fs.*`、`vfs.*`、`connection.*` 等宿主方法会被 Core 拒绝。
@@ -340,13 +451,13 @@ Core 用 `plugin_invoke` 调用：
 
 ```js
 port.postMessage({
-  type: 'request',
-  bridgeVersion: '1.0',
+  type: "request",
+  bridgeVersion: "1.0",
   sessionId,
-  requestId: 'req-1',
-  method: 'plugin.invoke',
-  params: { method: 'example.greet', params: {} }
-})
+  requestId: "req-1",
+  method: "plugin.invoke",
+  params: { method: "example.greet", params: {} },
+});
 ```
 
 5. Core 回：
@@ -362,8 +473,8 @@ port.postMessage({
 
 ```js
 for (const [key, value] of Object.entries(tokens)) {
-  if (key !== 'mode' && value)
-    document.documentElement.style.setProperty(`--${key}`, value)
+  if (key !== "mode" && value)
+    document.documentElement.style.setProperty(`--${key}`, value);
 }
 ```
 
@@ -375,19 +486,19 @@ for (const [key, value] of Object.entries(tokens)) {
 
 `extensions` 里每个扩展点都是独立的注册项；可以只实现其中一个。
 
-| 扩展点 | 声明 | 触发 |
-| --- | --- | --- |
-| `contextMenus` | `true` 或 `{match}` | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
-| `decorations` | `{match?,priority?}` | 目录切换 → 标准 `decorations.resolve`（仅动态） |
-| `info` | `{id,match?,priority?}` | 用户“显示简介” → `info.resolve` |
-| `preview` | `{id,match?,priority?,maxBytes?}` | 用户预览 → `preview.open` |
-| `connections` | `[{id,title,fields}]` | 添加连接 / 点击连接 → `connection.create/open` |
-| `vfs` | `[{id,title,readOnly?}]` | Core Explorer 的文件树请求 |
-| `search` | `[{id,title,icon?,command}]` | 搜索框 → `search.query` |
-| `toolbar` | `[{id,title,icon?,panel?/command?}]` | 工具栏点击 |
-| `settings` | `[{id,label,type,...}]` | 设置页渲染；值通过 `ctx.storage_*` |
-| `hooks` | `[{id,event,method,priority?,match?}]` | 文件生命周期（见下方状态） |
-| `themes` | `[{path}]` | 主题包；声明式 JSON，不含代码 |
+| 扩展点         | 声明                                   | 触发                                                       |
+| -------------- | -------------------------------------- | ---------------------------------------------------------- |
+| `contextMenus` | `true` 或 `{match}`                    | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
+| `decorations`  | `{match?,priority?}`                   | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
+| `info`         | `{id,match?,priority?}`                | 用户“显示简介” → `info.resolve`                            |
+| `preview`      | `{id,match?,priority?,maxBytes?}`      | 用户预览 → `preview.open`                                  |
+| `connections`  | `[{id,title,fields}]`                  | 添加连接 / 点击连接 → `connection.create/open`             |
+| `vfs`          | `[{id,title,readOnly?}]`               | Core Explorer 的文件树请求                                 |
+| `search`       | `[{id,title,icon?,command}]`           | 搜索框 → `search.query`                                    |
+| `toolbar`      | `[{id,title,icon?,panel?/command?}]`   | 工具栏点击                                                 |
+| `settings`     | `[{id,label,type,...}]`                | 设置页渲染；值通过 `ctx.storage_*`                         |
+| `hooks`        | `[{id,event,method,priority?,match?}]` | 文件生命周期（见下方状态）                                 |
+| `themes`       | `[{path}]`                             | 主题包；声明式 JSON，不含代码                              |
 
 `match` 对所有带条件的扩展点通用：
 

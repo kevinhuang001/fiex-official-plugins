@@ -74,9 +74,9 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // ------------------------------------------------------------------
         // Decorations
         // ------------------------------------------------------------------
-        // Core calls this for every visible directory when the manifest
-        // declares `extensions.decorations.mode = "dynamic"`. `entries` is the
-        // visible set; return only paths from that set.
+        // Core calls this when the manifest declares `extensions.decorations`
+        // and its `match` is satisfied. `entries` is the visible set; return
+        // direct child names, never absolute paths.
         "decorations.resolve" => {
             let mut decorations = Vec::new();
             if let Some(entries) = p.get("entries").and_then(Value::as_array) {

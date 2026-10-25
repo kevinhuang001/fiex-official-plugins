@@ -15,7 +15,7 @@ PLATFORMS = [
     "macos-x86_64",
     "windows-x86_64",
 ]
-SLUGS = ["git", "webdav", "gdrive", "smb", "openlist", "office-preview", "data-preview", "archive", "checksum", "everything", "gpg", "vista", "win11"]
+SLUGS = ["ssh", "git", "webdav", "gdrive", "smb", "openlist", "office-preview", "data-preview", "archive", "checksum", "everything", "gpg", "vista", "win11"]
 DESCRIPTIONS = {
     "git": "源代码管理、提交历史、远程仓库与只读历史浏览。",
     "webdav": "通过独立进程连接 WebDAV 服务器，目录按需读取。",

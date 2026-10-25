@@ -52,7 +52,9 @@
     },
     "network": {
       "enabled": true,
-      "domains": []
+      "domains": [
+        "localhost"
+      ]
     },
     "commands": {
       "enabled": false,

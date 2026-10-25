@@ -115,13 +115,84 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             Ok(json!({"decorations": decorations}))
         }
         // ------------------------------------------------------------------
+        // Info / Preview
+        // ------------------------------------------------------------------
+        "info.resolve" => {
+            let name = p
+                .pointer("/resource/metadata/name")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let extension = p
+                .pointer("/resource/metadata/extension")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let greeting = ctx
+                .storage_get("global", "greeting")
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "你好".into());
+            Ok(json!({
+                "sections": [{
+                    "id": "example",
+                    "title": "示例信息",
+                    "rows": [
+                        {"label": "文件", "value": name},
+                        {"label": "扩展名", "value": extension},
+                        {"label": "问候语", "value": greeting},
+                        {"label": "可复制", "value": "这一行可以复制", "copyable": true}
+                    ]
+                }]
+            }))
+        }
+        "preview.open" => Ok(json!({
+            "kind": "html",
+            "title": "示例预览",
+            "view": {"source": "package", "entry": "ui/preview.html"}
+        })),
+        // ------------------------------------------------------------------
+        // Context menu
+        // ------------------------------------------------------------------
+        "contextMenu.resolve" => Ok(json!({
+            "items": [
+                {"id": "example.inspect", "title": "示例：检查文件", "kind": "action"},
+                {"id": "example.more", "title": "示例", "kind": "submenu"},
+                {"id": "example.copy-path", "title": "示例：复制路径", "kind": "action", "parentId": "example.more"}
+            ]
+        })),
+        "contextMenu.execute" => {
+            let item = p.get("itemId").and_then(Value::as_str).unwrap_or("");
+            if !matches!(item, "example.inspect" | "example.copy-path") {
+                return Err(RpcError::invalid_params("unknown example menu item"));
+            }
+            Ok(json!({"ok": true, "itemId": item}))
+        }
+        // ------------------------------------------------------------------
+        // Search
+        // ------------------------------------------------------------------
+        "search.query" => Ok(json!({
+            "entries": [],
+            "truncated": false,
+            "warning": "示例搜索不返回真实文件；这里展示 SearchResponse 的外形"
+        })),
+        // ------------------------------------------------------------------
+        // Hooks (contract only in this example)
+        // ------------------------------------------------------------------
+        "example.beforeOpen" => Ok(json!({"handled": false})),
+        // ------------------------------------------------------------------
         // Toolbar / custom UI commands
         // ------------------------------------------------------------------
         "example.refresh" => Ok(json!({
             "refreshed": true,
             "directory": p.get("root").cloned().unwrap_or(Value::Null)
         })),
-        "example.greet" => Ok(json!({"message": "你好，Fiex！"})),
+        "example.greet" => {
+            let greeting = ctx
+                .storage_get("global", "greeting")
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "你好".into());
+            Ok(json!({"message": format!("{greeting}，Fiex！")}))
+        }
         _ => Err(RpcError::method_not_found(method)),
     }
 }

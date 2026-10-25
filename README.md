@@ -47,7 +47,8 @@ The end-to-end guides live in the Core repository:
 
 New to native plugins? [`example/README.md`](example/README.md) is a beginner
 manual with a buildable plugin under `example/hello/` covering connections,
-VFS navigation, decorations (colors/badges/row and column styles) and toolbar
+VFS navigation, Info/Preview standard events, decorations (colors/badges/row
+and column styles), context menus, search, settings, hooks and toolbar
 panels/commands.
 
 ## Info and preview contracts

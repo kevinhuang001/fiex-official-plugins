@@ -19,22 +19,51 @@
     }
   },
   "permissions": {
-    "metadata": { "enabled": true },
+    "metadata": {
+      "enabled": true
+    },
     "folders": {
-      "read": { "enabled": true },
-      "create": { "enabled": false },
-      "delete": { "enabled": false },
-      "rename": { "enabled": false }
+      "read": {
+        "enabled": true
+      },
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "files": {
-      "read": { "enabled": true },
-      "write": { "enabled": false },
-      "create": { "enabled": false },
-      "delete": { "enabled": false },
-      "rename": { "enabled": false }
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": false
+      },
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
-    "network": { "enabled": false, "domains": [] },
-    "commands": { "enabled": false, "allow": [] }
+    "network": {
+      "enabled": false,
+      "domains": []
+    },
+    "commands": {
+      "enabled": false,
+      "allow": []
+    },
+    "hooks": {
+      "enabled": true
+    }
   },
   "extensions": {
     "connections": [
@@ -90,7 +119,10 @@
         "panel": {
           "entry": "ui/index.html",
           "title": "示例插件",
-          "defaultSize": { "width": 460, "height": 340 }
+          "defaultSize": {
+            "width": 460,
+            "height": 340
+          }
         }
       },
       {
@@ -98,6 +130,59 @@
         "title": "刷新示例",
         "icon": "refresh-cw",
         "command": "example.refresh"
+      }
+    ],
+    "contextMenus": true,
+    "info": [
+      {
+        "id": "example.info",
+        "title": "示例信息",
+        "extensions": [
+          "txt",
+          "md",
+          "log"
+        ],
+        "priority": 80
+      }
+    ],
+    "preview": [
+      {
+        "id": "example.preview",
+        "title": "示例预览",
+        "extensions": [
+          "txt",
+          "md",
+          "log"
+        ],
+        "priority": 60
+      }
+    ],
+    "search": [
+      {
+        "id": "example.search",
+        "title": "示例搜索",
+        "icon": "magnifying-glass",
+        "command": "search.query"
+      }
+    ],
+    "settings": [
+      {
+        "id": "greeting",
+        "label": "问候语",
+        "type": "text",
+        "defaultValue": "你好"
+      }
+    ],
+    "hooks": [
+      {
+        "id": "example.beforeOpen",
+        "event": "beforeOpen",
+        "method": "example.beforeOpen",
+        "priority": 100,
+        "extensions": [
+          "txt",
+          "md"
+        ]
       }
     ]
   }

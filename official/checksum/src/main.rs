@@ -20,6 +20,7 @@ fn checksum_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Vec<Value>, Rp
             serde_json::json!({
                 "label": hash.algorithm.to_ascii_uppercase(),
                 "value": hash.value,
+                "copyable": true,
             })
         })
         .collect())

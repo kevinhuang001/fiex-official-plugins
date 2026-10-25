@@ -20,12 +20,12 @@ Release contract:
 
 - `fiex-catalog.json` — app-store catalog (`id`, `name`, `permissions`, `networkDomains`, per-platform assets).
 - `<slug>-<platform>.fiexplugin` — one package per plugin/platform.
-- `slug`: `git | webdav | smb | openlist | office-preview | data-preview | archive | checksum | everything | gpg | vista | win11`.
+- `slug`: `git | webdav | gdrive | smb | openlist | office-preview | data-preview | archive | checksum | everything | gpg | vista | win11`.
 - `platform`: `linux-x86_64 | macos-aarch64 | macos-x86_64 | windows-x86_64`.
 
 Fiex Settings → Plugins reads the catalog from the latest release; there is no manual repository input.
 
-Permissions are reviewed individually at activation. Installation leaves the plugin disabled. File capabilities are `folders.read`, `folders.create`, `folders.delete`, `folders.rename`, `files.read` and `files.write`. `network` has one exact-host allowlist shared by HTTP and TCP, including localhost and IP literals. Valid ports on an approved host are available to both transports. Revoking a grant disables the plugin.
+Permissions are reviewed individually at activation. Installation leaves the plugin disabled. File capabilities are `metadata`, `folders.read/create/delete/rename` and `files.read/write/create/delete/rename`, each granted independently. `network` has one exact-host allowlist shared by HTTP and TCP, including localhost and IP literals. Valid ports on an approved host are available to both transports. Revoking a grant disables the plugin.
 
 Native plugin processes have no user-file access, direct network sockets or subprocess execution. Archive and Checksum use the high-level file SDK; WebDAV uses the HTTP SDK; SMB supplies its protocol over the SDK TCP stream. Git logic remains in this repository and invokes the user's PATH Git through the generic Host command runner. Everything similarly requires the optional ES command in PATH instead of contacting native window-message IPC directly.
 The **remote-integration** GitHub Actions job starts actual WebDAV and Samba servers and tests the released binaries' connection validation, directory listings, pagination, unsafe path rejection, and WebDAV file reads. Separate **core-integration** invokes the same optional packages through Fiex's real process host. Core CI does not run these protocol fixtures.
@@ -34,16 +34,14 @@ The **remote-integration** GitHub Actions job starts actual WebDAV and Samba ser
 
 Plugin processes cannot spawn programs. Approved external commands are resolved through the host's PATH and run as the current user outside the plugin sandbox. Plugins supply argument arrays. These commands can access files outside SDK scopes, use the network and start other programs; the activation dialog explains this general risk without plugin-specific warnings. Timeouts and output limits apply, but command approval is an explicit trust decision.
 
-## Layout
-
 ## UI and theme guides
 
 The end-to-end guides live in the Core repository:
 
-- [Plugin panel UI](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/21-PANEL-UI-GUIDE.md)
-  — manifest entries, SDK, theme inheritance, local dev loop.
-- [Theme packages](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/22-THEME-AUTHORING.md)
-  — package shape, token reference, validation, review checklist.
+- [Manifest extensions](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/02-MANIFEST-EXTENSIONS.md)
+  — extension registrations, permissions and navigation targets.
+- [Runtime UI panels](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/09-RUNTIME-UI-PANELS.md)
+  — panel sessions, themes and the sandboxed UI bridge.
 
 ## UI builds
 

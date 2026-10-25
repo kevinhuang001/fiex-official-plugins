@@ -86,9 +86,11 @@ fn archive_menu(params: &Value) -> Value {
         return json!({"items":[]});
     }
     let archive = |name: &str| {
-        ["zip","rar","7z","tar","gz","tgz","bz2","tbz2","xz","txz"]
-            .iter()
-            .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
+        [
+            "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz",
+        ]
+        .iter()
+        .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
     };
     let only_archive = selection == 1
         && names
@@ -101,19 +103,23 @@ fn archive_menu(params: &Value) -> Value {
         ]});
     }
     let formats = [
-        ("archive.zip", "ZIP"), ("archive.rar", "RAR"),
-        ("archive.7z", "7z"), ("archive.tar", "TAR"),
+        ("archive.zip", "ZIP"),
+        ("archive.rar", "RAR"),
+        ("archive.7z", "7z"),
+        ("archive.tar", "TAR"),
         ("archive.tar.gz", "TAR.GZ"),
         ("archive.tar.bz2", "TAR.BZ2"),
         ("archive.tar.xz", "TAR.XZ"),
-        ("archive.advanced", "高级压缩…")
+        ("archive.advanced", "高级压缩…"),
     ];
     let mut items = vec![json!({
         "id":"archive.compress", "title":"压缩", "kind":"submenu"
     })];
-    items.extend(formats.into_iter().map(|(id,title)| json!({
-        "id":id, "title":title, "kind":"action", "parentId":"archive.compress"
-    })));
+    items.extend(formats.into_iter().map(|(id, title)| {
+        json!({
+            "id":id, "title":title, "kind":"action", "parentId":"archive.compress"
+        })
+    }));
     json!({"items":items})
 }
 

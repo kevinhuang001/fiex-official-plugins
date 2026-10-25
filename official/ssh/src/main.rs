@@ -237,20 +237,40 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .map_err(|error| RpcError::internal(format!("SSH shell 启动失败：{error}")))?;
 
             let (mut read_half, write_half) = channel.split();
-            let mut reader = read_half.make_reader();
+            let (output_tx, mut output_rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, String>>(16);
+            tokio::spawn(async move {
+                let mut reader = read_half.make_reader();
+                let mut buffer = [0u8; 16 * 1024];
+                loop {
+                    match reader.read(&mut buffer).await {
+                        Ok(0) => {
+                            let _ = output_tx.send(Ok(Vec::new())).await;
+                            break;
+                        }
+                        Ok(size) => {
+                            if output_tx.send(Ok(buffer[..size].to_vec())).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(error) => {
+                            let _ = output_tx.send(Err(error.to_string())).await;
+                            break;
+                        }
+                    }
+                }
+            });
             let mut writer = write_half.make_writer();
             let mut input = Vec::<u8>::new();
             let mut last_size = (cols, rows);
-            let mut buffer = [0u8; 16 * 1024];
             let mut tick = tokio::time::interval(Duration::from_millis(8));
 
             loop {
                 tokio::select! {
-                    result = reader.read(&mut buffer) => {
-                        match result {
-                            Ok(0) => break,
-                            Ok(size) => {
-                                let data = STANDARD.encode(&buffer[..size]);
+                    incoming = output_rx.recv() => {
+                        match incoming {
+                            Some(Ok(bytes)) if bytes.is_empty() => break,
+                            Some(Ok(bytes)) => {
+                                let data = STANDARD.encode(bytes);
                                 if task.invoke("host.terminal.output", json!({
                                     "sessionId": session_id,
                                     "dataBase64": data
@@ -258,13 +278,14 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                                     break;
                                 }
                             }
-                            Err(error) => {
+                            Some(Err(error)) => {
                                 let _ = task.invoke("host.terminal.end", json!({
                                     "sessionId": session_id,
-                                    "error": error.to_string()
+                                    "error": error
                                 }));
                                 return Ok(Value::Null);
                             }
+                            None => break,
                         }
                     }
                     _ = tick.tick() => {

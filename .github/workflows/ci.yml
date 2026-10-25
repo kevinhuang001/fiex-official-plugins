@@ -74,7 +74,7 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           set -euo pipefail
-          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py
+          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py
           for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
@@ -151,6 +151,28 @@ jobs:
           cargo run --manifest-path integration/Cargo.toml --example plugin_preview_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_decorations_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_gpg_e2e
+      - name: SSH plugin against a real local sshd
+        shell: bash
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/fiex-official-plugin-tests/user-data
+          FIEX_PLUGIN_DIR: ${{ runner.temp }}/fiex-official-plugin-tests/plugins
+        run: |
+          set -euo pipefail
+          sudo ssh-keygen -A
+          sudo mkdir -p /run/sshd /root/.ssh
+          key="$RUNNER_TEMP/fiex-ssh-test-key"
+          ssh-keygen -t ed25519 -N "" -f "$key" >/dev/null
+          sudo cp "$key.pub" /root/.ssh/authorized_keys
+          sudo chmod 600 /root/.ssh/authorized_keys
+          sudo /usr/sbin/sshd -p 2222 -o ListenAddress=127.0.0.1 \
+            -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no \
+            -o UsePAM=no -o PidFile=/tmp/fiex-sshd.pid
+          trap 'sudo kill "$(sudo cat /tmp/fiex-sshd.pid)" 2>/dev/null || true' EXIT
+          mkdir -p "$RUNNER_TEMP/fiex-ssh-home"
+          binary="$(find "$FIEX_PLUGIN_DIR" -type f -name fiex-plugin-ssh | head -1)"
+          HOME="$RUNNER_TEMP/fiex-ssh-home" python3 scripts/test-ssh-plugin.py \
+            --binary "$binary" --host 127.0.0.1 --port 2222 --user root --identity "$key"
+
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
     needs: build

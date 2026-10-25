@@ -130,22 +130,13 @@
           "xz",
           "txz"
         ],
-        "priority": 100,
-        "panel": {
-          "entry": "ui/preview.html",
-          "title": "压缩包预览",
-          "defaultSize": {
-            "width": 640,
-            "height": 520
-          }
-        }
+        "priority": 100
       }
     ],
     "info": [
       {
         "id": "archive.info",
         "title": "压缩包",
-        "command": "archive.info",
         "extensions": [
           "zip",
           "7z",

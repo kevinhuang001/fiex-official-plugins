@@ -67,7 +67,6 @@
       {
         "id": "checksum.info",
         "title": "校验和",
-        "command": "checksum.info",
         "extensions": [],
         "priority": 100
       }

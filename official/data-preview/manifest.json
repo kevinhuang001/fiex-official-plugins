@@ -82,22 +82,13 @@
           "avro"
         ],
         "priority": 110,
-        "maxBytes": 268435456,
-        "panel": {
-          "entry": "ui/index.html",
-          "title": "数据预览",
-          "defaultSize": {
-            "width": 720,
-            "height": 640
-          }
-        }
+        "maxBytes": 268435456
       }
     ],
     "info": [
       {
         "id": "data.info",
         "title": "数据表",
-        "command": "data.info",
         "extensions": [
           "db",
           "sqlite",

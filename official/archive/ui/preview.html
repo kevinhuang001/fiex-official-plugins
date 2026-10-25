@@ -14,12 +14,11 @@
       * { box-sizing: border-box; }
       html, body { height: 100%; }
       body { margin: 0; display: flex; flex-direction: column; background: var(--surface); color: var(--text); }
-      header {
+      .actions {
         display: flex; align-items: center; gap: 10px; padding: 8px 14px;
-        border-bottom: 1px solid var(--line); min-height: 40px;
+        border-top: 1px solid var(--line); min-height: 40px;
       }
-      header strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      header .spacer { flex: 1; }
+      .actions .spacer { flex: 1; }
       button {
         border: 1px solid var(--line); background: var(--surface); color: var(--text);
         border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer;
@@ -42,22 +41,20 @@
     </style>
   </head>
   <body>
-    <header>
-      <strong id="title">压缩包</strong>
-      <span id="summary" style="color: var(--muted)"></span>
-      <span class="spacer"></span>
-      <button id="extract" class="primary" type="button" disabled>解压到当前目录</button>
-    </header>
     <div class="password" id="password-row" hidden>
       <input id="password" type="password" placeholder="压缩包密码" aria-label="压缩包密码" />
       <button id="unlock" type="button">解锁</button>
     </div>
     <main id="content"><p class="hint">正在读取…</p></main>
     <div class="status" id="status" hidden></div>
+    <div class="actions">
+      <span id="summary" style="color: var(--muted)"></span>
+      <span class="spacer"></span>
+      <button id="extract" class="primary" type="button" disabled>解压到当前目录</button>
+    </div>
     <script>
       (() => {
         const content = document.getElementById('content')
-        const title = document.getElementById('title')
         const summary = document.getElementById('summary')
         const passwordRow = document.getElementById('password-row')
         const password = document.getElementById('password')
@@ -131,8 +128,7 @@
           try {
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
-            path = context.preview?.path || ''
-            title.textContent = context.preview?.name || '压缩包'
+            path = context.resource?.metadata?.name || context.preview?.name || ''
             if (!path) return fail(new Error('没有文件上下文'))
             await load()
           } catch (error) { fail(error) }

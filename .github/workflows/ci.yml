@@ -113,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 61ca7d44935ff63b8a9036d333d7984cffebca8b
+          ref: 682cb5ceaba1dc09ea6153808ee7d8f5b4ce0180
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -144,6 +144,7 @@ jobs:
           cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_info_e2e
+          cargo run --manifest-path integration/Cargo.toml --example plugin_preview_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_gpg_e2e
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
@@ -157,7 +158,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 61ca7d44935ff63b8a9036d333d7984cffebca8b
+          ref: 682cb5ceaba1dc09ea6153808ee7d8f5b4ce0180
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk

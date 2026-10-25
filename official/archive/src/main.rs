@@ -123,9 +123,78 @@ fn archive_menu(params: &Value) -> Value {
     json!({"items":items})
 }
 
+fn context_name(params: &Value) -> Result<&str, RpcError> {
+    params
+        .pointer("/resource/metadata/name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
+}
+
+fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let path = param(p, "path")?;
+    let password = p.get("password").and_then(Value::as_str);
+    let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
+    let compressed = host
+        .files()
+        .metadata(path)
+        .map(|entry| entry.size)
+        .unwrap_or(0);
+    let entries = listing
+        .get("entries")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let count = entries.len();
+    let uncompressed = entries
+        .iter()
+        .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
+        .sum::<u64>();
+    let format = path
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_uppercase())
+        .unwrap_or_else(|| "UNKNOWN".into());
+    let mut rows = vec![
+        json!({"label":"格式","value":format}),
+        json!({"label":"压缩后大小","value":format_size(compressed)}),
+        json!({"label":"解压后大小","value":format_size(uncompressed)}),
+        json!({"label":"文件数","value":count.to_string()}),
+    ];
+    if uncompressed > 0 {
+        let saved = 1.0 - compressed as f64 / uncompressed as f64;
+        rows.push(json!({"label":"压缩率","value":format!("{:.1}%", saved * 100.0)}));
+    }
+    if listing
+        .get("encrypted")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        rows.push(json!({"label":"加密","value":"是"}));
+    }
+    if listing.get("supported").and_then(Value::as_bool) == Some(false) {
+        if let Some(message) = listing.get("message").and_then(Value::as_str) {
+            rows.push(json!({"label":"说明","value":message}));
+        }
+    }
+    Ok(json!({"rows": rows}))
+}
+
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let mut params = ctx.params().clone();
+    if method == "info.resolve" {
+        let name = context_name(&params)?.to_owned();
+        let rows = archive_info(&json!({"path": name}), &ctx)?;
+        return Ok(
+            json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),
+        );
+    }
+    if method == "preview.open" {
+        return Ok(json!({
+            "kind": "html",
+            "title": "压缩包预览",
+            "view": {"source":"package","entry":"ui/preview.html"}
+        }));
+    }
     if method == "contextMenu.resolve" {
         return Ok(archive_menu(&params));
     }
@@ -215,53 +284,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             })?;
             Ok(json!({"taskId": task.id()}))
         }
-        "archive.info" => {
-            let path = param(p, "path")?;
-            let password = p.get("password").and_then(Value::as_str);
-            let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
-            let compressed = host
-                .files()
-                .metadata(path)
-                .map(|entry| entry.size)
-                .unwrap_or(0);
-            let entries = listing
-                .get("entries")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let count = entries.len();
-            let uncompressed = entries
-                .iter()
-                .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
-                .sum::<u64>();
-            let format = path
-                .rsplit_once('.')
-                .map(|(_, extension)| extension.to_ascii_uppercase())
-                .unwrap_or_else(|| "UNKNOWN".into());
-            let mut rows = vec![
-                json!({"label":"格式","value":format}),
-                json!({"label":"压缩后大小","value":format_size(compressed)}),
-                json!({"label":"解压后大小","value":format_size(uncompressed)}),
-                json!({"label":"文件数","value":count.to_string()}),
-            ];
-            if uncompressed > 0 {
-                let saved = 1.0 - compressed as f64 / uncompressed as f64;
-                rows.push(json!({"label":"压缩率","value":format!("{:.1}%", saved * 100.0)}));
-            }
-            if listing
-                .get("encrypted")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            {
-                rows.push(json!({"label":"加密","value":"是"}));
-            }
-            if listing.get("supported").and_then(Value::as_bool) == Some(false) {
-                if let Some(message) = listing.get("message").and_then(Value::as_str) {
-                    rows.push(json!({"label":"说明","value":message}));
-                }
-            }
-            Ok(json!({"rows": rows}))
-        }
+        "archive.info" => archive_info(p, host),
         "archive.list" => Ok(listing::list(
             param(p, "path")?,
             p.get("password").and_then(Value::as_str),

@@ -44,10 +44,15 @@ fn main() {
 
     approve("org.fiex.checksum");
     let details = fiex_lib::plugin_info::file_info(file.to_str().unwrap());
+    assert!(
+        details.iter().any(|section| section.id == "core.metadata"),
+        "built-in metadata section is missing"
+    );
     let checksum = details
         .iter()
         .find(|section| section.title == "校验和")
         .expect("checksum info section is missing");
+    assert!(checksum.id.starts_with("org.fiex.checksum."));
     assert!(checksum
         .rows
         .iter()

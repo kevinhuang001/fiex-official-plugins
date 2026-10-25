@@ -73,22 +73,13 @@
           "pptx"
         ],
         "priority": 100,
-        "maxBytes": 33554432,
-        "panel": {
-          "entry": "ui/index.html",
-          "title": "Office 预览",
-          "defaultSize": {
-            "width": 720,
-            "height": 600
-          }
-        }
+        "maxBytes": 33554432
       }
     ],
     "info": [
       {
         "id": "office.info",
         "title": "文档",
-        "command": "office.info",
         "extensions": [
           "docx",
           "xlsx",

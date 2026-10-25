@@ -43,6 +43,17 @@ The end-to-end guides live in the Core repository:
 - [Runtime UI panels](https://github.com/kevinhuang001/fiex/blob/HEAD/docs/plugins/09-RUNTIME-UI-PANELS.md)
   — panel sessions, themes and the sandboxed UI bridge.
 
+## Info and preview contracts
+
+Info and preview are standard events, not command/panel declarations. A plugin
+registers `extensions.info` / `extensions.preview` with `id`, `title`,
+`extensions`, optional `priority`/`maxBytes`, then implements `info.resolve`
+with an `InfoContext` and `preview.open` with a `PreviewContext`. Core projects
+`metadata` and a scoped `read.resourceId` according to the plugin's grants and
+returns the decoded `InfoResponse` / `PreviewView`; preview HTML is returned as
+a package-confined `view.entry` instead of being listed in the manifest. See
+`fiex/docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
+
 ## UI builds
 
 Git, Archive, Checksum and GPG ship React/Vite panels under `official/<slug>/ui`.

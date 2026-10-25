@@ -11,31 +11,56 @@ mod sanitize;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 
+fn context_name(params: &Value) -> Result<&str, RpcError> {
+    params
+        .pointer("/resource/metadata/name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RpcError::invalid_params("missing resource metadata name"))
+}
+
+fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
+    let bytes = ctx
+        .files()
+        .read(path)
+        .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
+    let extension = render::extension(path);
+    let value = render::render(bytes, &extension)?;
+    let html = value["html"].as_str().unwrap_or("");
+    let count = |needle: &str| html.matches(needle).count();
+    Ok(serde_json::json!({"rows": [
+        {"label":"格式","value":extension.to_ascii_uppercase()},
+        {"label":"段落","value":count("<p").to_string()},
+        {"label":"标题","value":count("<h1").to_string()},
+        {"label":"表格","value":count("<table").to_string()},
+        {"label":"图片","value":count("<img").to_string()},
+        {"label":"列表项","value":count("<li").to_string()},
+    ]}))
+}
+
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
+    let p = ctx.params();
+    if method == "info.resolve" {
+        let name = context_name(p)?;
+        let rows = info_rows(&ctx, name)?;
+        return Ok(serde_json::json!({
+            "sections": [{"id":"office","title":"文档","rows": rows["rows"].clone()}]
+        }));
+    }
+    if method == "preview.open" {
+        return Ok(serde_json::json!({
+            "kind": "html",
+            "title": "Office 预览",
+            "view": {"source":"package","entry":"ui/index.html"}
+        }));
+    }
     match method {
         "office.info" => {
-            let path = ctx
-                .params()
+            let path = p
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let bytes = ctx
-                .files()
-                .read(path)
-                .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-            let extension = render::extension(path);
-            let value = render::render(bytes, &extension)?;
-            let html = value["html"].as_str().unwrap_or("");
-            let count = |needle: &str| html.matches(needle).count();
-            Ok(serde_json::json!({"rows": [
-                {"label":"格式","value":extension.to_ascii_uppercase()},
-                {"label":"段落","value":count("<p").to_string()},
-                {"label":"标题","value":count("<h1").to_string()},
-                {"label":"表格","value":count("<table").to_string()},
-                {"label":"图片","value":count("<img").to_string()},
-                {"label":"列表项","value":count("<li").to_string()},
-            ]}))
+            info_rows(&ctx, path)
         }
         "office.render" => {
             let path = ctx

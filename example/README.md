@@ -403,10 +403,10 @@ for (const [key, value] of Object.entries(tokens)) {
 - `mimeTypes` 支持精确值或 `text/*`、`image/*`、`*/*`；
 - `kinds` 为 `file` / `directory`；
 - `contains` 仅用于 decorations：目录或其祖先包含这些名称；
-- `selection` 仅用于 contextMenus：`single` / `multi` / `any`；
+- `selection` 仅用于 contextMenus：写一个正整数，表示恰好选中几项时才调用；缺省不限；
 - 不满足就不会调用插件；空 `match` 表示不过滤；
 - `info` / `preview` 只针对用户当前选中的**单个资源**评估；
-- `contextMenus` 的 `selection` 先过滤单选/多选，再对选中项做类型过滤。
+- `contextMenus` 的 `selection` 先按选中数量精确过滤（例如 `1`、`2`），再对选中项做类型过滤。
 
 ### 7.1 Info：标准事件 `info.resolve`
 
@@ -529,7 +529,7 @@ Manifest：
 ```json
 "contextMenus": {
   "match": {
-    "selection": "single",
+    "selection": 1,
     "extensions": ["txt", "md", "log"],
     "kinds": ["file"]
   }

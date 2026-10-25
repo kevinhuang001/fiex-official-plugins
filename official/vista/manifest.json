@@ -11,10 +11,8 @@
   },
   "permissions": {},
   "extensions": {
-    "themes": [
-      {
-        "path": "theme.json"
-      }
-    ]
+    "themes": {
+      "path": "theme.json"
+    }
   }
 }

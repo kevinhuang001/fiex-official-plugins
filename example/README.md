@@ -764,7 +764,7 @@ Manifest：
   "version": "1.0.0",
   "permissions": {},
   "extensions": {
-    "themes": [{ "path": "theme.json" }]
+    "themes": { "path": "theme.json" }
   }
 }
 ```

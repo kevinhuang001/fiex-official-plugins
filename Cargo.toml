@@ -4,6 +4,7 @@ exclude = [
   "official/ssh",
   "official/smb",
   "integration",
+  "core",
 ]
 members = [
   "official/archive",

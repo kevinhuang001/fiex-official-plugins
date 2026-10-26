@@ -903,7 +903,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fiex-plugin-archive"
-version = "0.3.1"
+version = "0.3.3"
 dependencies = [
  "bzip2",
  "fiex-plugin-sdk",
@@ -920,7 +920,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-checksum"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "crc32fast",
  "fiex-plugin-sdk",

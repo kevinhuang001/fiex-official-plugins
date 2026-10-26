@@ -1,6 +1,6 @@
 [package]
 name="fiex-plugin-archive"
-version = "0.3.1"
+version = "0.3.3"
 edition="2021"
 rust-version="1.90"
 [dependencies]

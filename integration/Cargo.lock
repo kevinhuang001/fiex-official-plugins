@@ -847,7 +847,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fiex"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "arapuca",
  "base64 0.22.1",

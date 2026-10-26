@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.archive",
   "name": "压缩与解压",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "压缩与解压 ZIP、RAR、7z、TAR 等格式。",
   "icon": "archive",
   "author": {
@@ -97,18 +97,20 @@
     "hooks": {
       "event": "beforeOpen",
       "priority": 100,
-      "extensions": [
-        "zip",
-        "rar",
-        "7z",
-        "tar",
-        "gz",
-        "tgz",
-        "bz2",
-        "tbz2",
-        "xz",
-        "txz"
-      ]
+      "match": {
+        "extensions": [
+          "zip",
+          "rar",
+          "7z",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ]
+      }
     },
     "preview": {
       "priority": 100,

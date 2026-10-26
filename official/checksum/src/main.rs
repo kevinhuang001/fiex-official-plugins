@@ -31,6 +31,16 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             .targets()
             .first()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        // The info provider is broadcast for folders too; a folder has no
+        // checksum, and trying to open it as a file produces a misleading
+        // "expected a file" error.
+        if target
+            .metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.kind == "directory")
+        {
+            return Ok(json!({"sections": []}));
+        }
         let reader = ctx
             .files()
             .open_ref(&target.reference)

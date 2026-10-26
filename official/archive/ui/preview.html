@@ -52,6 +52,9 @@
       .entry-chevron.empty { visibility: hidden; }
       .empty { padding: 42px 18px; text-align: center; color: var(--muted); }
       .hint, .error { padding: 18px; text-align: center; color: var(--muted); }
+      .preview-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 240px; color: var(--muted); }
+      .preview-loading .spinner { width: 20px; height: 20px; border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: preview-spin .8s linear infinite; }
+      @keyframes preview-spin { to { transform: rotate(360deg); } }
       .error { color: var(--danger); white-space: pre-wrap; }
       .status { padding: 6px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
       .status[hidden] { display: none; }
@@ -62,7 +65,7 @@
       <input id="password" type="password" placeholder="压缩包密码" aria-label="压缩包密码" />
       <button id="unlock" type="button">解锁</button>
     </div>
-    <main id="content"><p class="hint">正在读取…</p></main>
+    <main id="content"><div class="preview-loading"><span class="spinner" aria-hidden="true"></span><span>正在读取压缩包…</span></div></main>
     <div class="status" id="status" hidden></div>
     <div class="actions">
       <span id="summary" style="color: var(--muted)"></span>
@@ -98,7 +101,9 @@
             pending.set(requestId, { resolve, reject, timer })
             port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
           })
-        const fail = (error) => { content.innerHTML = ''; const p = document.createElement('p'); p.className = 'error'; p.textContent = String(error?.message || error); content.append(p) }
+        let readySent = false
+        const ready = () => { if (readySent) return; readySent = true; void invoke('preview.ready').catch(() => {}) }
+        const fail = (error) => { content.innerHTML = ''; const p = document.createElement('p'); p.className = 'error'; p.textContent = String(error?.message || error); content.append(p); ready() }
         const human = (size) => size < 1024 ? `${size} B` : size < 1048576 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1048576).toFixed(1)} MB`
         const setStatus = (text) => { status.hidden = !text; status.textContent = text }
 
@@ -210,6 +215,7 @@
             summary.textContent = `${allEntries.length} 项${value.encrypted ? ' · 加密' : ''}`
             render()
             extract.disabled = false
+            ready()
           } catch (error) {
             const message = String(error?.message || error)
             if (message.includes('需要密码') || message.toLowerCase().includes('password')) {

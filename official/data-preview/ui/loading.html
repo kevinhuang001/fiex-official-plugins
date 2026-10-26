@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>正在准备预览</title>
+    <style>
+      :root { color-scheme: light dark; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body { display: grid; place-items: center; background: transparent; color: #1f2328; }
+      .loading { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 32px; text-align: center; }
+      .mark { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px; background: #eef2ff; color: #4f46e5; }
+      .spinner { width: 22px; height: 22px; border: 2px solid rgba(79, 70, 229, .18); border-top-color: #4f46e5; border-radius: 50%; animation: spin .8s linear infinite; }
+      strong { font-size: 14px; font-weight: 600; letter-spacing: -.1px; }
+      p { margin: 0; color: #6b7280; font-size: 11px; line-height: 1.6; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-color-scheme: dark) {
+        body { color: #e6edf3; }
+        .mark { background: #1f2937; color: #a5b4fc; }
+        .spinner { border-color: rgba(165, 180, 252, .2); border-top-color: #a5b4fc; }
+        p { color: #9ca3af; }
+      }
+      @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+    </style>
+  </head>
+  <body>
+    <div class="loading">
+      <span class="mark" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/></svg>
+      </span>
+      <span class="spinner" role="status" aria-label="正在准备预览"></span>
+      <strong>正在准备数据表预览</strong>
+      <p>正在读取表格结构与首页数据，大文件会分页加载。</p>
+    </div>
+  </body>
+</html>

@@ -62,6 +62,12 @@ Core validates `{ sections: [...] }` / `PreviewView`; preview HTML is returned a
 a package-confined `view.entry` instead of being listed in the manifest. See
 `fiex/docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
 
+Archive, Office preview and Data preview declare a package-local
+`extensions.preview.loading` document. Core shows that document while the real
+preview iframe loads in the background. The preview calls `preview.ready` after
+its first data render, and Core then removes the loading document, so users never
+see an empty plugin shell or a second spinner.
+
 ## UI builds
 
 SSH, Git, Archive, Checksum and GPG ship connection/panel surfaces under `official/<slug>/`. SSH uses the Host TCP broker (`ctx.tcp()`) and `network.all` at activation; it supports private-key/password/agent auth. CI runs it against a real local sshd via `scripts/test-ssh-plugin.py`. WebDAV/SMB default to `localhost` and add the exact host when a connection is saved.

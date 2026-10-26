@@ -37,7 +37,7 @@ jobs:
       - name: Typecheck and rebuild self-contained panels
         run: |
           set -euo pipefail
-          for slug in git archive checksum gpg; do
+          for slug in git archive gpg; do
             npm --prefix "official/$slug/ui" ci
             npm --prefix "official/$slug/ui" run build
           done

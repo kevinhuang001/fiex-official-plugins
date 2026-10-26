@@ -1,3 +1,24 @@
+# Versioning
+
+Only plugins whose `official/<slug>/` files changed get a new version. Do not
+bump every official plugin for one release.
+
+Use **Actions → Prepare plugin release** (workflow_dispatch): enter the previous
+`plugins-v*` tag and `patch`/`minor`/`major`. It opens a PR that bumps only the
+changed plugins. The PR check enforces the same rule.
+
+```bash
+# Bump only changed plugins, relative to the previous release tag:
+python scripts/plugin-versions.py bump --base plugins-v0.4.0 --part patch
+
+# Review, then let CI enforce the rule:
+python scripts/plugin-versions.py check --base plugins-v0.4.0
+```
+
+The script updates `manifest.json`, `Cargo.toml`, `Cargo.lock`,
+`ui/package.json` and `ui/package-lock.json` for changed plugins only. The
+release catalog and release page read those manifest versions.
+
 # Fiex plugins 0.4.0
 
 - New data-preview plugin (replaces sqlite-preview): paged, sortable tables for SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro.

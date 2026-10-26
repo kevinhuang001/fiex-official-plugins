@@ -1,4 +1,5 @@
 //! SMB protocol implementation. All socket operations are brokered by Core.
+mod sync;
 mod transport;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
@@ -160,6 +161,7 @@ fn remote(
     method: String,
     params: Value,
 ) -> Result<Value, RpcError> {
+    let logical = path.clone();
     let run = || -> Result<Value, String> {
         let port = cfg.port.unwrap_or(445);
         let transport =
@@ -208,12 +210,12 @@ fn remote(
                 if entries.len() >= 100000 {
                     return Err("remote directory too large".into());
                 }
-                let node = if path.is_empty() {
+                let node = if logical.is_empty() {
                     name.clone()
                 } else {
-                    format!("{}/{}", path.replace('\\', "/"), name)
+                    format!("{}/{}", logical, name)
                 };
-                entries.push(json!({"nodeId":node,"name":name,"kind":if item.file_attributes.directory(){"directory"}else{"file"},"size":item.end_of_file,"modified":0}));
+                entries.push(json!({"nodeId":node,"name":name,"kind":if item.file_attributes.directory(){"directory"}else{"file"},"size":item.end_of_file,"modified":0,"revision":format!("{:?}:{:?}:{}",item.last_write_time,item.change_time,item.end_of_file)}));
             }
             let _ = dir.close();
             entries.sort_by_key(|v| v["name"].as_str().unwrap_or("").to_owned());
@@ -276,6 +278,17 @@ fn main() {
     let sequence = AtomicU64::new(0);
     let result = sdk::serve("org.fiex.smb", move |ctx| {
         let method = ctx.method();
+        if method == "connection.open" {
+            let mount = ctx.params()["mountId"]
+                .as_str()
+                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+            return Ok(
+                json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
+            );
+        }
+        if matches!(method, "fs.stat" | "fs.writeFile") {
+            return sync::dispatch(&ctx);
+        }
         let p = ctx.params();
         if !matches!(
             method,

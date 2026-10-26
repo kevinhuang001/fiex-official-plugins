@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>示例账号</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1d2430; --muted: #6b7684; --surface: #fff; --canvas: #f6f7f9;
+        --line: rgba(20, 30, 45, 0.12); --accent: #2f6fed;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 32px; color: var(--text); background: var(--surface);
+        font: 12px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      .wrap { max-width: 560px; margin: 0 auto; }
+      h1 { font-size: 18px; margin: 0 0 6px; }
+      p { color: var(--muted); margin: 0 0 18px; }
+      .card {
+        padding: 14px; border: 1px solid var(--line); border-radius: 10px;
+        background: var(--canvas);
+      }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>示例账号</h1>
+      <p>这是一个 Connection 的 pluginView：Core 用这个 iframe 完整替换右侧内容区。</p>
+      <div class="card">连接实例：<code id="connection">读取中…</code></div>
+    </div>
+    <script>
+      (() => {
+        let port = null, sessionId = '', nonce = ''
+        const invoke = (method, params) =>
+          new Promise((resolve, reject) => {
+            if (!port) return reject(new Error('bridge not ready'))
+            const requestId = `account-${Date.now()}`
+            const timer = setTimeout(() => reject(new Error('请求超时')), 10000)
+            const handler = (message) => {
+              const payload = message.data
+              if (payload?.type !== 'response' || payload.requestId !== requestId) return
+              port.removeEventListener('message', handler)
+              clearTimeout(timer)
+              if (payload.error) reject(new Error(payload.error.message || '请求失败'))
+              else resolve(payload.result)
+            }
+            port.addEventListener('message', handler)
+            port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
+          })
+        const start = async () => {
+          try {
+            const context = await invoke('context.get', {})
+            const state = context.state || {}
+            document.getElementById('connection').textContent =
+              state.connectionId || context.connectionId || '—'
+          } catch (error) {
+            document.getElementById('connection').textContent = String(error?.message || error)
+          }
+        }
+        window.addEventListener('message', (event) => {
+          if (event.source !== window.parent) return
+          const data = event.data
+          if (!data || data.type !== 'fiex.bridge.init' || event.ports.length !== 1) return
+          port = event.ports[0]
+          sessionId = data.sessionId
+          nonce = data.nonce
+          port.start()
+          port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
+          start()
+        })
+        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+      })()
+    </script>
+  </body>
+</html>

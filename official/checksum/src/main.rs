@@ -1,9 +1,43 @@
 mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
+
+fn checksum_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Vec<Value>, RpcError> {
+    let files = ctx.files();
+    let reader = files
+        .open_read(path)
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    hash_rows(reader)
+}
+fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
+    let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
+    Ok(hashes
+        .into_iter()
+        .map(|hash| {
+            serde_json::json!({
+                "label": hash.algorithm.to_ascii_uppercase(),
+                "value": hash.value,
+                "copyable": true,
+            })
+        })
+        .collect())
+}
+
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
+    if method == "info.resolve" {
+        let target = ctx
+            .targets()
+            .first()
+            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        let reader = ctx
+            .files()
+            .open_ref(&target.reference)
+            .map_err(|e| RpcError::internal(e.to_string()))?;
+        let rows = hash_rows(reader)?;
+        return Ok(json!({"sections":[{"id":"checksum","title":"校验和","rows":rows}]}));
+    }
     match method {
         "checksum.calculate" => {
             let path = p
@@ -30,19 +64,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let files = ctx.files();
-            let reader = files
-                .open_read(path)
-                .map_err(|error| RpcError::internal(error.to_string()))?;
-            let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
-            let mut rows = Vec::new();
-            for hash in hashes {
-                rows.push(serde_json::json!({
-                    "label": hash.algorithm.to_ascii_uppercase(),
-                    "value": hash.value,
-                }));
-            }
-            Ok(serde_json::json!({"rows": rows}))
+            Ok(json!({"rows": checksum_rows(&ctx, path)?}))
         }
         _ => Err(RpcError::method_not_found(method)),
     }

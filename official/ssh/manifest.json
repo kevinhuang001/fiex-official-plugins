@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "id": "org.fiex.ssh",
+  "name": "SSH",
+  "version": "0.1.0",
+  "description": "SSH 连接插件：经 Host TCP Broker 连接，终端由 Core 的 xterm.js 渲染。",
+  "icon": "terminal",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "3.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-ssh.exe",
+      "macos-aarch64": "fiex-plugin-ssh",
+      "macos-x86_64": "fiex-plugin-ssh",
+      "linux-x86_64": "fiex-plugin-ssh"
+    }
+  },
+  "permissions": {
+    "network": {
+      "enabled": true,
+      "all": true,
+      "domains": []
+    }
+  },
+  "extensions": {
+    "connections": {
+      "title": "SSH",
+      "fields": [
+        {
+          "id": "host",
+          "label": "主机",
+          "type": "text",
+          "required": true,
+          "placeholder": "server.example.com"
+        },
+        {
+          "id": "port",
+          "label": "端口",
+          "type": "number",
+          "defaultValue": 22
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text",
+          "placeholder": "root"
+        },
+        {
+          "id": "identityFile",
+          "label": "私钥文件（可选）",
+          "type": "text",
+          "placeholder": "~/.ssh/id_ed25519"
+        },
+        {
+          "id": "terminalType",
+          "label": "终端类型",
+          "type": "text",
+          "defaultValue": "xterm-256color"
+        },
+        {
+          "id": "password",
+          "label": "密码（可选，也可使用私钥）",
+          "type": "secret"
+        }
+      ]
+    }
+  }
+}

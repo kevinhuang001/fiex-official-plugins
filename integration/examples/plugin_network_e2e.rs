@@ -64,6 +64,56 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     plugin_host::global()
         .invoke(id, "fs.closeRead", json!({"streamId": stream}))
         .unwrap();
+    let source_dir = tempfile::tempdir().unwrap();
+    let source = source_dir.path().join("source.dat");
+    let edited = b"offline edit".repeat(50000);
+    for contents in [edited.as_slice(), expected] {
+        std::fs::write(&source, contents).unwrap();
+        let baseline = plugin_host::global()
+            .invoke(
+                id,
+                "fs.stat",
+                json!({"connection":config,"nodeId":"hello.txt"}),
+            )
+            .unwrap();
+        let params = json!({"connection":config,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline["revision"]});
+        // The exact same call without a selection cannot read the snapshot.
+        assert!(plugin_host::global()
+            .invoke(id, "fs.writeFile", params.clone())
+            .is_err());
+        let committed = plugin_host::global()
+            .invoke_selected(
+                id,
+                "fs.writeFile",
+                params.clone(),
+                source_dir.path().to_str().unwrap(),
+                std::slice::from_ref(&source),
+            )
+            .unwrap();
+        assert_ne!(committed["revision"], baseline["revision"]);
+        assert!(plugin_host::global()
+            .invoke_selected(
+                id,
+                "fs.writeFile",
+                params,
+                source_dir.path().to_str().unwrap(),
+                std::slice::from_ref(&source)
+            )
+            .is_err());
+        let readback = plugin_host::global()
+            .invoke(
+                id,
+                "fs.readSmall",
+                json!({"connection":config,"nodeId":"hello.txt","maxBytes":1048576}),
+            )
+            .unwrap();
+        assert_eq!(
+            STANDARD
+                .decode(readback["base64"].as_str().unwrap())
+                .unwrap(),
+            contents
+        );
+    }
     if id == "org.fiex.webdav" {
         let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {
             id: None,
@@ -84,10 +134,13 @@ fn check(id: &str, config: Value, expected: &[u8]) {
             .entries
             .iter()
             .any(|entry| entry.name == "hello.txt"));
-        let hello = format!("{}/hello.txt", connection.mount_path);
+        let hello = format!("{}hello.txt", connection.mount_path);
         futures::executor::block_on(fiex_lib::remote::sync_one(&hello, &Default::default()))
             .unwrap();
-        assert_eq!(std::fs::read(&hello).unwrap(), expected);
+        // Mount paths are opaque `fiex://` navigation URIs; downloaded bytes
+        // live in Core's cache and are resolved through the public API.
+        let cached = fiex_lib::remote::cached_path(&hello).unwrap();
+        assert_eq!(std::fs::read(cached).unwrap(), expected);
         fiex_lib::remote::remove_connection(&connection.id).unwrap();
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();

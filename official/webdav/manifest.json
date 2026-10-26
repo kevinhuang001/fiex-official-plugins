@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.webdav",
   "name": "WebDAV",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "通过独立进程连接 WebDAV 服务器，目录按需读取。",
   "icon": "cloud",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-webdav.exe",
       "macos-aarch64": "fiex-plugin-webdav",
@@ -23,24 +23,48 @@
       "read": {
         "enabled": false
       },
-      "create": false,
-      "delete": false,
-      "rename": false
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "files": {
-      "read": false,
-      "write": false
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": false
+      },
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "network": {
       "enabled": true,
-      "domains": []
+      "domains": [
+        "localhost"
+      ]
     },
     "commands": {
       "enabled": false,
       "allow": []
+    },
+    "metadata": {
+      "enabled": true
     }
   },
-  "contributions": {
+  "extensions": {
     "settings": [
       {
         "id": "timeout",
@@ -55,35 +79,35 @@
         "defaultValue": "60"
       }
     ],
-    "connections": [
-      {
-        "id": "webdav",
-        "title": "WebDAV",
-        "fields": [
-          {
-            "id": "url",
-            "label": "服务器地址",
-            "type": "url",
-            "required": true,
-            "placeholder": "https://example.com/dav"
-          },
-          {
-            "id": "username",
-            "label": "用户名",
-            "type": "text"
-          },
-          {
-            "id": "password",
-            "label": "密码",
-            "type": "secret"
-          },
-          {
-            "id": "allowInvalidCerts",
-            "label": "允许自签名证书",
-            "type": "checkbox"
-          }
-        ]
-      }
-    ]
+    "connections": {
+      "title": "WebDAV",
+      "fields": [
+        {
+          "id": "url",
+          "label": "服务器地址",
+          "type": "url",
+          "required": true,
+          "placeholder": "https://example.com/dav"
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text"
+        },
+        {
+          "id": "password",
+          "label": "密码",
+          "type": "secret"
+        },
+        {
+          "id": "allowInvalidCerts",
+          "label": "允许自签名证书",
+          "type": "checkbox"
+        }
+      ]
+    },
+    "vfs": {
+      "title": "WebDAV"
+    }
   }
 }

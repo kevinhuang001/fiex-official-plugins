@@ -14,12 +14,10 @@ use std::{
     },
 };
 
-const MAX_READ: u64 = 32 * 1024 * 1024;
-
 /// Buffered payloads backing `fs.openRead` streams.
 #[derive(Default)]
 pub(crate) struct Reads {
-    data: Mutex<HashMap<String, Vec<u8>>>,
+    data: Mutex<HashMap<String, String>>,
     next: AtomicU64,
 }
 
@@ -31,7 +29,7 @@ fn api_path(relative: &str) -> String {
     }
 }
 
-fn safe_relative(value: &str) -> Result<(), RpcError> {
+pub(crate) fn safe_relative(value: &str) -> Result<(), RpcError> {
     if value.starts_with('/')
         || value
             .split('/')
@@ -227,10 +225,6 @@ pub(crate) fn read(
         {
             return Err(RpcError::internal("too many open reads"));
         }
-        let (bytes, _) = client::download(host, &cfg, &url)?;
-        if bytes.len() as u64 > MAX_READ {
-            return Err(RpcError::internal("文件超过 32 MiB，暂不支持预览"));
-        }
         let id = format!(
             "openlist-read-{}",
             reads.next.fetch_add(1, Ordering::Relaxed) + 1
@@ -239,57 +233,80 @@ pub(crate) fn read(
             .data
             .lock()
             .map_err(|_| RpcError::internal("read registry unavailable"))?
-            .insert(id.clone(), bytes);
+            .insert(id.clone(), url);
         return Ok(json!({ "streamId": id }));
     }
-    let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
-    let max = p
-        .get("maxBytes")
-        .and_then(Value::as_u64)
-        .unwrap_or(262144)
-        .clamp(1, 1048576) as usize;
-    let (bytes, _) = client::download(host, &cfg, &url)?;
-    if offset > bytes.len() {
-        return Err(RpcError::invalid_params("offset out of range"));
-    }
-    let end = offset.saturating_add(max).min(bytes.len());
-    use base64::Engine;
-    let slice = &bytes[offset..end];
-    Ok(json!({
-        "base64": base64::engine::general_purpose::STANDARD.encode(slice),
-        "length": slice.len(),
-        "bytesRead": slice.len(),
-        "eof": end == bytes.len()
-    }))
+    range(host, &url, p)
 }
 
-pub(crate) fn read_stream(p: &Value, reads: &Reads) -> Result<Value, RpcError> {
-    let id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
-    let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
-    let max = p
-        .get("maxBytes")
-        .and_then(Value::as_u64)
-        .unwrap_or(262144)
-        .clamp(1, 1048576) as usize;
-    let buffers = reads
+pub(crate) fn read_stream(
+    p: &Value,
+    reads: &Reads,
+    host: &sdk::RequestContext,
+) -> Result<Value, RpcError> {
+    let url = reads
         .data
         .lock()
-        .map_err(|_| RpcError::internal("read registry unavailable"))?;
-    let data = buffers
-        .get(id)
+        .map_err(|_| RpcError::internal("read registry unavailable"))?
+        .get(p["streamId"].as_str().unwrap_or(""))
+        .cloned()
         .ok_or_else(|| RpcError::invalid_params("unknown stream"))?;
-    if offset > data.len() {
-        return Err(RpcError::invalid_params("offset out of range"));
-    }
-    let end = offset.saturating_add(max).min(data.len());
+    range(host, &url, p)
+}
+fn range(host: &sdk::RequestContext, url: &str, p: &Value) -> Result<Value, RpcError> {
     use base64::Engine;
-    let slice = &data[offset..end];
-    Ok(json!({
-        "base64": base64::engine::general_purpose::STANDARD.encode(slice),
-        "length": slice.len(),
-        "bytesRead": slice.len(),
-        "eof": end == data.len()
-    }))
+    use std::io::Read;
+    let offset = p["offset"].as_u64().unwrap_or(0);
+    let max = p["maxBytes"].as_u64().unwrap_or(262144).clamp(1, 1048576);
+    let end = offset
+        .checked_add(max - 1)
+        .ok_or_else(|| RpcError::invalid_params("range overflow"))?;
+    let mut response = host
+        .http()
+        .get(url)
+        .header("Range", format!("bytes={offset}-{end}"))
+        .send()
+        .map_err(|e| RpcError::internal(e.to_string()))?;
+    if response.status == 416 {
+        return Ok(json!({"base64":"","eof":true}));
+    }
+    if response.status != 206 && !(response.status == 200 && offset == 0) {
+        return Err(RpcError::internal("storage did not honor range"));
+    }
+    let eof = if response.status == 206 {
+        let range = response
+            .headers
+            .get("content-range")
+            .and_then(|s| s.strip_prefix("bytes "))
+            .and_then(|s| s.split_once('/'))
+            .ok_or_else(|| RpcError::internal("missing range"))?;
+        let (bounds, total) = range;
+        let (start, last) = bounds
+            .split_once('-')
+            .ok_or_else(|| RpcError::internal("invalid range"))?;
+        let parse = |s: &str| {
+            s.parse::<u64>()
+                .map_err(|e| RpcError::internal(e.to_string()))
+        };
+        let (start, last, total) = (parse(start)?, parse(last)?, parse(total)?);
+        if start != offset || last < start || last - start >= max || last >= total {
+            return Err(RpcError::internal("invalid range bounds"));
+        }
+        last + 1 == total
+    } else {
+        true
+    };
+    let mut bytes = Vec::new();
+    (&mut response)
+        .take(max + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| RpcError::internal(e.to_string()))?;
+    if bytes.len() as u64 > max {
+        return Err(RpcError::internal("storage ignored range"));
+    }
+    Ok(
+        json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),"length":bytes.len(),"bytesRead":bytes.len(),"eof":eof}),
+    )
 }
 
 pub(crate) fn close_read(p: &Value, reads: &Reads) {

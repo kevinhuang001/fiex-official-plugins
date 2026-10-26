@@ -48,10 +48,11 @@ class Plugin:
         self.child = subprocess.Popen([str(binary.resolve())],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
+        self.upload_source = b"connection sync roundtrip\n"
         self.serial = 0
         self.resources = {}
         self.next_resource = 0
-        info = self.rpc("plugin.initialize", {"protocolVersion": "2.0"})
+        info = self.rpc("plugin.initialize", {"protocolVersion": "3.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
     def rpc(self, method, params):
@@ -81,10 +82,18 @@ class Plugin:
         # through the actual Core host in the core-integration job.
         if method in {"host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
             return None
+        if method == "host.fs.openRead":
+            assert params["path"] == "source.dat"
+            return {"handle":"snapshot", "size":len(self.upload_source)}
+        if method == "host.fs.readOpen":
+            assert params["handle"] == "snapshot"
+            data=self.upload_source[params["offset"]:params["offset"]+params["length"]]
+            return {"base64":base64.b64encode(data).decode(),"size":len(data),"eof":params["offset"]+len(data)>=len(self.upload_source)}
+        if method == "host.fs.closeRead": return None
         if method == "host.net.http.open":
             url = params["url"]
             assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}
-            request = urllib.request.Request(url, data=base64.b64decode(params.get("bodyBase64", "")) or None, headers=params.get("headers", {}), method=params.get("method", "GET"))
+            request = urllib.request.Request(url, data=(self.upload_source if params.get("bodyReadHandle") == "snapshot" else base64.b64decode(params.get("bodyBase64", "")) or None), headers=params.get("headers", {}), method=params.get("method", "GET"))
             try:
                 response = urllib.request.urlopen(request, timeout=30)
             except urllib.error.HTTPError as error:
@@ -191,6 +200,13 @@ def main():
             assert base64.b64decode(reply["base64"]) == b"hello webdav\n"
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
+            baseline=plugin.rpc("fs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
+            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline})
+            assert uploaded["revision"] != baseline
+            verified=plugin.rpc("fs.readSmall", {"connection":cfg,"nodeId":"hello.txt","maxBytes":1024})
+            assert base64.b64decode(verified["base64"]) == plugin.upload_source
+            plugin.upload_source=base64.b64decode(result["base64"])
+            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":uploaded["revision"]})
             plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
             plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})
@@ -220,6 +236,13 @@ def main():
             assert base64.b64decode(reply["base64"]) == b"hello smb\n"
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
+            baseline=plugin.rpc("fs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
+            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline})
+            assert uploaded["revision"] != baseline
+            verified=plugin.rpc("fs.readSmall", {"connection":cfg,"nodeId":"hello.txt","maxBytes":1024})
+            assert base64.b64decode(verified["base64"]) == plugin.upload_source
+            plugin.upload_source=base64.b64decode(result["base64"])
+            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":uploaded["revision"]})
             plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
             plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})

@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.smb",
   "name": "SMB / NAS",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "通过独立进程连接 SMB / NAS 共享。",
   "icon": "hard-drive",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-smb.exe",
       "macos-aarch64": "fiex-plugin-smb",
@@ -23,24 +23,48 @@
       "read": {
         "enabled": false
       },
-      "create": false,
-      "delete": false,
-      "rename": false
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "files": {
-      "read": false,
-      "write": false
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": false
+      },
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "network": {
       "enabled": true,
-      "domains": []
+      "domains": [
+        "localhost"
+      ]
     },
     "commands": {
       "enabled": false,
       "allow": []
+    },
+    "metadata": {
+      "enabled": true
     }
   },
-  "contributions": {
+  "extensions": {
     "settings": [
       {
         "id": "scanInterval",
@@ -49,48 +73,48 @@
         "defaultValue": "90"
       }
     ],
-    "connections": [
-      {
-        "id": "smb",
-        "title": "SMB 网络共享",
-        "fields": [
-          {
-            "id": "host",
-            "label": "主机",
-            "type": "text",
-            "required": true,
-            "placeholder": "nas.local"
-          },
-          {
-            "id": "port",
-            "label": "端口",
-            "type": "number",
-            "defaultValue": "445"
-          },
-          {
-            "id": "share",
-            "label": "共享名",
-            "type": "text",
-            "required": true,
-            "placeholder": "Public"
-          },
-          {
-            "id": "base",
-            "label": "子路径",
-            "type": "text"
-          },
-          {
-            "id": "username",
-            "label": "用户名",
-            "type": "text"
-          },
-          {
-            "id": "password",
-            "label": "密码",
-            "type": "secret"
-          }
-        ]
-      }
-    ]
+    "connections": {
+      "title": "SMB 网络共享",
+      "fields": [
+        {
+          "id": "host",
+          "label": "主机",
+          "type": "text",
+          "required": true,
+          "placeholder": "nas.local"
+        },
+        {
+          "id": "port",
+          "label": "端口",
+          "type": "number",
+          "defaultValue": "445"
+        },
+        {
+          "id": "share",
+          "label": "共享名",
+          "type": "text",
+          "required": true,
+          "placeholder": "Public"
+        },
+        {
+          "id": "base",
+          "label": "子路径",
+          "type": "text"
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text"
+        },
+        {
+          "id": "password",
+          "label": "密码",
+          "type": "secret"
+        }
+      ]
+    },
+    "vfs": {
+      "title": "SMB / NAS"
+    }
   }
 }

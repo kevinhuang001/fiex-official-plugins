@@ -30,7 +30,7 @@
       .head { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); min-height: 38px; }
       .head strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .head .muted { color: var(--muted); }
-      .tabs { display: flex; gap: 2px; margin-left: auto; }
+      .tabs { display: flex; gap: 2px; }
       .tabs button { border: 0; background: transparent; color: var(--muted); font: inherit; padding: 4px 9px; border-radius: 5px; cursor: pointer; }
       .tabs button[aria-selected="true"] { background: var(--hover); color: var(--text); font-weight: 600; }
       .grid-host { flex: 1; overflow: auto; min-height: 0; }
@@ -80,18 +80,18 @@
         padding: 40px 20px; color: var(--muted); font-size: 11px;
       }
       .empty strong { color: var(--text); font-size: 12px; }
+      .loading-side { display: flex; align-items: center; gap: 8px; padding: 12px 10px; color: var(--muted); font-size: 11px; }
+      .loading-side .spinner { width: 14px; height: 14px; border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: preview-spin .8s linear infinite; }
+      @keyframes preview-spin { to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
     <aside>
       <div class="search"><input id="filter" type="search" placeholder="筛选数据集…" aria-label="筛选数据集" /></div>
-      <div class="datasets" id="datasets"><p class="empty-side">正在读取…</p></div>
+      <div class="datasets" id="datasets"><div class="loading-side"><span class="spinner" aria-hidden="true"></span><span>正在读取数据集…</span></div></div>
     </aside>
     <main>
       <div class="head">
-        <strong id="title">未选择数据集</strong>
-        <span class="chip" id="format" hidden></span>
-        <span class="muted" id="summary"></span>
         <div class="tabs">
           <button id="data-tab" type="button" aria-selected="true">数据</button>
           <button id="schema-tab" type="button" aria-selected="false">结构</button>
@@ -120,12 +120,9 @@
       (() => {
         const datasetsHost = document.getElementById('datasets')
         const content = document.getElementById('content')
-        const title = document.getElementById('title')
-        const summary = document.getElementById('summary')
         const pager = document.getElementById('pager')
         const first = document.getElementById('first')
         const last = document.getElementById('last')
-        const formatChip = document.getElementById('format')
         const pageInfo = document.getElementById('page-info')
         const prev = document.getElementById('prev')
         const next = document.getElementById('next')
@@ -135,7 +132,7 @@
         const schemaTab = document.getElementById('schema-tab')
         const note = document.getElementById('note')
         let port = null, sessionId = '', nonce = '', seq = 0
-        let path = '', format = '', datasets = [], selected = '', tab = 'data'
+        let path = '', datasets = [], selected = '', tab = 'data'
         let rows = [], columns = [], total = 0, offset = 0, limit = 100, order = null, descending = false
         let current = {}
         const pending = new Map()
@@ -153,9 +150,12 @@
           pending.set(requestId, { resolve, reject, timer })
           port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
         })
+        let readySent = false
+        const ready = () => { if (readySent) return; readySent = true; void invoke('preview.ready').catch(() => {}) }
         const fail = (error) => {
           content.innerHTML = ''
           const p = document.createElement('p'); p.className = 'error'; p.textContent = String(error?.message || error); content.append(p)
+          ready()
         }
 
         const renderDatasets = () => {
@@ -286,7 +286,6 @@
         const paint = () => {
           dataTab.setAttribute('aria-selected', String(tab === 'data'))
           schemaTab.setAttribute('aria-selected', String(tab === 'schema'))
-          summary.textContent = selected ? `${total.toLocaleString()} 行 · ${columns.length} 列` : ''
           pager.hidden = tab !== 'data' || !selected
           const pages = Math.max(1, Math.ceil(total / limit))
           pageInfo.textContent = `第 ${Math.floor(offset / limit) + 1} / ${pages} 页`
@@ -294,8 +293,6 @@
           next.disabled = offset + limit >= total
           first.disabled = offset <= 0
           last.disabled = offset + limit >= total
-          formatChip.hidden = !format
-          formatChip.textContent = format
           note.hidden = !current.note
           note.textContent = current.note || ''
           if (tab === 'schema') renderSchema()
@@ -310,14 +307,12 @@
             columns = current.columns || []
             rows = current.rows || []
             total = current.total || 0
-            title.textContent = selected
             paint()
           } catch (error) { fail(error) }
         }
 
         const select = (id) => {
           selected = id; offset = 0; order = null; descending = false
-          title.textContent = id
           renderDatasets()
           void loadPage()
         }
@@ -326,19 +321,15 @@
           try {
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
-            path = context.preview?.path || ''
+            path = context.resource?.metadata?.name || context.preview?.name || ''
             if (!path) return fail(new Error('没有文件上下文'))
             const value = await invoke('plugin.invoke', { method: 'data.open', params: { path } })
-            format = value.format || ''
             datasets = value.datasets || []
             const single = datasets.length <= 1
             document.body.classList.toggle('single', single)
             renderDatasets()
-            if (!datasets.length) { content.innerHTML = '<p class="hint">没有可显示的数据集。</p>'; return }
+            if (!datasets.length) { content.innerHTML = '<p class="hint">没有可显示的数据集。</p>'; ready(); return }
             selected = datasets[0].id
-            title.textContent = single
-              ? path.split(/[/\\]/).pop() || selected
-              : selected
             renderDatasets()
             if (value.page) {
               current = value.page || {}
@@ -349,6 +340,7 @@
             } else {
               await loadPage()
             }
+            ready()
           } catch (error) { fail(error) }
         }
 

@@ -3,7 +3,7 @@ use crate::{
     files::{Entry, Listing},
     git_host::run,
 };
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -13,15 +13,19 @@ pub struct Route {
     pub commit: String,
     pub relative: String,
 }
-pub fn route(path: &str) -> Option<Route> {
-    let mut parts = path.strip_prefix("history://")?.splitn(3, '/');
-    let root = String::from_utf8(URL_SAFE_NO_PAD.decode(parts.next()?).ok()?).ok()?;
-    let commit = parts.next()?;
-    if ![40, 64].contains(&commit.len()) || !commit.bytes().all(|c| c.is_ascii_hexdigit()) {
+pub fn route(relative: &str, context: &Value) -> Option<Route> {
+    let root = context["repoRoot"].as_str()?;
+    let commit = context["commitId"].as_str()?;
+    if !Path::new(root).is_absolute()
+        || ![40, 64].contains(&commit.len())
+        || !commit.bytes().all(|c| c.is_ascii_hexdigit())
+    {
         return None;
     }
-    let relative = parts.next().unwrap_or("");
-    if relative.contains(['\\', '\0']) || relative.split('/').any(|s| s == ".." || s == ".") {
+    if relative.starts_with('/')
+        || relative.contains(['\\', '\0'])
+        || relative.split('/').any(|s| s == ".." || s == ".")
+    {
         return None;
     }
     Some(Route {
@@ -29,6 +33,17 @@ pub fn route(path: &str) -> Option<Route> {
         commit: commit.into(),
         relative: relative.into(),
     })
+}
+fn request_route(path: &str, host: &sdk::RequestContext) -> Result<Route, String> {
+    route(path, &host.params()["viewContext"]).ok_or_else(|| "无效历史上下文".into())
+}
+/// Providers return opaque node identities; only Core constructs navigation URIs.
+pub fn provider_entry(entry: Entry) -> Value {
+    let node = entry.path.clone();
+    let mut value = serde_json::to_value(entry).expect("entry serializes");
+    value["nodeId"] = json!(node);
+    value["relativePath"] = json!(node);
+    value
 }
 pub fn history(root: &str, skip: usize, host: &sdk::RequestContext) -> Result<Value, String> {
     if run(host, root, &["rev-parse", "--verify", "HEAD"]).is_err() {
@@ -62,11 +77,13 @@ pub fn browse(root: &str, reference: &str, host: &sdk::RequestContext) -> Result
         root,
         &["rev-parse", "--verify", "--end-of-options", &object],
     )?;
-    Ok(json!(format!(
-        "history://{}/{}",
-        URL_SAFE_NO_PAD.encode(full.trim().as_bytes()),
-        hash.trim()
-    )))
+    host.open_vfs_view(
+        "history",
+        full.trim(),
+        json!({"repoRoot":full.trim(),"commitId":hash.trim()}),
+    )
+    .map_err(|e| e.to_string())
+    .map(Value::String)
 }
 fn entries(
     path: &str,
@@ -75,7 +92,7 @@ fn entries(
     recursive: bool,
     host: &sdk::RequestContext,
 ) -> Result<Vec<Entry>, String> {
-    let r = route(path).ok_or("无效历史路径")?;
+    let r = request_route(path, host)?;
     let object = if r.relative.is_empty() {
         r.commit.clone()
     } else {
@@ -110,8 +127,12 @@ fn entries(
             .to_string_lossy()
             .into_owned();
         values.push(Entry {
-            path: format!("{}/{}", path.trim_end_matches('/'), name),
-            name: name.into(),
+            path: if path.is_empty() {
+                name.into()
+            } else {
+                format!("{path}/{name}")
+            },
+            name: name.rsplit('/').next().unwrap_or(name).into(),
             is_dir,
             is_symlink: mode == "120000",
             size,
@@ -148,14 +169,37 @@ pub fn list(
     })
 }
 pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
-    let (parent, _) = path.rsplit_once('/').ok_or("无效历史路径")?;
+    if path.is_empty() {
+        let r = request_route(path, host)?;
+        run(
+            host,
+            &r.root.to_string_lossy(),
+            &["cat-file", "-e", &format!("{}^{{commit}}", r.commit)],
+        )?;
+        return Ok(Entry {
+            path: String::new(),
+            name: r.commit,
+            is_dir: true,
+            is_symlink: false,
+            size: 0,
+            modified: 0,
+            created: 0,
+            extension: String::new(),
+            mime: "inode/directory".into(),
+            readonly: true,
+            link_target: None,
+            tags: vec![],
+            sync: None,
+        });
+    }
+    let parent = path.rsplit_once('/').map(|(p, _)| p).unwrap_or("");
     entries(parent, true, &[], false, host)?
         .into_iter()
         .find(|v| v.path == path)
         .ok_or("历史文件不存在".into())
 }
-fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
-    let r = route(path).ok_or("无效历史路径")?;
+pub fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
+    let r = request_route(path, host)?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
         .process_run(
@@ -173,27 +217,6 @@ fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
         return Err("无法读取历史内容，或内容超过命令输出限制".into());
     }
     result.stdout_bytes()
-}
-pub fn preview(path: &str, host: &sdk::RequestContext) -> Result<String, String> {
-    let mut bytes = blob(path, host)?;
-    bytes.truncate(256 * 1024);
-    if bytes.contains(&0) {
-        return Err("二进制内容不支持文本预览".into());
-    }
-    String::from_utf8(bytes).map_err(|e| e.to_string())
-}
-pub fn asset(path: &str, host: &sdk::RequestContext) -> Result<Value, String> {
-    use base64::engine::general_purpose::STANDARD;
-    let name = Path::new(path)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
-    let bytes = blob(path, host)?;
-    host.invoke(
-        "host.preview.create",
-        json!({"name":name,"base64":STANDARD.encode(bytes)}),
-    )
-    .map_err(|e| e.to_string())
 }
 pub fn search(
     path: &str,
@@ -213,14 +236,18 @@ pub fn search(
 mod tests {
     use super::*;
     #[test]
-    fn routes_reject_traversal() {
-        let base = format!(
-            "history://{}/{}",
-            URL_SAFE_NO_PAD.encode("/repo"),
-            "a".repeat(40)
+    fn routes_are_immutable_and_reject_traversal() {
+        let a =
+            json!({"repoRoot":std::env::temp_dir().to_string_lossy(),"commitId":"a".repeat(40)});
+        let b =
+            json!({"repoRoot":std::env::temp_dir().to_string_lossy(),"commitId":"b".repeat(40)});
+        assert_ne!(
+            route("src/x", &a).unwrap().commit,
+            route("src/x", &b).unwrap().commit
         );
-        assert!(route(&base).is_some());
-        assert!(route(&format!("{base}/../secret")).is_none());
-        assert!(route(&format!("{base}/a\\b")).is_none());
+        for path in ["../secret", "a\\b", "/absolute", "a/./b"] {
+            assert!(route(path, &a).is_none());
+        }
+        assert!(route("", &json!({"repoRoot":"relative","commitId":"HEAD"})).is_none());
     }
 }

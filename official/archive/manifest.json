@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.archive",
   "name": "压缩与解压",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "压缩与解压 ZIP、RAR、7z、TAR 等格式。",
   "icon": "archive",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-archive.exe",
       "macos-aarch64": "fiex-plugin-archive",
@@ -21,108 +21,34 @@
   "permissions": {
     "folders": {
       "read": {
-        "enabled": true,
-        "decorations": {
-          "mode": "declarative",
-          "priority": 10,
-          "rules": [
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "zip"
-                ]
-              },
-              "badge": {
-                "text": "ZIP",
-                "color": "neutral"
-              }
-            },
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "rar"
-                ]
-              },
-              "badge": {
-                "text": "RAR",
-                "color": "neutral"
-              }
-            },
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "7z"
-                ]
-              },
-              "badge": {
-                "text": "7Z",
-                "color": "neutral"
-              }
-            },
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "tar"
-                ]
-              },
-              "badge": {
-                "text": "TAR",
-                "color": "neutral"
-              }
-            },
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "gz",
-                  "tgz"
-                ]
-              },
-              "badge": {
-                "text": "TGZ",
-                "color": "neutral"
-              }
-            },
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "bz2",
-                  "tbz2"
-                ]
-              },
-              "badge": {
-                "text": "TBZ",
-                "color": "neutral"
-              }
-            },
-            {
-              "match": {
-                "isDir": false,
-                "extensions": [
-                  "xz",
-                  "txz"
-                ]
-              },
-              "badge": {
-                "text": "TXZ",
-                "color": "neutral"
-              }
-            }
-          ]
-        }
+        "enabled": true
       },
-      "create": true,
-      "delete": true,
-      "rename": true
+      "create": {
+        "enabled": true
+      },
+      "delete": {
+        "enabled": true
+      },
+      "rename": {
+        "enabled": true
+      }
     },
     "files": {
-      "read": true,
-      "write": true
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": true
+      },
+      "create": {
+        "enabled": true
+      },
+      "delete": {
+        "enabled": true
+      },
+      "rename": {
+        "enabled": true
+      }
     },
     "network": {
       "enabled": false,
@@ -134,92 +60,13 @@
     },
     "hooks": {
       "enabled": true
+    },
+    "metadata": {
+      "enabled": true
     }
   },
-  "contributions": {
-    "contextMenus": [
-      {
-        "id": "archive.compress",
-        "title": "压缩",
-        "when": "context.selection.isNotArchive",
-        "children": [
-          {
-            "id": "archive.zip",
-            "title": "ZIP",
-            "command": "archive.compress",
-            "args": {
-              "format": "zip"
-            }
-          },
-          {
-            "id": "archive.rar",
-            "title": "RAR",
-            "command": "archive.compress",
-            "args": {
-              "format": "rar"
-            }
-          },
-          {
-            "id": "archive.7z",
-            "title": "7z",
-            "command": "archive.compress",
-            "args": {
-              "format": "7z"
-            }
-          },
-          {
-            "id": "archive.tar",
-            "title": "TAR",
-            "command": "archive.compress",
-            "args": {
-              "format": "tar"
-            }
-          },
-          {
-            "id": "archive.tar.gz",
-            "title": "TAR.GZ",
-            "command": "archive.compress",
-            "args": {
-              "format": "tar.gz"
-            }
-          },
-          {
-            "id": "archive.tar.bz2",
-            "title": "TAR.BZ2",
-            "command": "archive.compress",
-            "args": {
-              "format": "tar.bz2"
-            }
-          },
-          {
-            "id": "archive.tar.xz",
-            "title": "TAR.XZ",
-            "command": "archive.compress",
-            "args": {
-              "format": "tar.xz"
-            }
-          },
-          {
-            "id": "archive.advanced",
-            "title": "高级压缩…",
-            "panel": {
-              "entry": "ui/dist/index.html",
-              "title": "高级压缩",
-              "defaultSize": {
-                "width": 400,
-                "height": 420
-              }
-            }
-          }
-        ]
-      },
-      {
-        "id": "archive.extract",
-        "title": "解压缩",
-        "when": "context.selection.isArchive",
-        "command": "archive.extract"
-      }
-    ],
+  "extensions": {
+    "contextMenus": true,
     "settings": [
       {
         "id": "compressIgnores",
@@ -247,12 +94,25 @@
         ]
       }
     ],
-    "hooks": [
-      {
-        "id": "beforeOpen",
-        "event": "beforeOpen",
-        "method": "archive.beforeOpen",
-        "priority": 100,
+    "hooks": {
+      "event": "beforeOpen",
+      "priority": 100,
+      "extensions": [
+        "zip",
+        "rar",
+        "7z",
+        "tar",
+        "gz",
+        "tgz",
+        "bz2",
+        "tbz2",
+        "xz",
+        "txz"
+      ]
+    },
+    "preview": {
+      "priority": 100,
+      "match": {
         "extensions": [
           "zip",
           "rar",
@@ -265,12 +125,30 @@
           "xz",
           "txz"
         ]
+      },
+      "loading": {
+        "entry": "ui/loading.html"
       }
-    ],
-    "preview": [
-      {
-        "id": "archive",
-        "title": "压缩包预览",
+    },
+    "info": {
+      "priority": 100,
+      "match": {
+        "extensions": [
+          "zip",
+          "7z",
+          "rar",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ]
+      }
+    },
+    "decorations": {
+      "match": {
         "extensions": [
           "zip",
           "rar",
@@ -283,36 +161,14 @@
           "xz",
           "txz"
         ],
-        "priority": 100,
-        "panel": {
-          "entry": "ui/preview.html",
-          "title": "压缩包预览",
-          "defaultSize": {
-            "width": 640,
-            "height": 520
-          }
-        }
-      }
-    ],
-    "info": [
-      {
-        "id": "archive.info",
-        "title": "压缩包",
-        "command": "archive.info",
-        "extensions": [
-          "zip",
-          "7z",
-          "rar",
-          "tar",
-          "gz",
-          "tgz",
-          "bz2",
-          "tbz2",
-          "xz",
-          "txz"
-        ],
-        "priority": 100
-      }
-    ]
+        "kinds": [
+          "file"
+        ]
+      },
+      "priority": 10
+    },
+    "ui": {
+      "timeoutMs": 300000
+    }
   }
 }

@@ -67,22 +67,6 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             host,
         )),
         "git.browse" => response(history_host::browse(root()?, param(p, "reference")?, host)),
-        "git.historyAsset" => response(history_host::asset(param(p, "path")?, host)),
-        "git.historyList" => response(history_host::list(
-            param(p, "path")?,
-            p.get("hidden").and_then(Value::as_bool).unwrap_or(false),
-            &string_list(p, "ignores")?,
-            host,
-        )),
-        "git.historyInfo" => response(history_host::info(param(p, "path")?, host)),
-        "git.historyPreview" => response(history_host::preview(param(p, "path")?, host)),
-        "git.historySearch" => response(history_host::search(
-            param(p, "path")?,
-            param(p, "query")?,
-            p.get("hidden").and_then(Value::as_bool).unwrap_or(false),
-            &string_list(p, "ignores")?,
-            host,
-        )),
         "git.remoteStatus" => response(remote_host::status(root()?, host)),
         "git.remoteSave" => response(remote_host::save(
             root()?,
@@ -91,7 +75,7 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             host,
         )),
         "git.remoteRemove" => response(remote_host::remove(root()?, param(p, "name")?, host)),
-        "decorations.list" => decorations::list(p, host).map_err(RpcError::internal),
+        "decorations.resolve" => decorations::list(p, host).map_err(RpcError::internal),
         "git.remoteSync" => response(remote_host::sync(
             root()?,
             param(p, "remote")?,
@@ -99,7 +83,7 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             p.get("branch").and_then(Value::as_str),
             host,
         )),
-        // Core routes plugin-owned schemes (declared in contributes.vfs)
+        // Core routes registered views (declared in extensions.vfs)
         // through the same generic VFS methods for every plugin.
         "vfs.list" => {
             let path = param(p, "nodeId")?;
@@ -132,7 +116,11 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 return Err(RpcError::invalid_params("cursor out of range"));
             }
             let end = (start + limit).min(result.entries.len());
-            let entries = result.entries[start..end].to_vec();
+            let entries = result.entries[start..end]
+                .iter()
+                .cloned()
+                .map(history_host::provider_entry)
+                .collect::<Vec<_>>();
             Ok(json!({
                 "entries": entries,
                 "nextCursor": if end < result.entries.len() { Some(end.to_string()) } else { None },
@@ -140,22 +128,19 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 "warnings": result.warnings
             }))
         }
-        "vfs.stat" => response(history_host::info(param(p, "nodeId")?, host)),
+        "vfs.stat" => response(
+            history_host::info(param(p, "nodeId")?, host).map(history_host::provider_entry),
+        ),
         "vfs.readSmall" => {
             use base64::Engine;
-            let text =
-                history_host::preview(param(p, "nodeId")?, host).map_err(RpcError::internal)?;
-            let bytes = text.into_bytes();
+            let mut bytes =
+                history_host::blob(param(p, "nodeId")?, host).map_err(RpcError::internal)?;
             let max = p
                 .get("maxBytes")
                 .and_then(Value::as_u64)
                 .unwrap_or(262144)
                 .clamp(1, 1024 * 1024) as usize;
-            let bytes = if bytes.len() > max {
-                return Err(RpcError::invalid_params("preview exceeds requested size"));
-            } else {
-                bytes
-            };
+            bytes.truncate(max);
             Ok(json!({
                 "base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
                 "length": bytes.len()
@@ -189,7 +174,9 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             .map_err(RpcError::internal)?;
             let truncated = entries.len() > limit;
             entries.truncate(limit);
-            Ok(json!({"entries": entries, "truncated": truncated}))
+            Ok(
+                json!({"entries": entries.into_iter().map(history_host::provider_entry).collect::<Vec<_>>(), "truncated": truncated}),
+            )
         }
         _ => Err(RpcError::method_not_found(method)),
     }

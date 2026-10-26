@@ -533,3 +533,320 @@ button:disabled {
 .gpg-primary:active:not(:disabled) {
   filter: brightness(0.96);
 }
+
+/* Public key ring: a single table with type/fingerprint and right-click menu. */
+.gpg-keychain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding-top: 4px;
+}
+.gpg-keychain-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gpg-keychain-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+  color: var(--panel-muted);
+}
+.gpg-keychain-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--panel-text);
+  font-size: 11px;
+}
+.gpg-keychain-columns,
+.gpg-keychain-rows li button {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) minmax(150px, 1.15fr) 82px 62px;
+  gap: 8px;
+  align-items: center;
+}
+.gpg-keychain-columns {
+  padding: 0 9px;
+  color: var(--panel-muted);
+  font-size: 9.5px;
+}
+.gpg-keychain-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  background: var(--panel-surface);
+}
+.gpg-keychain-rows li button {
+  width: 100%;
+  padding: 7px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--panel-radius);
+  background: transparent;
+  text-align: left;
+}
+.gpg-keychain-rows li button:hover:not(:disabled) {
+  background: var(--panel-hover);
+}
+.gpg-key-type {
+  justify-self: start;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--panel-hover);
+  color: var(--panel-muted);
+  font-size: 8.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.gpg-key-type.secret {
+  background: color-mix(in srgb, var(--panel-accent) 12%, transparent);
+  color: var(--panel-accent);
+}
+.gpg-keychain-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gpg-keychain-identity strong,
+.gpg-keychain-identity small,
+.gpg-keychain-id,
+.gpg-keychain-expiry {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gpg-keychain-identity strong {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.gpg-keychain-identity small,
+.gpg-keychain-id,
+.gpg-keychain-expiry {
+  color: var(--panel-muted);
+  font-size: 9.5px;
+}
+.gpg-keychain-id,
+.gpg-keychain-expiry {
+  font-variant-numeric: tabular-nums;
+}
+.gpg-keychain-fingerprint {
+  color: var(--panel-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.gpg-keychain-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 12px;
+  color: var(--panel-muted);
+  font-size: 11px;
+}
+.gpg-keychain-empty button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+}
+.gpg-keychain-hint {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--panel-muted);
+  font-size: 9.5px;
+}
+
+/* Right-click menu and destructive confirmation. */
+.gpg-key-menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 164px;
+  padding: 4px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: var(--panel-surface);
+  box-shadow: 0 10px 30px color-mix(in srgb, #000 18%, transparent);
+}
+.gpg-key-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  font-size: 11px;
+}
+.gpg-key-menu button:hover {
+  background: var(--panel-hover);
+}
+.gpg-key-menu button.danger {
+  color: var(--danger, #b42318);
+}
+.gpg-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, #1f2933 32%, transparent);
+  backdrop-filter: blur(2px);
+}
+.gpg-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 22%, transparent);
+}
+.gpg-confirm-icon {
+  color: var(--danger, #b42318);
+}
+.gpg-confirm h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.gpg-confirm p {
+  margin: 0;
+  color: var(--panel-muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.gpg-confirm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.gpg-confirm footer button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 7px;
+  background: var(--panel-surface);
+}
+.gpg-confirm footer button.danger {
+  border-color: var(--danger, #b42318);
+  background: var(--danger, #b42318);
+  color: #fff;
+}
+
+/* New key form ------------------------------------------------------------ */
+.gpg-create {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 0;
+}
+.gpg-create-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.gpg-create-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-accent) 11%, transparent);
+  color: var(--panel-accent);
+}
+.gpg-create-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.gpg-create-head p {
+  margin: 2px 0 0;
+  color: var(--panel-muted);
+  font-size: 10.5px;
+}
+.gpg-create-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.gpg-create-grid .gpg-field input,
+.gpg-create-grid .gpg-field select {
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+  color: var(--panel-text);
+  font: inherit;
+}
+.gpg-create-grid .gpg-field input::placeholder {
+  color: color-mix(in srgb, var(--panel-muted) 80%, transparent);
+}
+.gpg-create-error {
+  margin: 0;
+  color: var(--danger, #b42318);
+  font-size: 10.5px;
+}
+.gpg-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.gpg-create-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+}
+.gpg-create-actions .gpg-primary {
+  border-color: var(--panel-accent);
+  background: var(--panel-accent);
+  color: #fff;
+}
+@media (max-width: 540px) {
+  .gpg-create-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gpg-keychain-columns,
+  .gpg-keychain-rows li button {
+    grid-template-columns: 50px minmax(0, 1fr) 82px 58px;
+  }
+  .gpg-keychain-fingerprint {
+    display: none;
+  }
+}

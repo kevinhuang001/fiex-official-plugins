@@ -11,6 +11,17 @@ pub(crate) fn dispatch(
     next: &AtomicU64,
 ) -> Result<Value, RpcError> {
     let method = ctx.method();
+    if method == "connection.open" {
+        let mount = ctx.params()["mountId"]
+            .as_str()
+            .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+        return Ok(
+            serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
+        );
+    }
+    if matches!(method, "fs.stat" | "fs.writeFile") {
+        return super::sync::dispatch(&ctx);
+    }
     let p = ctx.params();
     if !matches!(
         method,

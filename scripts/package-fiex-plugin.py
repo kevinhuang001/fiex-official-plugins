@@ -22,7 +22,7 @@ def main():
     manifest_path=root/"manifest.json"
     manifest=json.loads(manifest_path.read_text(encoding="utf-8"))
     entry=manifest.get("runtime",{}).get("entrypoints",{}).get(platform)
-    theme = bool(manifest.get("contributions", {}).get("themes"))
+    theme = bool(manifest.get("extensions", {}).get("themes"))
     if not entry and not theme:
         print("Skipping",args.slug,"for",platform,"(no entrypoint)")
         return
@@ -35,12 +35,27 @@ def main():
     with zipfile.ZipFile(archive_path,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         archive.write(manifest_path,"manifest.json")
         if binary: archive.write(binary,entry)
-        for contribution in manifest.get("contributions", {}).get("themes", []):
+        themes = manifest.get("extensions", {}).get("themes")
+        if isinstance(themes, dict):
+            themes = [themes]
+        elif not isinstance(themes, list):
+            themes = []
+        for contribution in themes:
             archive.write(root/contribution["path"], contribution["path"])
-        ui=root/"ui"/"dist" if (root/"ui"/"dist").is_dir() else root/"ui"
+        ui_dist=root/"ui"/"dist"
+        ui=ui_dist if ui_dist.is_dir() else root/"ui"
         if ui.is_dir():
             for file in sorted(ui.rglob("*")):
                 if file.is_file() and not file.is_symlink():
                     archive.write(file,file.relative_to(root).as_posix())
+        # Panels may reference a source-level standalone document (for example
+        # archive's ui/preview.html) while the rest of the UI is built into
+        # ui/dist. Include those root documents as well, otherwise the packaged
+        # manifest points at a file that does not exist.
+        if ui_dist.is_dir() and (root/"ui").is_dir():
+            for file in sorted((root/"ui").glob("*.html")):
+                arcname=file.relative_to(root).as_posix()
+                if arcname not in archive.namelist():
+                    archive.write(file,arcname)
     print("Created",archive_path,archive_path.stat().st_size,"bytes")
 if __name__=="__main__":main()

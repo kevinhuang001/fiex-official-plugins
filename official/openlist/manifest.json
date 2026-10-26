@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.openlist",
   "name": "OpenList",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。",
   "icon": "cloud",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-openlist.exe",
       "macos-aarch64": "fiex-plugin-openlist",
@@ -23,13 +23,32 @@
       "read": {
         "enabled": false
       },
-      "create": false,
-      "delete": false,
-      "rename": false
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "files": {
-      "read": false,
-      "write": false
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": false
+      },
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "network": {
       "enabled": true,
@@ -38,24 +57,24 @@
     "commands": {
       "enabled": false,
       "allow": []
+    },
+    "metadata": {
+      "enabled": true
     }
   },
-  "contributions": {
-    "connections": [
-      {
-        "id": "openlist",
-        "title": "OpenList",
-        "fields": [
-          {
-            "id": "url",
-            "label": "服务器地址",
-            "type": "url",
-            "required": true,
-            "placeholder": "https://openlist.example.com"
-          }
-        ]
-      }
-    ],
+  "extensions": {
+    "connections": {
+      "title": "OpenList",
+      "fields": [
+        {
+          "id": "url",
+          "label": "服务器地址",
+          "type": "url",
+          "required": true,
+          "placeholder": "https://openlist.example.com"
+        }
+      ]
+    },
     "settings": [
       {
         "id": "username",
@@ -73,6 +92,9 @@
         "type": "number",
         "defaultValue": "30"
       }
-    ]
+    ],
+    "vfs": {
+      "title": "OpenList"
+    }
   }
 }

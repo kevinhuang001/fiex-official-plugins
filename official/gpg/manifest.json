@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.gpg",
   "name": "GPG",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。",
   "icon": "key-round",
   "author": {
@@ -21,7 +21,9 @@
   "permissions": {
     "commands": {
       "enabled": true,
-      "allow": ["gpg"]
+      "allow": [
+        "gpg"
+      ]
     }
   },
   "extensions": {

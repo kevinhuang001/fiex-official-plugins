@@ -19,6 +19,9 @@
       body { margin: 0; color: var(--text); background: var(--surface); }
       main { padding: 18px 22px 32px; max-width: 860px; margin: 0 auto; }
       .hint { color: var(--muted); text-align: center; padding: 28px 0; }
+      .preview-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 300px; color: var(--muted); }
+      .preview-loading .spinner { width: 20px; height: 20px; border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: preview-spin .8s linear infinite; }
+      @keyframes preview-spin { to { transform: rotate(360deg); } }
       .error { color: var(--danger, #b4443d); white-space: pre-wrap; }
       h1, h2, h3, h4 { line-height: 1.35; margin: 0.9em 0 0.45em; font-weight: 600; }
       h1 { font-size: 20px; }
@@ -40,7 +43,7 @@
     </style>
   </head>
   <body>
-    <main id="content"><p class="hint">正在读取…</p></main>
+    <main id="content"><div class="preview-loading"><span class="spinner" aria-hidden="true"></span><span>正在解析文档…</span></div></main>
     <script>
       (() => {
         const content = document.getElementById('content')
@@ -68,12 +71,15 @@
             port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
           })
 
+        let readySent = false
+        const ready = () => { if (readySent) return; readySent = true; void invoke('preview.ready').catch(() => {}) }
         const fail = (error) => {
           content.innerHTML = ''
           const line = document.createElement('p')
           line.className = 'error'
           line.textContent = String(error?.message || error)
           content.append(line)
+          ready()
         }
 
         const start = async () => {
@@ -96,6 +102,7 @@
             // The plugin sanitizes this HTML on the Rust side before it arrives.
             documentView.innerHTML = value.html
             content.replaceChildren(documentView)
+            ready()
           } catch (error) {
             fail(error)
           }

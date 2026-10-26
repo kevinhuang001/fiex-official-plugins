@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.office-preview",
   "name": "Office 预览",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。",
   "icon": "file-text",
   "author": {
@@ -72,6 +72,9 @@
           "xlsx",
           "pptx"
         ]
+      },
+      "loading": {
+        "entry": "ui/loading.html"
       }
     },
     "info": {

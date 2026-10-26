@@ -1,5 +1,6 @@
 //! Public key listing: parses the machine-readable `--with-colons` records.
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 pub(crate) fn keys(stdout: &str) -> Vec<Value> {
     let mut keys: Vec<Value> = Vec::new();
@@ -8,7 +9,7 @@ pub(crate) fn keys(stdout: &str) -> Vec<Value> {
         let fields: Vec<&str> = line.split(':').collect();
         let record = fields.first().copied();
         match record {
-            Some("pub") => {
+            Some("pub") | Some("sec") => {
                 current = Some((
                     String::new(),
                     fields.get(4).copied().unwrap_or("").to_string(),
@@ -46,6 +47,7 @@ pub(crate) fn keys(stdout: &str) -> Vec<Value> {
                             .and_then(|(_, rest)| rest.split_once('>'))
                             .map_or(String::new(), |(email, _)| email.to_string()),
                         "expires": expires,
+                        "hasSecret": record == Some("sec"),
                     }));
                     current = None;
                 }
@@ -53,6 +55,34 @@ pub(crate) fn keys(stdout: &str) -> Vec<Value> {
         }
     }
     keys
+}
+
+/// Merge the public and secret listings. `gpg.keys` should expose both public
+/// keys and whether the user's keyring has the matching secret key, so the UI
+/// can offer public/private export without a second round trip.
+pub(crate) fn keyring(public: &str, secret: &str) -> Vec<Value> {
+    let mut public_keys = keys(public);
+    let secret_keys = keys(secret);
+    let secret_fingerprints: HashSet<String> = secret_keys
+        .iter()
+        .filter_map(|key| key["fingerprint"].as_str().map(str::to_owned))
+        .collect();
+    for key in &mut public_keys {
+        let has_secret = key["fingerprint"]
+            .as_str()
+            .is_some_and(|fpr| secret_fingerprints.contains(fpr));
+        key["hasSecret"] = json!(has_secret);
+    }
+    // A secret-only primary is still a key the user owns; keep it visible.
+    for secret_key in secret_keys {
+        if !public_keys
+            .iter()
+            .any(|key| key["fingerprint"] == secret_key["fingerprint"])
+        {
+            public_keys.push(secret_key);
+        }
+    }
+    public_keys
 }
 
 #[cfg(test)]
@@ -85,5 +115,15 @@ mod tests {
         assert_eq!(parsed[0]["keyId"], "ABCDEF0123456789");
         assert_eq!(parsed[0]["name"], "Ada Lovelace <ada@example.org>");
         assert_eq!(parsed[0]["email"], "ada@example.org");
+    }
+
+    #[test]
+    fn keyring_marks_public_keys_with_a_secret_counterpart() {
+        let public = "pub:u:4096:1:AAAA0000AAAA0000:1:2::u:::scESC:::::::\nfpr:::::::::1111111111111111111111111111111111111111:\nuid:u::::1::H::First <a@x>::::::::::0:\npub:u:4096:1:BBBB1111BBBB1111:1:2::u:::scESC:::::::\nfpr:::::::::2222222222222222222222222222222222222222:\nuid:u::::1::H::Second <b@x>::::::::::0:\n";
+        let secret = "sec:u:4096:1:AAAA0000AAAA0000:1:2::u:::scESC:::::::\nfpr:::::::::1111111111111111111111111111111111111111:\nuid:u::::1::H::First <a@x>::::::::::0:\n";
+        let keys = keyring(public, secret);
+        assert_eq!(keys.len(), 2);
+        assert_eq!(keys[0]["hasSecret"], true);
+        assert_eq!(keys[1]["hasSecret"], false);
     }
 }

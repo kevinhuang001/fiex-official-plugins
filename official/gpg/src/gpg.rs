@@ -7,7 +7,15 @@ pub(crate) fn invoke(
     args: &[String],
     host: &sdk::RequestContext,
 ) -> Result<ProcessResult, RpcError> {
-    host.process_run("gpg", args, None).map_err(|error| {
+    invoke_with_stdin(args, host, None)
+}
+
+pub(crate) fn invoke_with_stdin(
+    args: &[String],
+    host: &sdk::RequestContext,
+    stdin: Option<&str>,
+) -> Result<ProcessResult, RpcError> {
+    host.process_run("gpg", args, stdin).map_err(|error| {
         RpcError::internal(format!("无法运行 gpg，请先安装 GnuPG 并加入 PATH：{error}"))
     })
 }
@@ -25,6 +33,11 @@ pub(crate) fn status_value<'a>(stderr: &'a str, keyword: &str) -> Option<&'a str
         line.strip_prefix(keyword)
             .and_then(|rest| rest.trim().split(' ').next())
     })
+}
+
+/// The text after a status keyword, e.g. `KEY_CREATED B <fingerprint>`.
+pub(crate) fn status_line<'a>(stderr: &'a str, keyword: &str) -> Option<&'a str> {
+    status_lines(stderr).find_map(|line| line.strip_prefix(keyword).map(str::trim))
 }
 
 pub(crate) fn signed_by(stderr: &str) -> Option<String> {

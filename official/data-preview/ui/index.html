@@ -80,12 +80,15 @@
         padding: 40px 20px; color: var(--muted); font-size: 11px;
       }
       .empty strong { color: var(--text); font-size: 12px; }
+      .loading-side { display: flex; align-items: center; gap: 8px; padding: 12px 10px; color: var(--muted); font-size: 11px; }
+      .loading-side .spinner { width: 14px; height: 14px; border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: preview-spin .8s linear infinite; }
+      @keyframes preview-spin { to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
     <aside>
       <div class="search"><input id="filter" type="search" placeholder="筛选数据集…" aria-label="筛选数据集" /></div>
-      <div class="datasets" id="datasets"><p class="empty-side">正在读取…</p></div>
+      <div class="datasets" id="datasets"><div class="loading-side"><span class="spinner" aria-hidden="true"></span><span>正在读取数据集…</span></div></div>
     </aside>
     <main>
       <div class="head">
@@ -147,9 +150,12 @@
           pending.set(requestId, { resolve, reject, timer })
           port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
         })
+        let readySent = false
+        const ready = () => { if (readySent) return; readySent = true; void invoke('preview.ready').catch(() => {}) }
         const fail = (error) => {
           content.innerHTML = ''
           const p = document.createElement('p'); p.className = 'error'; p.textContent = String(error?.message || error); content.append(p)
+          ready()
         }
 
         const renderDatasets = () => {
@@ -322,7 +328,7 @@
             const single = datasets.length <= 1
             document.body.classList.toggle('single', single)
             renderDatasets()
-            if (!datasets.length) { content.innerHTML = '<p class="hint">没有可显示的数据集。</p>'; return }
+            if (!datasets.length) { content.innerHTML = '<p class="hint">没有可显示的数据集。</p>'; ready(); return }
             selected = datasets[0].id
             renderDatasets()
             if (value.page) {
@@ -334,6 +340,7 @@
             } else {
               await loadPage()
             }
+            ready()
           } catch (error) { fail(error) }
         }
 

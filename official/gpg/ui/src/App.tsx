@@ -7,15 +7,15 @@ import { KeysView } from "./components/KeysView";
 import { SignForm } from "./components/SignForm";
 import { VerifyForm } from "./components/VerifyForm";
 import { useGpgAction } from "./hooks/useGpgAction";
+import { useKeyActions } from "./hooks/useKeyActions";
 import { useGpgKeys } from "./hooks/useGpgKeys";
-import { baseName, isSignature, withoutSignature } from "./paths";
+import { isSignature, withoutSignature } from "./paths";
 import { client } from "./client";
 import {
   ACTIONS,
   DEFAULT_ACTION,
   isAction,
   type Action,
-  type Key,
   type Status,
 } from "./types";
 
@@ -60,6 +60,11 @@ export function App() {
     () => keys.filter((key) => key.fingerprint === fingerprint),
     [keys, fingerprint],
   );
+  const secretKeys = useMemo(() => keys.filter((key) => key.hasSecret), [keys]);
+  const visibleSecretKeys = useMemo(
+    () => visibleKeys.filter((key) => key.hasSecret),
+    [visibleKeys],
+  );
 
   useEffect(() => {
     if (loaded.current) return;
@@ -98,7 +103,7 @@ export function App() {
     const measured = Math.ceil(root.scrollHeight);
     root.style.height = previous;
     void client.panel
-      .resize(meta.width, Math.max(300, measured))
+      .resize(meta.width, Math.max(action === "keys" ? 220 : 300, measured))
       .catch(() => {});
   }, [meta.width, keys, files, signature, data, status]);
 
@@ -115,44 +120,12 @@ export function App() {
     if (path) setData(path);
   };
 
-  const imports = async () => {
-    const path = await client.dialog.openFile({
+  const { imports, exports, exportSecret, createKey, deleteKey } =
+    useKeyActions({
       directory,
-      extensions: ["asc", "gpg", "pgp"],
+      refreshKeys,
+      setStatus,
     });
-    if (!path) return;
-    setStatus({ kind: "busy", text: "正在导入公钥…" });
-    try {
-      const result = await client.plugin.invoke<{ imported: number }>(
-        "gpg.import",
-        { input: path },
-      );
-      await refreshKeys();
-      setStatus({ kind: "ok", text: `已导入 ${result.imported} 个公钥` });
-    } catch (error) {
-      setStatus({ kind: "error", text: String(error) });
-    }
-  };
-
-  const exports = async (key: Key) => {
-    const path = await client.dialog.saveFile({
-      directory,
-      suggestedName: `${key.keyId || "public-key"}.asc`,
-      extensions: ["asc"],
-    });
-    if (!path) return;
-    setStatus({ kind: "busy", text: "正在导出公钥…" });
-    try {
-      await client.plugin.invoke("gpg.export", {
-        output: path,
-        fingerprint: key.fingerprint,
-        armor: true,
-      });
-      setStatus({ kind: "ok", text: `已导出到 ${baseName(path)}` });
-    } catch (error) {
-      setStatus({ kind: "error", text: String(error) });
-    }
-  };
 
   const canRun =
     !busy &&
@@ -163,11 +136,9 @@ export function App() {
 
   return (
     <main className="gpg">
-      <Header
-        meta={meta}
-        showCount={action !== "keys" && files.length > 0}
-        count={files.length}
-      />
+      {action !== "keys" && (
+        <Header meta={meta} showCount={files.length > 0} count={files.length} />
+      )}
 
       <section className="gpg-body">
         {action === "keys" ? (
@@ -177,6 +148,9 @@ export function App() {
             query={query}
             onQuery={setQuery}
             onExport={exports}
+            onExportSecret={exportSecret}
+            onCreate={createKey}
+            onDelete={deleteKey}
             onImport={imports}
             onRefresh={() => void refreshKeys()}
             busy={busy}
@@ -212,8 +186,8 @@ export function App() {
           <SignForm
             files={files}
             directory={directory}
-            keys={visibleKeys}
-            totalKeys={keys.length}
+            keys={visibleSecretKeys}
+            totalKeys={secretKeys.length}
             fingerprint={fingerprint}
             onFingerprint={setFingerprint}
             query={query}

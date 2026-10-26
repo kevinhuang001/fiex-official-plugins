@@ -21,17 +21,21 @@ export function ActionFooter({
   canRun: boolean;
   onRun: () => void;
 }) {
+  const message = status.text || (gpg ? "" : "需要安装 GnuPG 才能使用此插件");
+  if (!message && !showAction) return null;
   return (
     <footer className="gpg-foot">
-      <div className={`gpg-status is-${status.kind}`} role="status">
-        {status.kind === "busy" && <span className="gpg-spin" aria-hidden />}
-        {status.text || (gpg ? "就绪" : "需要安装 GnuPG 才能使用此插件")}
-        {busy && fileCount > 1 && (
-          <em>
-            {progress}/{fileCount}
-          </em>
-        )}
-      </div>
+      {message && (
+        <div className={`gpg-status is-${status.kind}`} role="status">
+          {status.kind === "busy" && <span className="gpg-spin" aria-hidden />}
+          {message}
+          {busy && fileCount > 1 && (
+            <em>
+              {progress}/{fileCount}
+            </em>
+          )}
+        </div>
+      )}
       {showAction && (
         <button
           className="gpg-primary"

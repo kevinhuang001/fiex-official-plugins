@@ -282,7 +282,9 @@ fn main() {
             let mount = ctx.params()["mountId"]
                 .as_str()
                 .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-            return Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}));
+            return Ok(
+                json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
+            );
         }
         if matches!(method, "fs.stat" | "fs.writeFile") {
             return sync::dispatch(&ctx);

@@ -106,9 +106,11 @@ fn archive_menu(params: &Value) -> Value {
         return json!({"items":[]});
     }
     let archive = |name: &str| {
-        ["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz"]
-            .iter()
-            .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
+        [
+            "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz",
+        ]
+        .iter()
+        .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
     };
     let only_archive = selection == 1
         && targets
@@ -216,7 +218,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             .targets()
             .first()
             .and_then(sdk::ResourceContext::name)
-            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?.to_owned();
+            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?
+            .to_owned();
         let rows = archive_info(&json!({"path": name}), &ctx)?;
         return Ok(
             json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),

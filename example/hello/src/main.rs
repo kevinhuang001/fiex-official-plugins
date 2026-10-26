@@ -162,7 +162,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 {"id": "example.inspect", "title": "示例：检查文件", "kind": "action"},
                 {"id": "example.more", "title": "示例", "kind": "submenu"}
             ]}))
-        },
+        }
         "contextMenu.execute" => {
             let item = p.get("itemId").and_then(Value::as_str).unwrap_or("");
             if !matches!(item, "example.inspect" | "example.copy-path") {

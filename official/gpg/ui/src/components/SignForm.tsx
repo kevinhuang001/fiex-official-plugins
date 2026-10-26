@@ -46,6 +46,7 @@ export function SignForm({
         query={query}
         onQuery={onQuery}
         busy={busy}
+        kind="secret"
       />
       <div className="gpg-options">
         <Toggle

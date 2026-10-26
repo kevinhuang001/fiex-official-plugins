@@ -158,7 +158,12 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     if method == "contextMenu.resolve" {
-        let count = p["selectionCount"].as_u64().unwrap_or(1);
+        let count = p["targets"]
+            .as_array()
+            .map(Vec::len)
+            .filter(|count| *count > 0)
+            .or_else(|| p["selectionCount"].as_u64().map(|count| count as usize))
+            .unwrap_or(1);
         if count == 0 {
             return Ok(json!({"items":[]}));
         }

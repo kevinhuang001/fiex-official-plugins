@@ -182,12 +182,17 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
     if method == "decorations.resolve" {
         let mut decorations = Vec::new();
-        if let Some(entries) = params.get("entries").and_then(Value::as_array) {
-            for entry in entries {
+        {
+            for target in ctx.targets() {
+                let Some(metadata) = target.metadata.as_ref() else {
+                    continue;
+                };
+                let entry = serde_json::to_value(metadata)
+                    .map_err(|e| RpcError::internal(e.to_string()))?;
                 let Some(name) = entry.get("name").and_then(Value::as_str) else {
                     continue;
                 };
-                if entry.get("isDir").and_then(Value::as_bool) == Some(true) {
+                if entry["kind"] == "directory" {
                     continue;
                 }
                 let extension = entry

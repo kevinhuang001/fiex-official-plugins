@@ -7,6 +7,9 @@ fn checksum_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Vec<Value>, Rp
     let reader = files
         .open_read(path)
         .map_err(|error| RpcError::internal(error.to_string()))?;
+    hash_rows(reader)
+}
+fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
     let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
     Ok(hashes
         .into_iter()
@@ -24,12 +27,15 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let path = ctx
+        let target = ctx
             .targets()
             .first()
-            .and_then(sdk::ResourceContext::name)
-            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;
-        let rows = checksum_rows(&ctx, path)?;
+            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        let reader = ctx
+            .files()
+            .open_ref(&target.reference)
+            .map_err(|e| RpcError::internal(e.to_string()))?;
+        let rows = hash_rows(reader)?;
         return Ok(json!({"sections":[{"id":"checksum","title":"校验和","rows":rows}]}));
     }
     match method {

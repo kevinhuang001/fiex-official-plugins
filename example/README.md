@@ -144,7 +144,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let setting = ctx.storage_get("global", "greeting")?;
     ctx.storage_set("global", "greeting", json!("嗨"))?;
 
-    let mut reader = ctx.files().open_resource("fiex-read:...", "session")?;
+    let target = ctx.targets().first().ok_or_else(|| RpcError::invalid_params("missing target"))?;
+    let mut reader = ctx.files().open_ref(&target.reference)?;
     let output = ctx.process_run("git", &["status".into()], None)?;
     Ok(json!({"method": method, "params": p, "setting": setting}))
 }
@@ -152,7 +153,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 | 方法                       | 用途                          | 需要的权限                |
 | -------------------------- | ----------------------------- | ------------------------- |
-| `ctx.files()`              | 读/写/列目录、`open_resource` | `files.*` / `folders.*`   |
+| `ctx.files()`              | 读/写/列目录、`open_ref` | `files.*` / `folders.*`   |
 | `ctx.process_run()`        | 运行声明过的外部命令          | `commands.enabled/allow`  |
 | `ctx.http()` / `ctx.tcp()` | 经 Core 代理访问网络          | `network.enabled/domains` |
 | `ctx.storage_get/set()`    | 普通设置                      | 无                        |
@@ -178,7 +179,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 - `connection.open` 返回 `vfs` 或 `pluginView`；
 - `fs.*` 返回 Core 要求的 VFS 结构；
 - `decorations.resolve` 只返回当前目录成员的 `name`；
-- `info.resolve` 返回标准 `InfoResponse`；
+- `info.resolve` 返回标准 `{ sections: [...] }`；
 - `preview.open` 返回 `PreviewView` 的 `{kind:"html", view:{...}}`；
 - `contextMenu.resolve/execute` 返回扁平菜单；
 - `search.query` 返回空结果，展示 SearchResponse 外形；
@@ -528,7 +529,6 @@ Core 为 `info.resolve` 构造统一 `EventContext`，目标资源保存在 `tar
       "size": 2451,
       "modified": 1792920000
     },
-    "read": { "resourceId": "fiex-read:..." }
   }]
 }
 ```

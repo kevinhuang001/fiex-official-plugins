@@ -14,7 +14,7 @@ Core 构造 EventContext（targets 数组）
 info.resolve
       │
       ▼
-InfoResponse.sections → Core 合并 core.metadata
+sections → Core 合并 core.metadata
 ```
 
 每个插件最多注册**一个** info 对象，不是数组。

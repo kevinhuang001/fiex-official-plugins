@@ -58,7 +58,7 @@ registers `extensions.info` / `extensions.preview` with `match` and
 optional `priority`/`maxBytes` (no per-contribution id/title). Both fixed
 methods receive an `EventContext` with `targets`; `ctx.targets()` and
 `ctx.metadata(ref)` expose permission-projected metadata without extra RPCs.
-Core validates `InfoResponse` / `PreviewView`; preview HTML is returned as
+Core validates `{ sections: [...] }` / `PreviewView`; preview HTML is returned as
 a package-confined `view.entry` instead of being listed in the manifest. See
 `fiex/docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
 

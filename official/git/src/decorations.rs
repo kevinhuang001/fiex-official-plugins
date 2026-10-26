@@ -38,15 +38,17 @@ pub fn list(params: &Value, host: &sdk::RequestContext) -> Result<Value, String>
         .filter_map(|(path, code)| code.as_str().map(|code| (normalize(path), code.to_owned())))
         .collect::<std::collections::HashMap<_, _>>();
     let mut decorations = Vec::new();
-    if let Some(entries) = params.get("entries").and_then(Value::as_array) {
-        for entry in entries {
-            let Some(path) = entry.get("path").and_then(Value::as_str) else {
+    {
+        for target in host.targets() {
+            let Some(metadata) = target.metadata.as_ref() else {
                 continue;
             };
-            let Some(name) = entry.get("name").and_then(Value::as_str) else {
-                continue;
-            };
-            let Some(code) = statuses.get(&normalize(path)) else {
+            let name = &metadata.name;
+            let path = std::path::Path::new(directory)
+                .join(name)
+                .to_string_lossy()
+                .into_owned();
+            let Some(code) = statuses.get(&normalize(&path)) else {
                 continue;
             };
             let Some((text, color, tooltip, hex)) = badge(code) else {

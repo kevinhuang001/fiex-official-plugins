@@ -113,15 +113,20 @@ fn main() {
     .expect("builtin pdf preview failed");
     assert_eq!(pdf_view["view"]["kind"], "pdf");
 
-    let (directory, paths) = fiex_lib::plugin_preview::session_scope(
+    let scope = fiex_lib::plugin_preview::session_scope(
         opened["sessionId"].as_str().unwrap(),
         "org.fiex.archive",
     )
     .expect("preview session scope");
-    assert_eq!(std::path::Path::new(&directory), root);
-    assert_eq!(paths, vec![archive.clone()]);
+    assert_eq!(scope.path(), root);
+    assert_eq!(
+        scope
+            .resolve_reference(&context["targets"][0]["ref"])
+            .unwrap(),
+        archive.to_str().unwrap()
+    );
 
-    // Without files.read Core must not project a read capability.
+    // Resource identity does not grant reads; the broker checks FilesRead per call.
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == "org.fiex.archive")

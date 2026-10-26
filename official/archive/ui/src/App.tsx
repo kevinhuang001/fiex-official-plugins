@@ -11,6 +11,8 @@ import { FiexUiClient } from "../../../../sdk/ui/src/index";
 interface Context {
   selectionPaths?: string[];
   directoryPath?: string;
+  /** Manifest-negotiated budget from extensions.ui.timeoutMs. */
+  uiTimeoutMs?: number;
 }
 interface PluginTask {
   taskId: string;
@@ -172,6 +174,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
+  const [timeoutMs, setTimeoutMs] = useState(15000);
   const selected = formats.find((entry) => entry.id === format) || formats[0];
   const base =
     paths.length === 1
@@ -184,6 +187,8 @@ export function App() {
       .then((context) => {
         setPaths(context.selectionPaths || []);
         setDirectory(context.directoryPath || "");
+        if (typeof context.uiTimeoutMs === "number" && context.uiTimeoutMs > 0)
+          setTimeoutMs(context.uiTimeoutMs);
       })
       .catch((cause) => setError(String(cause)))
       .finally(() => setReady(true));
@@ -241,23 +246,32 @@ export function App() {
     setError("");
     setDone("");
     try {
-      const started = await client.invoke<{ taskId: string }>("plugin.invoke", {
-        method: "archive.compress",
-        params: {
-          paths,
-          destination: destination.trim(),
-          format: selected.id,
-          level: password ? null : level,
-          password: password || null,
-          ignoreSettings: !compressAll,
+      const started = await client.invoke<{ taskId: string }>(
+        "plugin.invoke",
+        {
+          method: "archive.compress",
+          params: {
+            paths,
+            // Name the folder explicitly so Core can grant the panel this
+            // operation's output root; naming it does not broaden any other call.
+            root: directory || undefined,
+            destination: destination.trim(),
+            format: selected.id,
+            level: password ? null : level,
+            password: password || null,
+            ignoreSettings: !compressAll,
+          },
         },
-      });
+        { timeoutMs },
+      );
       if (!started?.taskId) throw new Error("插件没有返回任务 ID");
       const deadline = Date.now() + 24 * 60 * 60 * 1000;
       while (Date.now() < deadline) {
-        const status = await client.invoke<PluginTask | null>("plugin.task", {
-          taskId: started.taskId,
-        });
+        const status = await client.invoke<PluginTask | null>(
+          "plugin.task",
+          { taskId: started.taskId },
+          { timeoutMs },
+        );
         if (!status) throw new Error("状态中心没有找到该任务");
         if (status.status === "completed") {
           setDone(String(status.result ?? ""));

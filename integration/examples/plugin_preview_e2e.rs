@@ -1,4 +1,4 @@
-//! Cross-repository test for the standard PreviewContext/PreviewView contract.
+//! Cross-repository test for the unified EventContext/PreviewView contract.
 use fiex_lib::plugin_host;
 use serde_json::json;
 
@@ -71,10 +71,16 @@ fn main() {
     let html = opened["view"]["html"].as_str().unwrap();
     assert!(html.to_ascii_lowercase().contains("<html"), "{opened}");
     let context = &opened["context"];
-    assert_eq!(context["resource"]["metadata"]["name"], "bundle.zip");
-    assert_eq!(context["resource"]["metadata"]["extension"], "zip");
-    assert!(context["resource"]["read"]["resourceId"].is_string());
-    assert_eq!(context["intent"], "preview");
+    // Preview uses the unified EventContext. A ResourceRef is an opaque
+    // operation-scoped identity; the old resource/read/intent envelope is gone.
+    assert_eq!(context["targets"][0]["metadata"]["name"], "bundle.zip");
+    assert_eq!(context["targets"][0]["metadata"]["extension"], "zip");
+    assert!(context["targets"][0]["ref"]["mountId"].is_string());
+    assert!(context["targets"][0]["ref"]["nodeId"].is_string());
+    assert!(context["sessionId"].as_str().is_some_and(|id| !id.is_empty()));
+    assert!(context.get("resource").is_none());
+    assert!(context.get("intent").is_none());
+    assert!(context["targets"][0].get("read").is_none());
     let unified = fiex_lib::plugin_preview::open_provider(
         archive.to_str().unwrap(),
         archive.to_str().unwrap(),

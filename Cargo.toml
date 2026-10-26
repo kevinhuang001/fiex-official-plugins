@@ -3,6 +3,7 @@ resolver = "2"
 exclude = [
   "official/ssh",
   "official/smb",
+  "integration",
 ]
 members = [
   "official/archive",

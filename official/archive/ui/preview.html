@@ -79,6 +79,7 @@
         const extract = document.getElementById('extract')
         const status = document.getElementById('status')
         let port = null, sessionId = '', nonce = '', seq = 0, path = '', passwordValue = ''
+        let requestTimeoutMs = 20000
         let allEntries = []
         const expanded = new Set()
         const pending = new Map()
@@ -93,7 +94,7 @@
           new Promise((resolve, reject) => {
             if (!port) return reject(new Error('bridge not ready'))
             const requestId = `archive-${++seq}`
-            const timer = setTimeout(() => { pending.delete(requestId); reject(new Error('请求超时')) }, 20000)
+            const timer = setTimeout(() => { pending.delete(requestId); reject(new Error('请求超时')) }, requestTimeoutMs)
             pending.set(requestId, { resolve, reject, timer })
             port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
           })
@@ -224,6 +225,8 @@
           try {
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
+            if (Number.isFinite(context.uiTimeoutMs) && context.uiTimeoutMs > 0)
+              requestTimeoutMs = context.uiTimeoutMs
             path = context.resource?.metadata?.name || context.preview?.name || ''
             if (!path) return fail(new Error('没有文件上下文'))
             await load()
@@ -232,11 +235,25 @@
 
         unlock.addEventListener('click', () => { passwordValue = password.value; void load() })
         password.addEventListener('keydown', (event) => { if (event.key === 'Enter') { passwordValue = password.value; void load() } })
+        // archive.extract starts a Core-owned task. Poll the task instead of
+        // rendering the {taskId} payload as an extraction path.
+        const waitForTask = async (taskId) => {
+          while (true) {
+            const task = await invoke('plugin.task', { taskId })
+            if (!task) throw new Error('状态中心没有找到该任务')
+            if (task.status === 'completed') return task.result
+            if (task.status === 'failed') throw new Error(task.error || '解压失败')
+            if (task.status === 'cancelled') throw new Error('已取消')
+            await new Promise((resolve) => setTimeout(resolve, 300))
+          }
+        }
+
         extract.addEventListener('click', async () => {
           extract.disabled = true
           setStatus('正在解压…')
           try {
-            const destination = await invoke('plugin.invoke', { method: 'archive.extract', params: { path, password: passwordValue || undefined } })
+            const started = await invoke('plugin.invoke', { method: 'archive.extract', params: { path, password: passwordValue || undefined } })
+            const destination = typeof started === 'string' ? started : await waitForTask(started?.taskId)
             setStatus(`已解压到 ${destination}`)
           } catch (error) { setStatus(''); fail(error) }
           finally { extract.disabled = false }

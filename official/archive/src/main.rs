@@ -3,6 +3,12 @@ mod ignores;
 mod listing;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
+use std::time::{Duration, Instant};
+
+/// How long a `beforeOpen` hook waits for an extraction that is likely quick.
+/// If the archive is still being expanded after this, the hook returns so Core
+/// can finish the open immediately; the task keeps running in the background.
+const HOOK_SYNC_GRACE: Duration = Duration::from_millis(750);
 fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
     p.get(k)
         .and_then(Value::as_str)
@@ -77,6 +83,86 @@ fn archive_error(error: String) -> RpcError {
         RpcError::cancelled()
     } else {
         RpcError::internal(error)
+    }
+}
+
+/// Extraction errors are surfaced to the status/error channel. An encrypted
+/// archive is not a crash: point the user at the explicit extract/preview
+/// actions that can carry a password.
+fn hook_error_message(error: &str) -> String {
+    if listing::looks_encrypted(error) {
+        "压缩包已加密，请使用右键“解压缩”或预览面板输入密码".into()
+    } else {
+        error.to_string()
+    }
+}
+
+fn hook_extract(
+    path: &str,
+    password: Option<&str>,
+    ignores: &[String],
+    max_total: u64,
+    context: &dyn archives::ArchiveContext,
+) -> Result<String, String> {
+    archives::extract(path, None, password, ignores, max_total, context)
+}
+
+/// `beforeOpen` consumes the OS open. Extraction runs as a background task so
+/// a large archive cannot stall the open, and the response intentionally never
+/// contains the task id or a raw task payload.
+fn before_open(path: &str, params: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let stored = stored_ignores(host, "extractIgnores");
+    let ignores = merge_ignores(params, stored);
+    let password = params.get("password").and_then(Value::as_str);
+    let max_total = max_total_bytes(host, params);
+    let task_path = path.to_string();
+    let task_ignores = ignores.clone();
+    let task_password = password.map(str::to_owned);
+    match host.spawn_task_with_label("正在解压", move |task| {
+        hook_extract(
+            &task_path,
+            task_password.as_deref(),
+            &task_ignores,
+            max_total,
+            &task,
+        )
+        .map(|destination| json!({ "destination": destination }))
+        .map_err(|error| {
+            let _ = task.report_error(
+                "archive.hook.extract",
+                &hook_error_message(&error),
+                Some(&task_path),
+            );
+            archive_error(error)
+        })
+    }) {
+        Ok(handle) => {
+            // Small archives finish inside the grace window, so the caller's
+            // immediate reload already shows the extracted folder. Large ones
+            // keep running in the status centre. Both consume the open and
+            // return only the handled flag, never task-shaped JSON.
+            let deadline = Instant::now() + HOOK_SYNC_GRACE;
+            while !handle.is_finished() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Ok(json!({ "handled": true }))
+        }
+        Err(error) => {
+            let _ = host.report_error("archive.hook.start", &error.message, Some(path));
+            // The task registry is exhausted or unavailable. Extract inline so
+            // the user's open is still consumed, then report any real failure.
+            match hook_extract(path, password, &ignores, max_total, host) {
+                Ok(_) => Ok(json!({ "handled": true })),
+                Err(error) => {
+                    let _ = host.report_error(
+                        "archive.hook.extract",
+                        &hook_error_message(&error),
+                        Some(path),
+                    );
+                    Ok(json!({ "handled": true }))
+                }
+            }
+        }
     }
 }
 fn archive_menu(params: &Value) -> Value {
@@ -177,9 +263,6 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let mut params = ctx.params().clone();
-    if method == "hooks.invoke" {
-        return Ok(json!({"handled":false}));
-    }
     if method == "decorations.resolve" {
         let mut decorations = Vec::new();
         {
@@ -332,25 +415,14 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             host,
         )
         .map_err(RpcError::internal)?),
-        // Runs before Core opens the file: extract in place, never fall through
-        // for a valid archive. A password-protected archive hands control to
-        // the preview panel so the user can type the password.
+        // Runs before Core opens the file: consume the open and extract into
+        // the archive's folder. Never fall through for a matching archive, and
+        // never mistake this event's response for a menu/task result.
         "hooks.invoke" => {
             if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
                 return Ok(json!({ "handled": false }));
             }
-            let path = param(p, "path")?;
-            let stored = stored_ignores(host, "extractIgnores");
-            let ignores = merge_ignores(p, stored);
-            let password = p.get("password").and_then(Value::as_str);
-            let max_total = max_total_bytes(host, p);
-            match archives::extract(path, None, password, &ignores, max_total, host) {
-                Ok(destination) => Ok(json!({ "handled": true, "destination": destination })),
-                Err(error) if listing::looks_encrypted(&error) => {
-                    Ok(json!({ "handled": true, "preview": true }))
-                }
-                Err(error) => Err(RpcError::internal(error)),
-            }
+            before_open(param(p, "path")?, p, host)
         }
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
@@ -406,6 +478,25 @@ mod context_menu_tests {
         assert!(items.len() >= 2);
         assert!(items.iter().all(|item| item.get("parentId").is_none()));
         assert!(items.iter().any(|item| item["id"] == "archive.zip"));
+    }
+
+    #[test]
+    fn encrypted_hook_failures_point_at_the_password_actions() {
+        assert!(hook_error_message("Password required").contains("密码"));
+        assert!(hook_error_message("archive is encrypted").contains("预览"));
+        assert_eq!(hook_error_message("磁盘已满"), "磁盘已满");
+    }
+
+    #[test]
+    fn manifest_negotiates_a_longer_ui_budget_for_archive_listing() {
+        let manifest: Value = serde_json::from_str(include_str!("../manifest.json")).unwrap();
+        let timeout = manifest["extensions"]["ui"]["timeoutMs"]
+            .as_u64()
+            .expect("manifest must declare extensions.ui.timeoutMs");
+        assert!(
+            timeout >= 120_000,
+            "archive listing needs a longer budget than Core's old default"
+        );
     }
 
     #[test]

@@ -1,0 +1,51 @@
+name: Prepare plugin release
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_tag:
+        description: Previous plugins-v tag
+        required: true
+        default: plugins-v0.4.0
+      part:
+        description: Version part for plugins that changed
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bump only changed plugins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "fiex-release-bot"
+          git config user.email "release-bot@fiex.app"
+          python scripts/plugin-versions.py bump \
+            --base "${{ inputs.base_tag }}" \
+            --part "${{ inputs.part }}"
+          if git diff --quiet; then
+            echo "No changed plugins to bump."
+            exit 0
+          fi
+          branch="release/plugins-${{ inputs.part }}-$(date +%Y%m%d%H%M%S)"
+          git checkout -b "$branch"
+          git add official
+          git commit -m "chore(release): bump changed plugin versions"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "chore(release): plugin versions from ${{ inputs.base_tag }}" \
+            --body "Bumps only plugins whose \`official/<slug>/\` files changed since ${{ inputs.base_tag }}. Unchanged plugins keep their versions."

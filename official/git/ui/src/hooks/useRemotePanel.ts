@@ -95,5 +95,3 @@ export function useRemotePanel(
     sync,
   };
 }
-
-export type RemotePanel = ReturnType<typeof useRemotePanel>;

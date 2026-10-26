@@ -1,3 +1,14 @@
+# Fiex plugins 0.5.0
+
+- Plugin manifests now use schema 2, scoped event providers, and per-plugin versioning. Unchanged plugins keep their existing versions.
+- Archive, Office preview and Data preview ship package-local loading pages. Core keeps the loading page visible until the preview calls `preview.ready` after its first data render.
+- Archive can extract through the `beforeOpen` hook, grant sibling output folders and poll Core-owned extraction tasks.
+- New GPG keychain plugin: encrypt, decrypt, sign and verify through the system GnuPG, plus a keychain panel with public/secret keys, fingerprints, import, export and delete.
+- New Email plugin: IMAP/SMTP connection, Gmail-style plugin view, list/read/send, with no local mailbox copy.
+- New SSH and Google Drive plugins.
+- Checksum no longer ships a legacy panel UI; checksum stays available through Info and the context menu.
+- Only plugins whose `official/<slug>/` files changed receive a version bump.
+
 # Versioning
 
 Only plugins whose `official/<slug>/` files changed get a new version. Do not

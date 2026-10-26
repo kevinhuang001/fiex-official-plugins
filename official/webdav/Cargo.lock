@@ -59,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-webdav"
-version = "0.3.0"
+version = "0.2.9"
 dependencies = [
  "base64",
  "fiex-plugin-sdk",

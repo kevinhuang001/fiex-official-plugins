@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.archive",
   "name": "压缩与解压",
-  "version": "0.3.2",
+  "version": "0.3.1",
   "description": "压缩与解压 ZIP、RAR、7z、TAR 等格式。",
   "icon": "archive",
   "author": {

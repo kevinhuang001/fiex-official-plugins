@@ -7,6 +7,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   version-check:
     name: Only changed plugins bump versions
@@ -76,9 +79,16 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
+      - name: Configure sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable sccache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: official/git -> ../../target
+          workspaces: |
+            official/git -> ../../target
+            sdk/rust -> ../../target
           key: official-${{ matrix.target }}
           cache-on-failure: true
       - uses: actions/setup-python@v5
@@ -88,14 +98,28 @@ jobs:
         shell: bash
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          SCCACHE_GHA_ENABLED: "true"
+          SCCACHE_CACHE_SIZE: "10G"
         run: |
           set -euo pipefail
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
-          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
+          cargo fmt --all --check
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            cargo test --workspace --locked --target "${{ matrix.target }}"
+            cargo clippy --workspace --locked --all-targets --target "${{ matrix.target }}" -- -D warnings
+          fi
+          cargo build --release --workspace --locked --target "${{ matrix.target }}"
+          # SSH and SMB pin conflicting curve25519-dalek versions, so they keep
+          # their own locks and are built once outside the shared workspace.
+          for slug in ssh smb; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
-            cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
-            cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
+            if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+              cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
+              cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
+            fi
             cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
+          done
+          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
             python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"
           done
           for slug in vista win11; do python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"; done
@@ -210,6 +234,7 @@ jobs:
           printf 'hello smb\n' > /tmp/fiex-ci-smb/hello.txt
           printf 'another smb\n' > /tmp/fiex-ci-smb/another.txt
           chmod 755 /tmp/fiex-ci-smb
+          sudo chown -R fiex:fiex /tmp/fiex-ci-smb
           printf 'FiexCI-Test-Only-2026\nFiexCI-Test-Only-2026\n' | sudo smbpasswd -a fiex -s
           cat > .ci/smb.conf <<EOF
           [global]

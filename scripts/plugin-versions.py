@@ -82,6 +82,15 @@ def write_version(slug: str, value: str) -> None:
             text,
         )
         lock.write_text(text)
+    root_lock = ROOT / "Cargo.lock"
+    if root_lock.exists():
+        text = root_lock.read_text()
+        text = re.sub(
+            rf'(?m)(\[\[package\]\]\nname = "fiex-plugin-{re.escape(slug)}"\nversion = ")[^"]+(")',
+            rf"\g<1>{value}\g<2>",
+            text,
+        )
+        root_lock.write_text(text)
     package = folder / "ui" / "package.json"
     if package.exists():
         data = json.loads(package.read_text())

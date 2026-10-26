@@ -73,6 +73,10 @@ fn main() {
             .into_iter()
             .find(|(m, _)| m.id == id)
             .unwrap();
+        if let Err(error) = plugin_host::approve_install(id) {
+            // A previous example in the same run may already have approved it.
+            assert!(error.contains("already"), "{error}");
+        }
         plugin_host::activate(
             id,
             &plugin_host::activation_requirements(&manifest).unwrap(),

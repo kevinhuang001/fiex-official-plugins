@@ -9,6 +9,7 @@ export function KeyPicker({
   query,
   onQuery,
   busy,
+  kind = "public",
 }: {
   keys: Key[];
   total: number;
@@ -17,19 +18,22 @@ export function KeyPicker({
   query: string;
   onQuery: (value: string) => void;
   busy: boolean;
+  kind?: "public" | "secret";
 }) {
   if (!total) {
     return (
       <div className="gpg-empty">
         <KeyRound size={15} />
-        没有可用公钥。请从工具栏的“公钥管理”导入密钥。
+        {kind === "secret"
+          ? "没有可用私钥。请先在 GPG 钥匙串中新建或导入私钥。"
+          : "没有可用公钥。请从工具栏的“GPG 钥匙串”导入密钥。"}
       </div>
     );
   }
   return (
     <div className="gpg-keys">
       <div className="gpg-keys-head">
-        <span>收件人</span>
+        <span>{kind === "secret" ? "签名密钥" : "收件人"}</span>
         {total > 3 && (
           <div className="gpg-search">
             <Search size={12} />

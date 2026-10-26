@@ -85,6 +85,10 @@ pub(crate) fn dispatch(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
             if revision(&original)? != before {
                 return Err(fail("同步冲突：上传期间远端已修改"));
             }
+            // SMB rename with replace_if_exists needs exclusive delete access
+            // to the target. The revision-check handle otherwise blocks the
+            // rename on Samba/Windows, even when it was opened read-only.
+            original.close().map_err(fail)?;
             file.set_info(smb::FileRenameInformation {
                 replace_if_exists: true.into(),
                 root_directory: 0,

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>示例预览</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1d2430; --muted: #6b7684; --surface: #fff; --canvas: #f6f7f9;
+        --line: rgba(20, 30, 45, 0.12); --accent: #2f6fed;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 24px; color: var(--text); background: var(--surface);
+        font: 12px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      .wrap { max-width: 620px; margin: 0 auto; }
+      h2 { margin: 0 0 4px; font-size: 15px; }
+      p { color: var(--muted); margin: 0 0 14px; }
+      .card {
+        padding: 12px; border: 1px solid var(--line); border-radius: 10px;
+        background: var(--canvas);
+      }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h2>示例预览</h2>
+      <p>这是插件返回的 PreviewView（kind=html）。标题栏由 Core 提供，页面里不再画标题栏。</p>
+      <div class="card">
+        <div>文件：<code id="name">读取中…</code></div>
+        <div>扩展名：<code id="extension">—</code></div>
+        <div>会话：<code id="session">—</code></div>
+      </div>
+    </div>
+    <script>
+      (() => {
+        let port = null, sessionId = '', nonce = '', seq = 0
+        const pending = new Map()
+        const invoke = (method, params) =>
+          new Promise((resolve, reject) => {
+            if (!port) return reject(new Error('bridge not ready'))
+            const requestId = `preview-${++seq}`
+            const timer = setTimeout(() => { pending.delete(requestId); reject(new Error('请求超时')) }, 10000)
+            pending.set(requestId, { resolve, reject, timer })
+            port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
+          })
+        const start = async () => {
+          try {
+            const context = await invoke('theme.get')
+            for (const [key, value] of Object.entries(context.tokens || {})) {
+              if (key !== 'mode' && value)
+                document.documentElement.style.setProperty(`--${key}`, value)
+            }
+            const view = await invoke('context.get')
+            const metadata = view.resource?.metadata || {}
+            document.getElementById('name').textContent = metadata.name || '—'
+            document.getElementById('extension').textContent = metadata.extension || '—'
+            document.getElementById('session').textContent = view.sessionId || sessionId
+          } catch (error) {
+            document.getElementById('name').textContent = String(error?.message || error)
+          }
+        }
+        window.addEventListener('message', (event) => {
+          if (event.source !== window.parent) return
+          const data = event.data
+          if (!data || data.type !== 'fiex.bridge.init' || event.ports.length !== 1) return
+          port = event.ports[0]
+          sessionId = data.sessionId
+          nonce = data.nonce
+          port.onmessage = (message) => {
+            const payload = message.data
+            if (payload?.type === 'response' && payload.requestId) {
+              const entry = pending.get(payload.requestId)
+              if (!entry) return
+              pending.delete(payload.requestId)
+              clearTimeout(entry.timer)
+              if (payload.error) entry.reject(new Error(payload.error.message || '请求失败'))
+              else entry.resolve(payload.result)
+            }
+          }
+          port.start()
+          port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
+          start()
+        })
+        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+      })()
+    </script>
+  </body>
+</html>

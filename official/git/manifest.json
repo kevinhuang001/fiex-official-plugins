@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.git",
   "name": "Git",
   "version": "0.2.8",
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-git.exe",
       "macos-aarch64": "fiex-plugin-git",
@@ -21,23 +21,34 @@
   "permissions": {
     "folders": {
       "read": {
-        "enabled": true,
-        "decorations": {
-          "mode": "dynamic",
-          "method": "decorations.list",
-          "priority": 50,
-          "scope": {
-            "marker": ".git"
-          }
-        }
+        "enabled": true
       },
-      "create": true,
-      "delete": true,
-      "rename": true
+      "create": {
+        "enabled": true
+      },
+      "delete": {
+        "enabled": true
+      },
+      "rename": {
+        "enabled": true
+      }
     },
     "files": {
-      "read": true,
-      "write": true
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": true
+      },
+      "create": {
+        "enabled": true
+      },
+      "delete": {
+        "enabled": true
+      },
+      "rename": {
+        "enabled": true
+      }
     },
     "network": {
       "enabled": true,
@@ -50,24 +61,24 @@
       "allow": [
         "git"
       ]
+    },
+    "metadata": {
+      "enabled": true
     }
   },
-  "contributions": {
-    "toolbar": [
-      {
-        "id": "git.main",
+  "extensions": {
+    "toolbar": {
+      "title": "源代码管理",
+      "icon": "git-branch",
+      "panel": {
         "title": "源代码管理",
-        "icon": "git-branch",
-        "panel": {
-          "title": "源代码管理",
-          "entry": "ui/dist/index.html",
-          "defaultSize": {
-            "width": 480,
-            "height": 300
-          }
+        "entry": "ui/dist/index.html",
+        "defaultSize": {
+          "width": 480,
+          "height": 300
         }
       }
-    ],
+    },
     "settings": [
       {
         "id": "historyLimit",
@@ -76,12 +87,17 @@
         "defaultValue": "50"
       }
     ],
-    "vfs": [
-      {
-        "id": "history",
-        "title": "Git 历史",
-        "readOnly": true
-      }
-    ]
+    "vfs": {
+      "title": "Git 历史",
+      "readOnly": true
+    },
+    "decorations": {
+      "match": {
+        "contains": [
+          ".git"
+        ]
+      },
+      "priority": 50
+    }
   }
 }

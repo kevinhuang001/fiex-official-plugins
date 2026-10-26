@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "id": "org.fiex.email",
+  "name": "Email",
+  "version": "0.1.0",
+  "description": "通过 IMAP/SMTP 连接邮箱，在 Fiex 中收发邮件。",
+  "icon": "mail",
+  "author": {
+    "name": "Fiex Contributors",
+    "url": "https://github.com/kevinhuang001/fiex-official-plugins"
+  },
+  "runtime": {
+    "protocolVersion": "3.0",
+    "entrypoints": {
+      "windows-x86_64": "fiex-plugin-email.exe",
+      "macos-aarch64": "fiex-plugin-email",
+      "macos-x86_64": "fiex-plugin-email",
+      "linux-x86_64": "fiex-plugin-email"
+    }
+  },
+  "permissions": {
+    "network": {
+      "enabled": true,
+      "domains": [
+        "imap.qq.com",
+        "smtp.qq.com"
+      ]
+    }
+  },
+  "extensions": {
+    "connections": {
+      "title": "邮箱",
+      "fields": [
+        {
+          "id": "email",
+          "label": "邮箱地址",
+          "type": "text",
+          "required": true,
+          "placeholder": "you@example.com"
+        },
+        {
+          "id": "password",
+          "label": "IMAP/SMTP 授权码",
+          "type": "secret",
+          "required": true
+        },
+        {
+          "id": "imapHost",
+          "label": "IMAP 服务器",
+          "type": "text",
+          "defaultValue": "imap.qq.com"
+        },
+        {
+          "id": "smtpHost",
+          "label": "SMTP 服务器",
+          "type": "text",
+          "defaultValue": "smtp.qq.com"
+        }
+      ]
+    }
+  }
+}

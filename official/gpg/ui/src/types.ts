@@ -1,4 +1,10 @@
-import { FileSignature, KeyRound, Lock, LockOpen, ShieldCheck } from "lucide-react";
+import {
+  FileSignature,
+  KeyRound,
+  Lock,
+  LockOpen,
+  ShieldCheck,
+} from "lucide-react";
 
 export type Action = "encrypt" | "decrypt" | "sign" | "verify" | "keys";
 
@@ -8,6 +14,15 @@ export type Key = {
   name: string;
   email: string;
   expires: string;
+  /** The user's keyring has the matching secret key. */
+  hasSecret?: boolean;
+};
+
+export type CreateKeyInput = {
+  name: string;
+  email: string;
+  expiry: string;
+  passphrase: string;
 };
 
 export type Status = { kind: "idle" | "busy" | "ok" | "error"; text: string };
@@ -19,7 +34,7 @@ export type ActionMeta = {
   width: number;
 };
 
-export const DEFAULT_ACTION: Action = "encrypt";
+export const DEFAULT_ACTION: Action = "keys";
 
 export const ACTIONS: Record<Action, ActionMeta> = {
   encrypt: {
@@ -46,7 +61,12 @@ export const ACTIONS: Record<Action, ActionMeta> = {
     icon: ShieldCheck,
     width: 500,
   },
-  keys: { label: "公钥", heading: "本机公钥环", icon: KeyRound, width: 420 },
+  keys: {
+    label: "GPG 钥匙串",
+    heading: "本机公钥环 · 导入、导出与查看密钥",
+    icon: KeyRound,
+    width: 620,
+  },
 };
 
 export function isAction(value: string | undefined): value is Action {

@@ -137,7 +137,10 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         let hello = format!("{}hello.txt", connection.mount_path);
         futures::executor::block_on(fiex_lib::remote::sync_one(&hello, &Default::default()))
             .unwrap();
-        assert_eq!(std::fs::read(&hello).unwrap(), expected);
+        // Mount paths are opaque `fiex://` navigation URIs; downloaded bytes
+        // live in Core's cache and are resolved through the public API.
+        let cached = fiex_lib::remote::cached_path(&hello).unwrap();
+        assert_eq!(std::fs::read(cached).unwrap(), expected);
         fiex_lib::remote::remove_connection(&connection.id).unwrap();
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();

@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.fiex.data-preview",
   "name": "数据预览",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。",
   "icon": "database",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-data-preview.exe",
       "macos-aarch64": "fiex-plugin-data-preview",
@@ -23,13 +23,32 @@
       "read": {
         "enabled": false
       },
-      "create": false,
-      "delete": false,
-      "rename": false
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "files": {
-      "read": true,
-      "write": false
+      "read": {
+        "enabled": true
+      },
+      "write": {
+        "enabled": false
+      },
+      "create": {
+        "enabled": false
+      },
+      "delete": {
+        "enabled": false
+      },
+      "rename": {
+        "enabled": false
+      }
     },
     "network": {
       "enabled": false,
@@ -38,13 +57,16 @@
     "commands": {
       "enabled": false,
       "allow": []
+    },
+    "metadata": {
+      "enabled": true
     }
   },
-  "contributions": {
-    "preview": [
-      {
-        "id": "data",
-        "title": "数据预览",
+  "extensions": {
+    "preview": {
+      "priority": 110,
+      "maxBytes": 268435456,
+      "match": {
         "extensions": [
           "db",
           "sqlite",
@@ -58,24 +80,15 @@
           "feather",
           "ipc",
           "avro"
-        ],
-        "priority": 110,
-        "maxBytes": 268435456,
-        "panel": {
-          "entry": "ui/index.html",
-          "title": "数据预览",
-          "defaultSize": {
-            "width": 720,
-            "height": 640
-          }
-        }
+        ]
+      },
+      "loading": {
+        "entry": "ui/loading.html"
       }
-    ],
-    "info": [
-      {
-        "id": "data.info",
-        "title": "数据表",
-        "command": "data.info",
+    },
+    "info": {
+      "priority": 100,
+      "match": {
         "extensions": [
           "db",
           "sqlite",
@@ -89,9 +102,8 @@
           "feather",
           "ipc",
           "avro"
-        ],
-        "priority": 100
+        ]
       }
-    ]
+    }
   }
 }

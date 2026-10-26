@@ -52,7 +52,7 @@ class Plugin:
         self.serial = 0
         self.resources = {}
         self.next_resource = 0
-        info = self.rpc("plugin.initialize", {"protocolVersion": "2.0"})
+        info = self.rpc("plugin.initialize", {"protocolVersion": "3.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
     def rpc(self, method, params):

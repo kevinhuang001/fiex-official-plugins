@@ -3,6 +3,12 @@ mod ignores;
 mod listing;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
+use std::time::{Duration, Instant};
+
+/// How long a `beforeOpen` hook waits for an extraction that is likely quick.
+/// If the archive is still being expanded after this, the hook returns so Core
+/// can finish the open immediately; the task keeps running in the background.
+const HOOK_SYNC_GRACE: Duration = Duration::from_millis(750);
 fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
     p.get(k)
         .and_then(Value::as_str)
@@ -79,11 +85,284 @@ fn archive_error(error: String) -> RpcError {
         RpcError::internal(error)
     }
 }
+
+/// Extraction errors are surfaced to the status/error channel. An encrypted
+/// archive is not a crash: point the user at the explicit extract/preview
+/// actions that can carry a password.
+fn hook_error_message(error: &str) -> String {
+    if listing::looks_encrypted(error) {
+        "压缩包已加密，请使用右键“解压缩”或预览面板输入密码".into()
+    } else {
+        error.to_string()
+    }
+}
+
+fn hook_extract(
+    path: &str,
+    password: Option<&str>,
+    ignores: &[String],
+    max_total: u64,
+    context: &dyn archives::ArchiveContext,
+) -> Result<String, String> {
+    archives::extract(path, None, password, ignores, max_total, context)
+}
+
+/// `beforeOpen` consumes the OS open. Extraction runs as a background task so
+/// a large archive cannot stall the open, and the response intentionally never
+/// contains the task id or a raw task payload.
+fn before_open(path: &str, params: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let stored = stored_ignores(host, "extractIgnores");
+    let ignores = merge_ignores(params, stored);
+    let password = params.get("password").and_then(Value::as_str);
+    let max_total = max_total_bytes(host, params);
+    let task_path = path.to_string();
+    let task_ignores = ignores.clone();
+    let task_password = password.map(str::to_owned);
+    match host.spawn_task_with_label("正在解压", move |task| {
+        hook_extract(
+            &task_path,
+            task_password.as_deref(),
+            &task_ignores,
+            max_total,
+            &task,
+        )
+        .map(|destination| json!({ "destination": destination }))
+        .map_err(|error| {
+            let _ = task.report_error(
+                "archive.hook.extract",
+                &hook_error_message(&error),
+                Some(&task_path),
+            );
+            archive_error(error)
+        })
+    }) {
+        Ok(handle) => {
+            // Small archives finish inside the grace window, so the caller's
+            // immediate reload already shows the extracted folder. Large ones
+            // keep running in the status centre. Both consume the open and
+            // return only the handled flag, never task-shaped JSON.
+            let deadline = Instant::now() + HOOK_SYNC_GRACE;
+            while !handle.is_finished() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Ok(json!({ "handled": true }))
+        }
+        Err(error) => {
+            let _ = host.report_error("archive.hook.start", &error.message, Some(path));
+            // The task registry is exhausted or unavailable. Extract inline so
+            // the user's open is still consumed, then report any real failure.
+            match hook_extract(path, password, &ignores, max_total, host) {
+                Ok(_) => Ok(json!({ "handled": true })),
+                Err(error) => {
+                    let _ = host.report_error(
+                        "archive.hook.extract",
+                        &hook_error_message(&error),
+                        Some(path),
+                    );
+                    Ok(json!({ "handled": true }))
+                }
+            }
+        }
+    }
+}
+fn archive_menu(params: &Value) -> Value {
+    let parent = params.get("parentId").and_then(Value::as_str);
+    if let Some(parent) = parent {
+        if parent != "archive.compress" {
+            return json!({"items":[]});
+        }
+        let formats = [
+            ("archive.zip", "ZIP"),
+            ("archive.rar", "RAR"),
+            ("archive.7z", "7z"),
+            ("archive.tar", "TAR"),
+            ("archive.tar.gz", "TAR.GZ"),
+            ("archive.tar.bz2", "TAR.BZ2"),
+            ("archive.tar.xz", "TAR.XZ"),
+            ("archive.advanced", "高级压缩…"),
+        ];
+        return json!({"items":formats.into_iter().map(|(id, title)| {
+            json!({"id":id,"title":title,"kind":"action"})
+        }).collect::<Vec<_>>()});
+    }
+
+    let targets = params.get("targets").and_then(Value::as_array);
+    let selection = targets.map_or(0, Vec::len);
+    if selection == 0 {
+        return json!({"items":[]});
+    }
+    let archive = |name: &str| {
+        [
+            "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz",
+        ]
+        .iter()
+        .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
+    };
+    let only_archive = selection == 1
+        && targets
+            .and_then(|targets| targets.first())
+            .and_then(|target| target.pointer("/metadata/name"))
+            .and_then(Value::as_str)
+            .is_some_and(archive);
+    if only_archive {
+        return json!({"items":[
+            {"id":"archive.extract","title":"解压缩","kind":"action"}
+        ]});
+    }
+    json!({"items":[{"id":"archive.compress","title":"压缩","kind":"submenu"}]})
+}
+
+fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let path = param(p, "path")?;
+    let password = p.get("password").and_then(Value::as_str);
+    let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
+    let compressed = host
+        .files()
+        .metadata(path)
+        .map(|entry| entry.size)
+        .unwrap_or(0);
+    let entries = listing
+        .get("entries")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let count = entries.len();
+    let uncompressed = entries
+        .iter()
+        .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
+        .sum::<u64>();
+    let format = path
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_uppercase())
+        .unwrap_or_else(|| "UNKNOWN".into());
+    let mut rows = vec![
+        json!({"label":"格式","value":format}),
+        json!({"label":"压缩后大小","value":format_size(compressed)}),
+        json!({"label":"解压后大小","value":format_size(uncompressed)}),
+        json!({"label":"文件数","value":count.to_string()}),
+    ];
+    if uncompressed > 0 {
+        let saved = 1.0 - compressed as f64 / uncompressed as f64;
+        rows.push(json!({"label":"压缩率","value":format!("{:.1}%", saved * 100.0)}));
+    }
+    if listing
+        .get("encrypted")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        rows.push(json!({"label":"加密","value":"是"}));
+    }
+    if listing.get("supported").and_then(Value::as_bool) == Some(false) {
+        if let Some(message) = listing.get("message").and_then(Value::as_str) {
+            rows.push(json!({"label":"说明","value":message}));
+        }
+    }
+    Ok(json!({"rows": rows}))
+}
+
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
-    let p = ctx.params();
+    let mut params = ctx.params().clone();
+    if method == "decorations.resolve" {
+        let mut decorations = Vec::new();
+        {
+            for target in ctx.targets() {
+                let Some(metadata) = target.metadata.as_ref() else {
+                    continue;
+                };
+                let entry = serde_json::to_value(metadata)
+                    .map_err(|e| RpcError::internal(e.to_string()))?;
+                let Some(name) = entry.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                if entry["kind"] == "directory" {
+                    continue;
+                }
+                let extension = entry
+                    .get("extension")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                let label = match extension.as_str() {
+                    "zip" => "ZIP",
+                    "rar" => "RAR",
+                    "7z" => "7Z",
+                    "tar" => "TAR",
+                    "gz" | "tgz" => "TGZ",
+                    "bz2" | "tbz2" => "TBZ",
+                    "xz" | "txz" => "TXZ",
+                    _ => continue,
+                };
+                decorations.push(json!({
+                    "name": name,
+                    "badge": {"text": label, "color": "neutral", "tooltip": "压缩包"}
+                }));
+            }
+        }
+        return Ok(json!({"decorations": decorations}));
+    }
+    if method == "info.resolve" {
+        let name = ctx
+            .targets()
+            .first()
+            .and_then(sdk::ResourceContext::name)
+            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?
+            .to_owned();
+        let rows = archive_info(&json!({"path": name}), &ctx)?;
+        return Ok(
+            json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),
+        );
+    }
+    if method == "preview.open" {
+        return Ok(json!({
+            "kind": "html",
+            "view": {"source":"package","entry":"ui/preview.html"}
+        }));
+    }
+    if method == "contextMenu.resolve" {
+        return Ok(archive_menu(&params));
+    }
+    let operation = if method == "contextMenu.execute" {
+        let item = params["itemId"]
+            .as_str()
+            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        if item == "archive.advanced" {
+            return Ok(json!({
+                "kind": "panel", "entry": "ui/dist/index.html",
+                "panelId": item, "title": "高级压缩",
+                "size": {"width":400,"height":420}
+            }));
+        }
+        let format = match item {
+            "archive.zip" => "zip",
+            "archive.rar" => "rar",
+            "archive.7z" => "7z",
+            "archive.tar" => "tar",
+            "archive.tar.gz" => "tar.gz",
+            "archive.tar.bz2" => "tar.bz2",
+            "archive.tar.xz" => "tar.xz",
+            "archive.extract" => "",
+            _ => return Err(RpcError::invalid_params("unknown menu action")),
+        };
+        if !format.is_empty() {
+            params["format"] = json!(format);
+            "archive.compress"
+        } else {
+            let selected = params["paths"]
+                .as_array()
+                .and_then(|paths| paths.first())
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing selection"))?
+                .to_owned();
+            params["path"] = json!(selected);
+            "archive.extract"
+        }
+    } else {
+        method
+    };
+    let p = &params;
     let host = &ctx;
-    match method {
+    match operation {
         "archive.compress" => {
             let paths = p
                 .get("paths")
@@ -129,75 +408,21 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             })?;
             Ok(json!({"taskId": task.id()}))
         }
-        "archive.info" => {
-            let path = param(p, "path")?;
-            let password = p.get("password").and_then(Value::as_str);
-            let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
-            let compressed = host
-                .files()
-                .metadata(path)
-                .map(|entry| entry.size)
-                .unwrap_or(0);
-            let entries = listing
-                .get("entries")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let count = entries.len();
-            let uncompressed = entries
-                .iter()
-                .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
-                .sum::<u64>();
-            let format = path
-                .rsplit_once('.')
-                .map(|(_, extension)| extension.to_ascii_uppercase())
-                .unwrap_or_else(|| "UNKNOWN".into());
-            let mut rows = vec![
-                json!({"label":"格式","value":format}),
-                json!({"label":"压缩后大小","value":format_size(compressed)}),
-                json!({"label":"解压后大小","value":format_size(uncompressed)}),
-                json!({"label":"文件数","value":count.to_string()}),
-            ];
-            if uncompressed > 0 {
-                let saved = 1.0 - compressed as f64 / uncompressed as f64;
-                rows.push(json!({"label":"压缩率","value":format!("{:.1}%", saved * 100.0)}));
-            }
-            if listing
-                .get("encrypted")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            {
-                rows.push(json!({"label":"加密","value":"是"}));
-            }
-            if listing.get("supported").and_then(Value::as_bool) == Some(false) {
-                if let Some(message) = listing.get("message").and_then(Value::as_str) {
-                    rows.push(json!({"label":"说明","value":message}));
-                }
-            }
-            Ok(json!({"rows": rows}))
-        }
+        "archive.info" => archive_info(p, host),
         "archive.list" => Ok(listing::list(
             param(p, "path")?,
             p.get("password").and_then(Value::as_str),
             host,
         )
         .map_err(RpcError::internal)?),
-        // Runs before Core opens the file: extract in place, never fall through
-        // for a valid archive. A password-protected archive hands control to
-        // the preview panel so the user can type the password.
-        "archive.beforeOpen" => {
-            let path = param(p, "path")?;
-            let stored = stored_ignores(host, "extractIgnores");
-            let ignores = merge_ignores(p, stored);
-            let password = p.get("password").and_then(Value::as_str);
-            let max_total = max_total_bytes(host, p);
-            match archives::extract(path, None, password, &ignores, max_total, host) {
-                Ok(destination) => Ok(json!({ "handled": true, "destination": destination })),
-                Err(error) if listing::looks_encrypted(&error) => {
-                    Ok(json!({ "handled": true, "preview": true }))
-                }
-                Err(error) => Err(RpcError::internal(error)),
+        // Runs before Core opens the file: consume the open and extract into
+        // the archive's folder. Never fall through for a matching archive, and
+        // never mistake this event's response for a menu/task result.
+        "hooks.invoke" => {
+            if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
+                return Ok(json!({ "handled": false }));
             }
+            before_open(param(p, "path")?, p, host)
         }
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
@@ -230,5 +455,62 @@ fn main() {
     if let Err(e) = sdk::serve("org.fiex.archive", run) {
         eprintln!("Archive plugin failed: {e}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod context_menu_tests {
+    use super::*;
+
+    #[test]
+    fn compression_options_are_resolved_only_after_expanding() {
+        let targets = json!({"targets":[{"metadata":{"name":"notes.txt"}}]});
+        let root = archive_menu(&targets);
+        let items = root["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["kind"], "submenu");
+        assert_eq!(items[0]["id"], "archive.compress");
+        let children = archive_menu(&json!({
+            "targets":targets["targets"],
+            "parentId":"archive.compress"
+        }));
+        let items = children["items"].as_array().unwrap();
+        assert!(items.len() >= 2);
+        assert!(items.iter().all(|item| item.get("parentId").is_none()));
+        assert!(items.iter().any(|item| item["id"] == "archive.zip"));
+    }
+
+    #[test]
+    fn encrypted_hook_failures_point_at_the_password_actions() {
+        assert!(hook_error_message("Password required").contains("密码"));
+        assert!(hook_error_message("archive is encrypted").contains("预览"));
+        assert_eq!(hook_error_message("磁盘已满"), "磁盘已满");
+    }
+
+    #[test]
+    fn manifest_negotiates_a_longer_ui_budget_for_archive_listing() {
+        let manifest: Value = serde_json::from_str(include_str!("../manifest.json")).unwrap();
+        let timeout = manifest["extensions"]["ui"]["timeoutMs"]
+            .as_u64()
+            .expect("manifest must declare extensions.ui.timeoutMs");
+        assert!(
+            timeout >= 120_000,
+            "archive listing needs a longer budget than Core's old default"
+        );
+    }
+
+    #[test]
+    fn extracting_archive_stays_a_single_action() {
+        let root = archive_menu(&json!({"targets":[{"metadata":{"name":"sample.zip"}}]}));
+        assert_eq!(root["items"][0]["id"], "archive.extract");
+        assert_eq!(root["items"].as_array().unwrap().len(), 1);
+        assert!(archive_menu(&json!({"targets":[]}))["items"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(archive_menu(&json!({"parentId":"foreign"}))["items"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 }

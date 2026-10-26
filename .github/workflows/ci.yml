@@ -21,7 +21,7 @@ jobs:
       - name: Typecheck and rebuild self-contained panels
         run: |
           set -euo pipefail
-          for slug in git archive checksum gpg; do
+          for slug in git archive checksum gpg email; do
             npm --prefix "official/$slug/ui" ci
             npm --prefix "official/$slug/ui" run build
           done
@@ -75,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py
-          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg; do
+          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
             cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings

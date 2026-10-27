@@ -87,7 +87,7 @@ def main():
 
     try:
         send(child.stdin, lock, {"jsonrpc": "2.0", "id": 1, "method": "plugin.initialize",
-                                 "params": {"protocolVersion": "3.0"}})
+                                 "params": {"protocolVersion": "5.0"}})
         assert receive(child.stdout)["result"]["pluginId"] == "org.fiex.ssh"
         threading.Thread(target=read_messages, daemon=True).start()
         send(child.stdin, lock, {

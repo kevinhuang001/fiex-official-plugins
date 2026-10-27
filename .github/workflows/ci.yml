@@ -93,6 +93,8 @@ jobs:
         run: |
           python scripts/test-plugin-process.py --target "${{ matrix.platform }}" --binary-root "target/${{ matrix.target }}/release"
           python scripts/test-git-vfs.py --binary "target/${{ matrix.target }}/release/fiex-plugin-git${{ runner.os == 'Windows' && '.exe' || '' }}"
+          python -m pip install --quiet paramiko==4.0.0
+          python scripts/test-ssh-regression.py --binary "target/${{ matrix.target }}/release/fiex-plugin-ssh${{ runner.os == 'Windows' && '.exe' || '' }}"
           python scripts/test-gdrive.py --binary "target/${{ matrix.target }}/release/fiex-plugin-gdrive${{ runner.os == 'Windows' && '.exe' || '' }}"
           for slug in webdav openlist; do
             python scripts/test-connection-sync.py --kind "$slug" --binary "target/${{ matrix.target }}/release/fiex-plugin-$slug${{ runner.os == 'Windows' && '.exe' || '' }}"
@@ -138,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
-          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)==14; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64
           for id in org.fiex.ssh org.fiex.git org.fiex.webdav org.fiex.gdrive org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg org.fiex.email; do
             cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
           done
@@ -275,7 +277,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
-          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=[p for p in pathlib.Path("packages").glob("*.fiexplugin") if p.name.startswith(("webdav-", "smb-"))]; assert len(packages)==2; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64 --slugs webdav smb
           cargo run --manifest-path integration/Cargo.toml --example plugin_network_e2e
 
       - name: Remote fixture diagnostics

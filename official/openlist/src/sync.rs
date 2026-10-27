@@ -41,7 +41,7 @@ pub(crate) fn dispatch(ctx: &sdk::RequestContext, session: &Session) -> Result<V
     let token = client::token(ctx, &cfg, session)?;
     let reader = ctx
         .files()
-        .open_read(p["source"].as_str().ok_or_else(|| fail("missing source"))?)
+        .open_read(&serde_json::from_value::<fiex_plugin_sdk::ResourceRef>(p["source"].clone()).map_err(|error| fail(error.to_string()))?)
         .map_err(fail)?;
     let response: Value = ctx
         .http()

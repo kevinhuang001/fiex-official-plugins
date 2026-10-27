@@ -6,11 +6,11 @@ import {
   FolderOpen,
   LoaderCircle,
 } from "lucide-react";
-import { FiexUiClient } from "../../../../sdk/ui/src/index";
+import { FiexUiClient, type ResourceContext } from "../../../../sdk/ui/src/index";
 
 interface Context {
-  selectionPaths?: string[];
-  directoryPath?: string;
+  targets?: ResourceContext[];
+  directory?: ResourceContext;
   /** Manifest-negotiated budget from extensions.ui.timeoutMs. */
   uiTimeoutMs?: number;
 }
@@ -91,8 +91,7 @@ const formats: Format[] = [
   },
 ];
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value;
-const trimSlash = (value: string) => value.replace(/[\\/]+$/, "");
+const lastSegment = (value: ResourceContext) => value.metadata?.name || "文件";
 
 function FormatSelect({
   value,
@@ -162,14 +161,15 @@ function FormatSelect({
 
 export function App() {
   const appRef = useRef<HTMLDivElement>(null);
-  const [paths, setPaths] = useState<string[]>([]);
-  const [directory, setDirectory] = useState("");
+  const [paths, setPaths] = useState<ResourceContext[]>([]);
+  const [directory, setDirectory] = useState<ResourceContext>();
   const [ready, setReady] = useState(false);
   const [format, setFormat] = useState("zip");
   const [level, setLevel] = useState(6);
   const [password, setPassword] = useState("");
   const [compressAll, setCompressAll] = useState(false);
   const [destination, setDestination] = useState("");
+  const [destinationRef, setDestinationRef] = useState<ResourceContext>();
   const [editedDestination, setEditedDestination] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -185,8 +185,8 @@ export function App() {
     void client
       .invoke<Context>("context.get")
       .then((context) => {
-        setPaths(context.selectionPaths || []);
-        setDirectory(context.directoryPath || "");
+        setPaths(context.targets || []);
+        setDirectory(context.directory);
         if (typeof context.uiTimeoutMs === "number" && context.uiTimeoutMs > 0)
           setTimeoutMs(context.uiTimeoutMs);
       })
@@ -195,8 +195,7 @@ export function App() {
   }, []);
   useEffect(() => {
     if (editedDestination) return;
-    const folder = trimSlash(directory);
-    setDestination(folder ? `${folder}/${base}.${selected.ext}` : "");
+    setDestination(`${base}.${selected.ext}`);
   }, [directory, base, selected.ext, editedDestination]);
   useEffect(() => {
     setLevel((current) => Math.min(current, selected.levelMax));
@@ -226,10 +225,11 @@ export function App() {
       const picked = await client.dialog.saveFile({
         suggestedName: `${base}.${selected.ext}`,
         extensions: [selected.ext.split(".").pop() || "zip"],
-        directory: directory || undefined,
+        directory: directory?.ref,
       });
       if (picked) {
-        setDestination(picked);
+        setDestinationRef(picked);
+        setDestination(picked.metadata?.name || `${base}.${selected.ext}`);
         setEditedDestination(true);
       }
     } catch (cause) {
@@ -251,11 +251,12 @@ export function App() {
         {
           method: "archive.compress",
           params: {
-            paths,
+            paths: paths.map((resource) => resource.ref),
             // Name the folder explicitly so Core can grant the panel this
             // operation's output root; naming it does not broaden any other call.
-            root: directory || undefined,
-            destination: destination.trim(),
+            root: directory?.ref,
+            destination: destinationRef?.ref,
+            destinationName: destination.trim(),
             format: selected.id,
             level: password ? null : level,
             password: password || null,
@@ -274,7 +275,7 @@ export function App() {
         );
         if (!status) throw new Error("状态中心没有找到该任务");
         if (status.status === "completed") {
-          setDone(String(status.result ?? ""));
+          setDone(destination);
           return;
         }
         if (status.status === "failed")

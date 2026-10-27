@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+exclude = [
+  "official/ssh",
+  "official/smb",
+  "integration",
+  "core",
+]
+members = [
+  "official/archive",
+  "official/checksum",
+  "official/data-preview",
+  "official/email",
+  "official/everything",
+  "official/gdrive",
+  "official/git",
+  "official/gpg",
+  "official/office-preview",
+  "official/openlist",
+  "official/webdav",
+  "sdk/rust",
+]

@@ -1,8 +1,10 @@
+#[path = "../../../support/resources.rs"]
+mod resources;
 mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
-fn checksum_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Vec<Value>, RpcError> {
+fn checksum_rows(ctx: &sdk::RequestContext, path: &sdk::ResourceRef) -> Result<Vec<Value>, RpcError> {
     let files = ctx.files();
     let reader = files
         .open_read(path)
@@ -25,7 +27,6 @@ fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
 
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
-    let p = ctx.params();
     if method == "info.resolve" {
         let target = ctx
             .targets()
@@ -33,17 +34,15 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
         let reader = ctx
             .files()
-            .open_ref(&target.reference)
+            .open_read(&target.reference)
             .map_err(|e| RpcError::internal(e.to_string()))?;
         let rows = hash_rows(reader)?;
         return Ok(json!({"sections":[{"id":"checksum","title":"校验和","rows":rows}]}));
     }
     match method {
         "checksum.calculate" => {
-            let path = p
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let target = resources::input(&ctx, "path")?;
+            let path = &target.reference;
             let files = ctx.files();
             let metadata = files
                 .metadata(path)
@@ -52,18 +51,15 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .open_read(path)
                 .map_err(|e| RpcError::internal(e.to_string()))?;
             let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
-            let mut result = json!({"path": path, "size": metadata.size});
+            let mut result = json!({"ref": path, "name": resources::name(&target)?, "size": metadata.size});
             for hash in hashes {
                 result[hash.algorithm.to_ascii_lowercase().replace('-', "")] = json!(hash.value);
             }
             Ok(result)
         }
         "checksum.info" => {
-            let path = ctx
-                .params()
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let target = resources::input(&ctx, "path")?;
+            let path = &target.reference;
             Ok(json!({"rows": checksum_rows(&ctx, path)?}))
         }
         _ => Err(RpcError::method_not_found(method)),

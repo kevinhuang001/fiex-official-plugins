@@ -40,7 +40,7 @@ pub(crate) fn dispatch(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
     }
     let reader = ctx
         .files()
-        .open_read(p["source"].as_str().ok_or_else(|| fail("missing source"))?)
+        .open_read(&serde_json::from_value::<fiex_plugin_sdk::ResourceRef>(p["source"].clone()).map_err(|error| fail(error.to_string()))?)
         .map_err(fail)?;
     client::request(&ctx.http(), &cfg, "PUT", &client::webdav_url(&cfg, node))
         .header("If-Match", revision)

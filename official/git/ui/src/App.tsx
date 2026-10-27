@@ -59,10 +59,10 @@ export function App() {
         <NotRepositoryState busy={repository.busy} onInit={actions.init} />
       )}
 
-      {repository.status && (
+      {repository.status && repository.root && (
         <>
           <RepositoryHeader
-            root={repository.root}
+            name={repository.name}
             status={repository.status}
             refs={repository.refs}
             busy={repository.busy}

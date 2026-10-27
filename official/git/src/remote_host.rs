@@ -13,7 +13,7 @@ fn valid(name: &str) -> Result<(), String> {
         Ok(())
     }
 }
-pub fn status(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn status(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {
     let names = run(host, root, &["remote"])?;
     let mut remotes = Vec::new();
     for name in names.lines() {
@@ -44,7 +44,7 @@ pub fn status(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     )
 }
 pub fn save(
-    root: &str,
+    root: &sdk::ResourceRef,
     name: &str,
     url: &str,
     host: &sdk::RequestContext,
@@ -61,13 +61,13 @@ pub fn save(
     )?;
     Ok(Value::Null)
 }
-pub fn remove(root: &str, name: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn remove(root: &sdk::ResourceRef, name: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     valid(name)?;
     run(host, root, &["remote", "remove", name])?;
     Ok(Value::Null)
 }
 pub fn sync(
-    root: &str,
+    root: &sdk::ResourceRef,
     name: &str,
     push: bool,
     branch: Option<&str>,

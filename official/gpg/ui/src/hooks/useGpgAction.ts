@@ -1,13 +1,15 @@
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { useState } from "react";
 import { client } from "../client";
-import { baseName, directoryName, join, outputName } from "../paths";
+import { baseName, outputName } from "../paths";
 import type { Action, Status } from "../types";
 
 type Options = {
   action: Action;
-  files: string[];
-  data: string;
-  signature: string;
+  directory: ResourceContext | undefined;
+  files: ResourceContext[];
+  data: ResourceContext | undefined;
+  signature: ResourceContext | undefined;
   fingerprint: string;
   armor: boolean;
   trust: boolean;
@@ -16,6 +18,7 @@ type Options = {
 
 export function useGpgAction({
   action,
+  directory,
   files,
   data,
   signature,
@@ -27,7 +30,7 @@ export function useGpgAction({
   const [progress, setProgress] = useState(0);
 
   const run = async () => {
-    const inputs = (action === "verify" ? [data] : files).filter(Boolean);
+    const inputs = (action === "verify" ? [data] : files).filter((resource): resource is ResourceContext => Boolean(resource));
     if (!inputs.length) {
       setStatus({ kind: "error", text: "请选择要处理的文件" });
       return;
@@ -51,7 +54,7 @@ export function useGpgAction({
           const result = await client.plugin.invoke<{
             signer: string;
             fingerprint: string;
-          }>("gpg.verify", { signature, input });
+          }>("gpg.verify", { signature: signature!.ref, input: input.ref });
           setStatus({
             kind: "ok",
             text: `签名有效${result.signer ? ` · 签名者 ${result.signer}` : ""}`,
@@ -59,13 +62,11 @@ export function useGpgAction({
           done += 1;
           continue;
         }
-        const output = join(
-          directoryName(input),
-          outputName(input, action, armor),
-        );
+        const output = await client.dialog.saveFile({ directory: directory?.ref, suggestedName: outputName(input, action, armor) });
+        if (!output) { setStatus({kind:"idle",text:""}); return; }
         await client.plugin.invoke(`gpg.${action}`, {
-          input,
-          output,
+          input: input.ref,
+          output: output.ref,
           fingerprint,
           armor,
           trustUnverified: trust,

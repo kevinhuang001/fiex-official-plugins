@@ -5,18 +5,20 @@
 //! slide boundaries. The plugin only sanitizes and styles that HTML; it never
 //! walks the XML by hand. Charts, SmartArt, animations, embedded objects and
 //! legacy `.doc/.xls/.ppt` remain out of scope.
+#[path = "../../../support/resources.rs"]
+mod resources;
 mod render;
 mod sanitize;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 
-fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
+fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
     let bytes = ctx
         .files()
-        .read(path)
+        .read(&target.reference)
         .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-    let extension = render::extension(path);
+    let extension = render::extension(resources::name(target)?);
     let value = render::render(bytes, &extension)?;
     let html = value["html"].as_str().unwrap_or("");
     let count = |needle: &str| html.matches(needle).count();
@@ -32,14 +34,9 @@ fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
 
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
-    let p = ctx.params();
     if method == "info.resolve" {
-        let name = ctx
-            .targets()
-            .first()
-            .and_then(sdk::ResourceContext::name)
-            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;
-        let rows = info_rows(&ctx, name)?;
+        let target = resources::input(&ctx, "path")?;
+        let rows = info_rows(&ctx, &target)?;
         return Ok(serde_json::json!({
             "sections": [{"id":"office","title":"文档","rows": rows["rows"].clone()}]
         }));
@@ -52,21 +49,15 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
     match method {
         "office.info" => {
-            let path = p
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            info_rows(&ctx, path)
+            let target = resources::input(&ctx, "path")?;
+            info_rows(&ctx, &target)
         }
         "office.render" => {
-            let path = ctx
-                .params()
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let target = resources::input(&ctx, "path")?;
+            let path = resources::name(&target)?;
             let bytes = ctx
                 .files()
-                .read(path)
+                .read(&target.reference)
                 .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
             render::render(bytes, &render::extension(path))
         }

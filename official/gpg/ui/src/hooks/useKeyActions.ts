@@ -1,3 +1,4 @@
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import type { Dispatch, SetStateAction } from "react";
 import { client } from "../client";
 import { baseName } from "../paths";
@@ -10,13 +11,13 @@ export function useKeyActions({
   refreshKeys,
   setStatus,
 }: {
-  directory: string;
+  directory: ResourceContext | undefined;
   refreshKeys: () => Promise<void>;
   setStatus: Dispatch<SetStateAction<Status>>;
 }) {
   const imports = async () => {
     const path = await client.dialog.openFile({
-      directory,
+      directory: directory?.ref,
       extensions: ["asc", "gpg", "pgp", "key"],
     });
     if (!path) return;
@@ -25,7 +26,7 @@ export function useKeyActions({
       const result = await client.plugin.invoke<{ imported: number }>(
         "gpg.import",
         {
-          input: path,
+          input: path.ref,
         },
       );
       await refreshKeys();
@@ -37,7 +38,7 @@ export function useKeyActions({
 
   const exports = async (key: Key) => {
     const path = await client.dialog.saveFile({
-      directory,
+      directory: directory?.ref,
       suggestedName: `${key.keyId || "public-key"}.asc`,
       extensions: ["asc"],
     });
@@ -45,7 +46,7 @@ export function useKeyActions({
     setStatus({ kind: "busy", text: "正在导出公钥…" });
     try {
       await client.plugin.invoke("gpg.export", {
-        output: path,
+        output: path.ref,
         fingerprint: key.fingerprint,
         armor: true,
       });
@@ -57,7 +58,7 @@ export function useKeyActions({
 
   const exportSecret = async (key: Key) => {
     const path = await client.dialog.saveFile({
-      directory,
+      directory: directory?.ref,
       suggestedName: `${key.keyId || "secret-key"}-secret.asc`,
       extensions: ["asc"],
     });
@@ -65,7 +66,7 @@ export function useKeyActions({
     setStatus({ kind: "busy", text: "正在导出私钥…" });
     try {
       await client.plugin.invoke("gpg.export", {
-        output: path,
+        output: path.ref,
         fingerprint: key.fingerprint,
         armor: true,
         secret: true,

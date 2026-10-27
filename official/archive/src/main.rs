@@ -1,3 +1,5 @@
+#[path = "../../../support/resources.rs"]
+mod resources;
 mod archives;
 mod ignores;
 mod listing;
@@ -17,15 +19,15 @@ fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
 /// Stored as a JSON array by the list setting; older installs may still hold a
 /// comma/newline separated string, which is accepted for compatibility.
 fn stored_ignores(host: &sdk::RequestContext, key: &str) -> Vec<String> {
-    match host.storage_get("global", key) {
-        Ok(Value::Array(items)) => items
+    match host.storage().get::<Value>(key) {
+        Ok(Some(Value::Array(items))) => items
             .iter()
             .filter_map(Value::as_str)
             .map(str::trim)
             .filter(|part| !part.is_empty())
             .map(str::to_string)
             .collect(),
-        Ok(Value::String(value)) => value
+        Ok(Some(Value::String(value))) => value
             .split(['\n', ',', '，'])
             .map(str::trim)
             .filter(|part| !part.is_empty())
@@ -67,8 +69,8 @@ fn format_size(bytes: u64) -> String {
 fn max_total_bytes(ctx: &sdk::RequestContext, p: &Value) -> u64 {
     const GIB: u64 = 1024 * 1024 * 1024;
     let configured = ctx
-        .storage_get("global", "extractMaxTotalGiB")
-        .ok()
+        .storage().get::<Value>("extractMaxTotalGiB")
+        .ok().flatten()
         .and_then(|value| value.as_u64())
         .unwrap_or(archives::DEFAULT_MAX_TOTAL_GIB);
     let bytes = p
@@ -98,29 +100,33 @@ fn hook_error_message(error: &str) -> String {
 }
 
 fn hook_extract(
-    path: &str,
+    path: &sdk::ResourceRef,
+    destination: &sdk::ResourceRef,
     password: Option<&str>,
     ignores: &[String],
     max_total: u64,
     context: &dyn archives::ArchiveContext,
-) -> Result<String, String> {
-    archives::extract(path, None, password, ignores, max_total, context)
+) -> Result<sdk::ResourceRef, String> {
+    archives::extract(path, destination, password, ignores, max_total, context)
 }
 
 /// `beforeOpen` consumes the OS open. Extraction runs as a background task so
 /// a large archive cannot stall the open, and the response intentionally never
 /// contains the task id or a raw task payload.
-fn before_open(path: &str, params: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn before_open(path: &sdk::ResourceRef, params: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let stored = stored_ignores(host, "extractIgnores");
     let ignores = merge_ignores(params, stored);
     let password = params.get("password").and_then(Value::as_str);
     let max_total = max_total_bytes(host, params);
-    let task_path = path.to_string();
+    let task_path = path.clone();
+    let destination = host.directory().ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?.reference;
+    let task_destination = destination.clone();
     let task_ignores = ignores.clone();
     let task_password = password.map(str::to_owned);
     match host.spawn_task_with_label("正在解压", move |task| {
         hook_extract(
             &task_path,
+            &task_destination,
             task_password.as_deref(),
             &task_ignores,
             max_total,
@@ -131,7 +137,7 @@ fn before_open(path: &str, params: &Value, host: &sdk::RequestContext) -> Result
             let _ = task.report_error(
                 "archive.hook.extract",
                 &hook_error_message(&error),
-                Some(&task_path),
+                None,
             );
             archive_error(error)
         })
@@ -148,16 +154,16 @@ fn before_open(path: &str, params: &Value, host: &sdk::RequestContext) -> Result
             Ok(json!({ "handled": true }))
         }
         Err(error) => {
-            let _ = host.report_error("archive.hook.start", &error.message, Some(path));
+            let _ = host.report_error("archive.hook.start", &error.message, None);
             // The task registry is exhausted or unavailable. Extract inline so
             // the user's open is still consumed, then report any real failure.
-            match hook_extract(path, password, &ignores, max_total, host) {
+            match hook_extract(path, &destination, password, &ignores, max_total, host) {
                 Ok(_) => Ok(json!({ "handled": true })),
                 Err(error) => {
                     let _ = host.report_error(
                         "archive.hook.extract",
                         &hook_error_message(&error),
-                        Some(path),
+                        None,
                     );
                     Ok(json!({ "handled": true }))
                 }
@@ -213,13 +219,14 @@ fn archive_menu(params: &Value) -> Value {
 }
 
 fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
-    let path = param(p, "path")?;
+    let target = resources::input(host, "path")?;
+    let path = &target.reference;
     let password = p.get("password").and_then(Value::as_str);
     let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
     let compressed = host
         .files()
         .metadata(path)
-        .map(|entry| entry.size)
+        .map(|entry| entry.size.unwrap_or(0))
         .unwrap_or(0);
     let entries = listing
         .get("entries")
@@ -231,7 +238,7 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
         .iter()
         .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
         .sum::<u64>();
-    let format = path
+    let format = resources::name(&target)?
         .rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_uppercase())
         .unwrap_or_else(|| "UNKNOWN".into());
@@ -302,13 +309,13 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         return Ok(json!({"decorations": decorations}));
     }
     if method == "info.resolve" {
-        let name = ctx
+        let _name = ctx
             .targets()
             .first()
             .and_then(sdk::ResourceContext::name)
             .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?
             .to_owned();
-        let rows = archive_info(&json!({"path": name}), &ctx)?;
+        let rows = archive_info(&json!({"path": ctx.target().unwrap().reference}), &ctx)?;
         return Ok(
             json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),
         );
@@ -348,13 +355,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             params["format"] = json!(format);
             "archive.compress"
         } else {
-            let selected = params["paths"]
-                .as_array()
-                .and_then(|paths| paths.first())
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing selection"))?
-                .to_owned();
-            params["path"] = json!(selected);
+            params["path"] = json!(ctx.target().ok_or_else(|| RpcError::invalid_params("missing target"))?.reference);
             "archive.extract"
         }
     } else {
@@ -364,32 +365,17 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let host = &ctx;
     match operation {
         "archive.compress" => {
-            let paths = p
-                .get("paths")
-                .and_then(Value::as_array)
-                .ok_or_else(|| RpcError::invalid_params("missing paths"))?
-                .iter()
-                .map(|v| {
-                    v.as_str()
-                        .map(str::to_string)
-                        .ok_or_else(|| RpcError::invalid_params("invalid path"))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let use_settings = p
-                .get("ignoreSettings")
-                .and_then(Value::as_bool)
-                .unwrap_or(true);
-            let stored = if use_settings {
-                stored_ignores(host, "compressIgnores")
-            } else {
-                Vec::new()
-            };
+            let paths = if let Some(paths) = p.get("paths").filter(|value| value.is_array()) {
+                serde_json::from_value::<Vec<sdk::ResourceRef>>(paths.clone()).map_err(|error| RpcError::invalid_params(error.to_string()))?
+            } else { ctx.targets().iter().map(|target| target.reference.clone()).collect() };
+            let stored = stored_ignores(host, "compressIgnores");
             let ignores = merge_ignores(p, stored);
             let format = param(p, "format")?.to_string();
-            let destination = match p.get("destination").and_then(Value::as_str) {
-                Some(value) => value.to_owned(),
-                None => archives::default_destination(&paths, &format, host)
-                    .map_err(RpcError::internal)?,
+            let destination = match p.get("destination").filter(|value| value.is_object()) {
+                Some(value) => serde_json::from_value::<sdk::ResourceRef>(value.clone()).map_err(|error| RpcError::invalid_params(error.to_string()))?,
+                None => if let Some(name) = p.get("destinationName").and_then(Value::as_str) {
+                    host.files().child(&host.directory().ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?.reference, name).map_err(|error| RpcError::internal(error.to_string()))?
+                } else { archives::default_destination(&paths, &format, host).map_err(RpcError::internal)? },
             };
             let level = p.get("level").and_then(Value::as_u64).map(|n| n as u32);
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
@@ -410,7 +396,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         }
         "archive.info" => archive_info(p, host),
         "archive.list" => Ok(listing::list(
-            param(p, "path")?,
+            &resources::input(host, "path")?.reference,
             p.get("password").and_then(Value::as_str),
             host,
         )
@@ -422,22 +408,21 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
                 return Ok(json!({ "handled": false }));
             }
-            before_open(param(p, "path")?, p, host)
+            before_open(&resources::input(host, "path")?.reference, p, host)
         }
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
-            let path = param(p, "path")?.to_string();
-            let destination = p
-                .get("destination")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            let path = resources::input(host, "path")?.reference;
+            let destination = if let Some(value) = p.get("destination").filter(|value| value.is_object()) {
+                serde_json::from_value::<sdk::ResourceRef>(value.clone()).map_err(|error| RpcError::invalid_params(error.to_string()))?
+            } else { host.directory().ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?.reference };
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
             let max_total = max_total_bytes(host, p);
             let task = ctx.spawn_task_with_label("正在解压", move |task| {
                 let result = archives::extract(
                     &path,
-                    destination.as_deref(),
+                    &destination,
                     password.as_deref(),
                     &ignores,
                     max_total,

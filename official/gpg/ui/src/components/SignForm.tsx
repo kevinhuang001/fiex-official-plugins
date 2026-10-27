@@ -1,3 +1,4 @@
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileList } from "./FileList";
 import { KeyPicker } from "./KeyPicker";
 import { OutputSummary } from "./OutputSummary";
@@ -17,8 +18,8 @@ export function SignForm({
   armor,
   onArmor,
 }: {
-  files: string[];
-  directory: string;
+  files: ResourceContext[];
+  directory: ResourceContext | undefined;
   keys: Key[];
   totalKeys: number;
   fingerprint: string;

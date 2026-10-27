@@ -1,16 +1,18 @@
 //! RPC dispatch over the open-file cache.
+#[path = "../../../support/resources.rs"]
+mod resources;
 use crate::open::{open, page_of, Cache};
 use fiex_plugin_sdk as sdk;
 use fiex_plugin_sdk::RpcError;
 use serde_json::Value;
 use std::sync::Mutex;
 
-fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
+fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
     let bytes = ctx
         .files()
-        .read(path)
+        .read(&target.reference)
         .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-    let (value, _) = open(path, bytes).map_err(RpcError::internal)?;
+    let (value, _) = open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
     let datasets = value
         .get("datasets")
         .and_then(Value::as_array)
@@ -48,12 +50,8 @@ pub(crate) fn dispatch(
     let method = ctx.method();
     let p = ctx.params();
     if method == "info.resolve" {
-        let name = ctx
-            .targets()
-            .first()
-            .and_then(sdk::ResourceContext::name)
-            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;
-        let rows = info_rows(&ctx, name)?;
+        let target = resources::input(&ctx, "path")?;
+        let rows = info_rows(&ctx, &target)?;
         return Ok(serde_json::json!({
             "sections": [{"id":"data","title":"数据表","rows": rows["rows"].clone()}]
         }));
@@ -66,46 +64,39 @@ pub(crate) fn dispatch(
     }
     match method {
         "data.info" => {
-            let path = p
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            info_rows(&ctx, path)
+            let target = resources::input(&ctx, "path")?;
+            info_rows(&ctx, &target)
         }
         "data.open" => {
-            let path = p
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let target = resources::input(&ctx, "path")?;
             let bytes = ctx
                 .files()
-                .read(path)
+                .read(&target.reference)
                 .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-            let (value, opened) = open(path, bytes).map_err(RpcError::internal)?;
+            let (value, mut opened) = open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
+            opened.path = serde_json::to_string(&target.reference).unwrap_or_default();
             *cache
                 .lock()
                 .map_err(|_| RpcError::internal("preview cache unavailable"))? = Some(opened);
             Ok(value)
         }
         "data.page" => {
-            let path = p
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let target = resources::input(&ctx, "path")?;
             let dataset = p.get("dataset").and_then(Value::as_str).unwrap_or("data");
             let mut cached = cache
                 .lock()
                 .map_err(|_| RpcError::internal("preview cache unavailable"))?;
             if cached
                 .as_ref()
-                .map(|entry| entry.path != path)
+                .map(|entry| entry.path != serde_json::to_string(&target.reference).unwrap_or_default())
                 .unwrap_or(true)
             {
                 let bytes = ctx
                     .files()
-                    .read(path)
+                    .read(&target.reference)
                     .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-                let (_, opened) = open(path, bytes).map_err(RpcError::internal)?;
+                let (_, mut opened) = open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
+                opened.path = serde_json::to_string(&target.reference).unwrap_or_default();
                 *cached = Some(opened);
             }
             let entry = cached.as_ref().unwrap();

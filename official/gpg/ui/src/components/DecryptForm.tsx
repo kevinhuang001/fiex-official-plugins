@@ -1,3 +1,4 @@
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileList } from "./FileList";
 import { OutputSummary } from "./OutputSummary";
 
@@ -6,8 +7,8 @@ export function DecryptForm({
   directory,
   armor,
 }: {
-  files: string[];
-  directory: string;
+  files: ResourceContext[];
+  directory: ResourceContext | undefined;
   armor: boolean;
 }) {
   return (

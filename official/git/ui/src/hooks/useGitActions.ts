@@ -87,7 +87,7 @@ export function useGitActions(client: FiexUiClient, repository: GitRepository) {
 
   const init = useCallback(
     () =>
-      void runTask("初始化 Git 仓库", root, async (taskId) => {
+      void runTask("初始化 Git 仓库", repository.name, async (taskId) => {
         await client.tasks.update(taskId, { step: "创建 .git" });
         await invokeGit(client, "git.init", { root });
         return "仓库已创建";

@@ -6,11 +6,10 @@ import {
   GitCommitHorizontal,
   RefreshCw,
 } from "lucide-react";
-import { baseName } from "../lib/changes";
 import type { Refs, Status } from "../types";
 
 export function RepositoryHeader({
-  root,
+  name,
   status,
   refs,
   busy,
@@ -20,7 +19,7 @@ export function RepositoryHeader({
   onOpenRemote,
   onRefresh,
 }: {
-  root: string;
+  name: string;
   status: Status;
   refs: Refs | null;
   busy: boolean;
@@ -37,7 +36,7 @@ export function RepositoryHeader({
           <FolderGit2 size={20} />
         </span>
         <span className="git-repo-name">
-          <strong>{baseName(root)}</strong>
+          <strong>{name}</strong>
         </span>
         <button
           className="git-branch-trigger"

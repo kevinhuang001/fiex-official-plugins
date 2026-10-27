@@ -23,12 +23,9 @@ fn normalize(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-pub fn list(params: &Value, host: &sdk::RequestContext) -> Result<Value, String> {
-    let directory = params
-        .get("directory")
-        .and_then(Value::as_str)
-        .ok_or("missing directory")?;
-    let Some(status) = crate::git_host::status(directory, host) else {
+pub fn list(_params: &Value, host: &sdk::RequestContext) -> Result<Value, String> {
+    let directory = host.directory().ok_or("missing directory ref")?.reference;
+    let Some(status) = crate::git_host::status(&directory, host) else {
         return Ok(json!({ "decorations": [] }));
     };
     let statuses = status["entries"]
@@ -44,10 +41,7 @@ pub fn list(params: &Value, host: &sdk::RequestContext) -> Result<Value, String>
                 continue;
             };
             let name = &metadata.name;
-            let path = std::path::Path::new(directory)
-                .join(name)
-                .to_string_lossy()
-                .into_owned();
+            let path = name.to_string();
             let Some(code) = statuses.get(&normalize(&path)) else {
                 continue;
             };

@@ -2,7 +2,7 @@
 use super::super::{
     err,
     extract::extract_file,
-    paths::{safe_name, text},
+    paths::{safe_name, entry_ref},
     ArchiveContext, CANCELLED, MAX_ENTRIES,
 };
 use crate::ignores::IgnoreSet;
@@ -13,8 +13,8 @@ use std::{
 
 pub(crate) fn extract_zip(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     password: Option<&str>,
     ignore: &IgnoreSet,
     remaining: &mut u64,
@@ -56,8 +56,8 @@ pub(crate) fn extract_zip(
 
 pub(crate) fn extract_7z(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     password: Option<&str>,
     ignore: &IgnoreSet,
     remaining: &mut u64,
@@ -102,8 +102,8 @@ pub(crate) fn extract_7z(
 
 pub(crate) fn extract_rar(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     password: Option<&str>,
     ignore: &IgnoreSet,
     max_total: u64,
@@ -158,22 +158,11 @@ pub(crate) fn extract_rar(
             if ignore.is_ignored(Path::new(&name)) {
                 return Ok(Box::new(io::sink()));
             }
-            let path = root.join(name);
-            if meta.is_directory {
-                files
-                    .create_dir_all(&text(&path))
-                    .map_err(rars::Error::from)?;
-                context.progress(count as u64, None);
-                return Ok(Box::new(io::sink()));
-            }
-            if let Some(parent) = path.parent() {
-                files
-                    .create_dir_all(&text(parent))
-                    .map_err(rars::Error::from)?;
-            }
+            let reference = entry_ref(&files, root, Path::new(&name), meta.is_directory).map_err(|error| rars::Error::from(io::Error::other(error)))?;
+            if meta.is_directory { context.progress(count as u64, None); return Ok(Box::new(io::sink())); }
             let output = Arc::new(Mutex::new(Some(
                 files
-                    .begin_write(&text(&path), true)
+                    .begin_write(&reference, true)
                     .map_err(rars::Error::from)?,
             )));
             pending = Some(output.clone());
@@ -195,8 +184,8 @@ pub(crate) fn extract_rar(
 
 pub(crate) fn extract_stream(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     source_path: &Path,
     lower: &str,
     ignore: &IgnoreSet,

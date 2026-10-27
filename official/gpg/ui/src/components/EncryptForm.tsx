@@ -1,3 +1,4 @@
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileList } from "./FileList";
 import { KeyPicker } from "./KeyPicker";
 import { OutputSummary } from "./OutputSummary";
@@ -20,8 +21,8 @@ export function EncryptForm({
   trust,
   onTrust,
 }: {
-  files: string[];
-  directory: string;
+  files: ResourceContext[];
+  directory: ResourceContext | undefined;
   keys: Key[];
   totalKeys: number;
   fingerprint: string;

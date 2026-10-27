@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, LoaderCircle } from "lucide-react";
-import { FiexUiClient } from "../../../../sdk/ui/src/index";
+import { FiexUiClient, type ResourceContext, type ResourceRef } from "../../../../sdk/ui/src/index";
 
 interface Context {
-  selectionPaths?: string[];
-  directoryPath?: string;
+  targets?: ResourceContext[];
 }
 interface Hashes {
-  path: string;
+  ref: ResourceRef;
   size: number;
   sha256: string;
   sha512: string;
@@ -26,7 +25,7 @@ const algorithms = [
 ] as const;
 
 export function App() {
-  const [paths, setPaths] = useState<string[]>([]);
+  const [paths, setPaths] = useState<ResourceContext[]>([]);
   const [rows, setRows] = useState<Hashes[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -36,11 +35,7 @@ export function App() {
     void client
       .invoke<Context>("context.get")
       .then(async (context) => {
-        const targets = context.selectionPaths?.length
-          ? context.selectionPaths
-          : context.directoryPath
-            ? [context.directoryPath]
-            : [];
+        const targets = context.targets || [];
         setPaths(targets);
         if (!targets.length) return;
         setBusy(true);
@@ -50,7 +45,7 @@ export function App() {
             next.push(
               await client.invoke<Hashes>("plugin.invoke", {
                 method: "checksum.calculate",
-                params: { path },
+                params: { path: path.ref },
               }),
             );
           }
@@ -84,9 +79,9 @@ export function App() {
       )}
       {!busy && !error && !paths.length && <div className="loading" />}
       {rows.map((row) => (
-        <dl className="hashes" key={row.path}>
+        <dl className="hashes" key={JSON.stringify(row.ref)}>
           {algorithms.map(([key, label]) => {
-            const id = `${row.path}:${key}`;
+            const id = `${JSON.stringify(row.ref)}:${key}`;
             return (
               <div className="hash-row" key={key}>
                 <dt>{label}</dt>

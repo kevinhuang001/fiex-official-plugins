@@ -10,6 +10,11 @@ fn text<'a>(p: &'a Value, key: &str) -> Result<&'a str, RpcError> {
         .filter(|s| !s.is_empty() && !s.contains('\0'))
         .ok_or_else(|| RpcError::invalid_params(format!("missing {key}")))
 }
+fn resource_arg(p: &Value, key: &str) -> Result<String, RpcError> {
+    let value = p.get(key).ok_or_else(|| RpcError::invalid_params(format!("missing {key}")))?;
+    let reference: sdk::ResourceRef = serde_json::from_value(value.get("ref").unwrap_or(value).clone()).map_err(|error| RpcError::invalid_params(error.to_string()))?;
+    Ok(reference.command_arg())
+}
 fn flag(p: &Value, key: &str) -> bool {
     p.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
@@ -59,6 +64,9 @@ fn key_passphrase(p: &Value) -> Result<String, RpcError> {
 
 fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
     let mut args = vec!["--batch".into(), "--no-tty".into(), "--status-fd=2".into()];
+    let input_arg = if p.get("input").is_some() { resource_arg(p, "input")? } else { String::new() };
+    let signature_arg = if p.get("signature").is_some() { resource_arg(p, "signature")? } else { String::new() };
+    let output_arg = if p.get("output").is_some() { resource_arg(p, "output")? } else { String::new() };
     match method {
         "gpg.info" => args.push("--version".into()),
         "gpg.keys" => {
@@ -85,7 +93,7 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
                 .map(String::from),
             );
         }
-        "gpg.import" => args.extend(["--import", "--", text(p, "input")?].map(String::from)),
+        "gpg.import" => args.extend(["--import", "--", input_arg.as_str()].map(String::from)),
         "gpg.deleteKey" => {
             let command = if flag(p, "secret") {
                 "--delete-secret-and-public-keys"
@@ -95,10 +103,10 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
             args.extend(["--yes", command, "--", fingerprint(p)?].map(String::from));
         }
         "gpg.verify" => args
-            .extend(["--verify", "--", text(p, "signature")?, text(p, "input")?].map(String::from)),
+            .extend(["--verify", "--", signature_arg.as_str(), input_arg.as_str()].map(String::from)),
         "gpg.encrypt" | "gpg.decrypt" | "gpg.sign" | "gpg.export" => {
-            let output = text(p, "output")?;
-            if p.get("input").and_then(Value::as_str) == Some(output) {
+            let output = output_arg.as_str();
+            if p.get("input").is_some() && p.get("input") == p.get("output") {
                 return Err(RpcError::invalid_params("input and output must differ"));
             }
             args.extend(["--output", output].map(String::from));
@@ -121,13 +129,13 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
                             fingerprint(p)?,
                             "--encrypt",
                             "--",
-                            text(p, "input")?,
+                            input_arg.as_str(),
                         ]
                         .map(String::from),
                     )
                 }
                 "gpg.decrypt" => {
-                    args.extend(["--decrypt", "--", text(p, "input")?].map(String::from))
+                    args.extend(["--decrypt", "--", input_arg.as_str()].map(String::from))
                 }
                 "gpg.sign" => args.extend(
                     [
@@ -135,7 +143,7 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
                         fingerprint(p)?,
                         "--detach-sign",
                         "--",
-                        text(p, "input")?,
+                        input_arg.as_str(),
                     ]
                     .map(String::from),
                 ),

@@ -24,7 +24,7 @@ pub(crate) struct Session {
 }
 
 fn stored(host: &sdk::RequestContext, key: &str) -> Option<Value> {
-    host.storage_get("global", key).ok()
+    host.storage().get::<Value>(key).ok().flatten()
 }
 
 fn text(value: Option<Value>) -> String {
@@ -65,8 +65,8 @@ pub(crate) fn config(
         url,
         username: text(stored(host, "username")),
         password: host
-            .secret_get("global", "password")
-            .unwrap_or_default()
+            .secrets().get::<String>("password")
+            .map_err(|error| RpcError::internal(error.to_string()))?.unwrap_or_default()
             .trim()
             .to_string(),
         timeout,

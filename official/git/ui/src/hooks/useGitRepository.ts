@@ -20,7 +20,7 @@ export function useGitRepository(client: FiexUiClient) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const root = context.directoryPath || "";
+  const root = context.directory?.ref;
 
   const load = useCallback(async () => {
     if (!root) return;
@@ -69,6 +69,7 @@ export function useGitRepository(client: FiexUiClient) {
 
   return {
     root,
+    name: context.directory?.metadata?.name || "Git",
     status,
     refs,
     history,

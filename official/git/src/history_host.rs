@@ -6,18 +6,17 @@ use crate::{
 
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[derive(Clone)]
 pub struct Route {
-    pub root: PathBuf,
+    pub root: sdk::ResourceRef,
     pub commit: String,
     pub relative: String,
 }
 pub fn route(relative: &str, context: &Value) -> Option<Route> {
-    let root = context["repoRoot"].as_str()?;
+    let root = serde_json::from_value::<sdk::ResourceRef>(context["repoRoot"].clone()).ok()?;
     let commit = context["commitId"].as_str()?;
-    if !Path::new(root).is_absolute()
-        || ![40, 64].contains(&commit.len())
+    if ![40, 64].contains(&commit.len())
         || !commit.bytes().all(|c| c.is_ascii_hexdigit())
     {
         return None;
@@ -29,7 +28,7 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
         return None;
     }
     Some(Route {
-        root: root.into(),
+        root,
         commit: commit.into(),
         relative: relative.into(),
     })
@@ -45,7 +44,7 @@ pub fn provider_entry(entry: Entry) -> Value {
     value["relativePath"] = json!(node);
     value
 }
-pub fn history(root: &str, skip: usize, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn history(root: &sdk::ResourceRef, skip: usize, host: &sdk::RequestContext) -> Result<Value, String> {
     if run(host, root, &["rev-parse", "--verify", "HEAD"]).is_err() {
         return Ok(json!([]));
     }
@@ -66,11 +65,11 @@ pub fn history(root: &str, skip: usize, host: &sdk::RequestContext) -> Result<Va
     let entries=fields.chunks(6).filter(|p|p.len()==6).map(|p|json!({"id":p[0].trim_start_matches('\n'),"shortId":p[1],"subject":p[2],"author":p[3],"timestamp":p[4].parse::<u64>().unwrap_or(0),"refs":p[5]})).collect::<Vec<_>>();
     Ok(json!(entries))
 }
-pub fn browse(root: &str, reference: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn browse(root: &sdk::ResourceRef, reference: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     if reference.is_empty() || reference.starts_with('-') {
         return Err("无效版本".into());
     }
-    let full = run(host, root, &["rev-parse", "--show-toplevel"])?;
+    
     let object = format!("{reference}^{{commit}}");
     let hash = run(
         host,
@@ -79,8 +78,8 @@ pub fn browse(root: &str, reference: &str, host: &sdk::RequestContext) -> Result
     )?;
     host.open_vfs_view(
         "history",
-        full.trim(),
-        json!({"repoRoot":full.trim(),"commitId":hash.trim()}),
+        root,
+        json!({"repoRoot":root,"commitId":hash.trim()}),
     )
     .map_err(|e| e.to_string())
     .map(Value::String)
@@ -103,7 +102,7 @@ fn entries(
         args.push("-r");
     }
     args.push(&object);
-    let output = run(host, &r.root.to_string_lossy(), &args)?;
+    let output = run(host, &r.root, &args)?;
     let ignored = crate::ignores::IgnoreSet::new(ignores);
     let mut values = Vec::new();
     for record in output.split('\0').filter(|s| !s.is_empty()) {
@@ -173,7 +172,7 @@ pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
         let r = request_route(path, host)?;
         run(
             host,
-            &r.root.to_string_lossy(),
+            &r.root,
             &["cat-file", "-e", &format!("{}^{{commit}}", r.commit)],
         )?;
         return Ok(Entry {
@@ -202,14 +201,9 @@ pub fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
     let r = request_route(path, host)?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
-        .process_run(
-            "git",
-            &[
-                "-C".into(),
-                r.root.to_string_lossy().into_owned(),
-                "show".into(),
-                object,
-            ],
+        .process_run_at(
+            &r.root, "git",
+            &["show".into(), object],
             None,
         )
         .map_err(|e| e.to_string())?;

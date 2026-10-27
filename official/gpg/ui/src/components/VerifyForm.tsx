@@ -1,3 +1,4 @@
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { Field } from "./Field";
 import { PathInput } from "./PathInput";
 
@@ -8,8 +9,8 @@ export function VerifyForm({
   onPickData,
   busy,
 }: {
-  signature: string;
-  data: string;
+  signature: ResourceContext | undefined;
+  data: ResourceContext | undefined;
   onPickSignature: () => void;
   onPickData: () => void;
   busy: boolean;

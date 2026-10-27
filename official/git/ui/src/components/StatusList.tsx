@@ -1,17 +1,17 @@
+import type { ResourceRef } from "../../../../../sdk/ui/src/index";
 import { FileCode2, Minus, Plus } from "lucide-react";
 import { baseName } from "../lib/changes";
 import type { ChangeEntry } from "../types";
 import { CleanState } from "./PanelStates";
 
 export function StatusList({
-  root,
   changes,
   staged,
   unstaged,
   busy,
   onToggle,
 }: {
-  root: string;
+  root: ResourceRef;
   changes: ChangeEntry[];
   staged: ChangeEntry[];
   unstaged: ChangeEntry[];
@@ -50,7 +50,7 @@ export function StatusList({
                     >
                       {baseName(item.path)}
                     </span>
-                    <small>{item.path.slice(root.length + 1)}</small>
+                    <small>{item.path}</small>
                   </span>
                 </button>
                 <span

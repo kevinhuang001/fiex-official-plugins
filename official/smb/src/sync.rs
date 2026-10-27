@@ -44,7 +44,7 @@ pub(crate) fn dispatch(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
         }
         let mut reader = ctx
             .files()
-            .open_read(p["source"].as_str().ok_or_else(|| fail("missing source"))?)
+            .open_read(&serde_json::from_value::<fiex_plugin_sdk::ResourceRef>(p["source"].clone()).map_err(|error| fail(error.to_string()))?)
             .map_err(fail)?;
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

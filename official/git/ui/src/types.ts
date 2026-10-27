@@ -1,10 +1,11 @@
+import type { ResourceRef } from "../../../../sdk/ui/src/index";
 /** View models shared by the git panel hooks and components. */
 export interface StatusEntry {
   path: string;
   code: string;
 }
 export interface Status {
-  root: string;
+  root: ResourceRef;
   branch: string;
   entries: Record<string, string>;
 }
@@ -34,8 +35,8 @@ export interface RemoteStatus {
   behind: number;
 }
 export interface Context {
-  directoryPath?: string;
-  selectionPaths?: string[];
+  directory?: import("../../../../sdk/ui/src/index").ResourceContext;
+  targets?: import("../../../../sdk/ui/src/index").ResourceContext[];
 }
 
 /** A status entry with its parsed change state, ready to render. */

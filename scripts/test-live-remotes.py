@@ -17,6 +17,8 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
+SOURCE_REF = {"mountId": "local", "nodeId": "source"}
+
 
 def write_frame(stream, value):
     body = json.dumps(value, separators=(",", ":")).encode("utf-8")
@@ -83,7 +85,7 @@ class Plugin:
         if method in {"host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
             return None
         if method == "host.fs.openRead":
-            assert params["path"] == "source.dat"
+            assert params["ref"] == SOURCE_REF
             return {"handle":"snapshot", "size":len(self.upload_source)}
         if method == "host.fs.readOpen":
             assert params["handle"] == "snapshot"
@@ -201,12 +203,12 @@ def main():
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
             baseline=plugin.rpc("fs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
-            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline})
+            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":SOURCE_REF,"ifRevision":baseline})
             assert uploaded["revision"] != baseline
             verified=plugin.rpc("fs.readSmall", {"connection":cfg,"nodeId":"hello.txt","maxBytes":1024})
             assert base64.b64decode(verified["base64"]) == plugin.upload_source
             plugin.upload_source=base64.b64decode(result["base64"])
-            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":uploaded["revision"]})
+            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":SOURCE_REF,"ifRevision":uploaded["revision"]})
             plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
             plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})
@@ -237,12 +239,12 @@ def main():
             assert reply["eof"] is True
             plugin.rpc("fs.closeRead", {"streamId": stream_id})
             baseline=plugin.rpc("fs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
-            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline})
+            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":SOURCE_REF,"ifRevision":baseline})
             assert uploaded["revision"] != baseline
             verified=plugin.rpc("fs.readSmall", {"connection":cfg,"nodeId":"hello.txt","maxBytes":1024})
             assert base64.b64decode(verified["base64"]) == plugin.upload_source
             plugin.upload_source=base64.b64decode(result["base64"])
-            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":uploaded["revision"]})
+            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":SOURCE_REF,"ifRevision":uploaded["revision"]})
             plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
             plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})

@@ -42,17 +42,6 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .unwrap()
         .iter()
         .any(|entry| entry["name"] == "hello.txt"));
-    let result = plugin_host::global()
-        .invoke(
-            id,
-            "fs.readSmall",
-            json!({"connection": config, "nodeId": "hello.txt", "maxBytes": 1024}),
-        )
-        .expect("network preview through Core failed");
-    assert_eq!(
-        STANDARD.decode(result["base64"].as_str().unwrap()).unwrap(),
-        expected
-    );
     let opened = plugin_host::global()
         .invoke(
             id,
@@ -112,19 +101,28 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 std::slice::from_ref(&source)
             )
             .is_err());
+        let opened = plugin_host::global()
+            .invoke(
+                id,
+                "fs.openRead",
+                json!({"connection":config,"nodeId":"hello.txt"}),
+            )
+            .unwrap();
+        let stream = opened["streamId"].as_str().unwrap();
         let readback = plugin_host::global()
             .invoke(
                 id,
-                "fs.readSmall",
-                json!({"connection":config,"nodeId":"hello.txt","maxBytes":1048576}),
+                "fs.readStream",
+                json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
             )
             .unwrap();
         assert_eq!(
-            STANDARD
-                .decode(readback["base64"].as_str().unwrap())
-                .unwrap(),
+            STANDARD.decode(readback["base64"].as_str().unwrap()).unwrap(),
             contents
         );
+        plugin_host::global()
+            .invoke(id, "fs.closeRead", json!({"streamId": stream}))
+            .unwrap();
     }
     if id == "org.fiex.webdav" {
         let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {

@@ -132,7 +132,7 @@ class Plugin:
                                         "method": method, "params": params})
         response = self.response()
         assert response["id"] == self.serial, response
-        assert response["error"]["code"] == -32602, response
+        assert response.get("error", {}).get("code") == -32602, response
 
     def close(self):
         try:
@@ -167,18 +167,18 @@ def unpack(packages, slug, dest):
 
 def check_list(plugin, connection, description):
     assert plugin.rpc("connection.validate", {"connection": connection})["valid"] is True
-    first = plugin.rpc("fs.list", {"connection": connection, "directoryId": "",
+    first = plugin.rpc("fs.list", {"connection": connection, "nodeId": "",
                                     "limit": 1})
     assert len(first["entries"]) == 1, first
     cursor = first["nextCursor"]
     assert cursor is not None, f"{description}: pagination not exercised"
-    second = plugin.rpc("fs.list", {"connection": connection, "directoryId": "",
+    second = plugin.rpc("fs.list", {"connection": connection, "nodeId": "",
                                      "limit": 100, "cursor": cursor})
     combined = first["entries"] + second["entries"]
     names = [entry["name"] for entry in combined]
     assert "hello.txt" in names and "another.txt" in names, f"{description}: {combined}"
     assert len(names) == len(set(names)), "pagination yielded duplicated entries"
-    plugin.invalid("fs.list", {"connection": connection, "directoryId": "../escape"})
+    plugin.invalid("fs.list", {"connection": connection, "nodeId": "../escape"})
 
 
 

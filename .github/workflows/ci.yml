@@ -7,6 +7,12 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  SCCACHE_GHA_ENABLED: 'true'
+  SCCACHE_CACHE_SIZE: '10G'
+  CARGO_INCREMENTAL: '0'
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
 jobs:
   ui:
     name: Standalone plugin panels
@@ -60,6 +66,12 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
+      - name: Configure sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable compiler cache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: official/git -> ../../target
@@ -107,6 +119,18 @@ jobs:
             dist/plugins/*.fiexplugin
             dist/plugins/fiex-catalog.json
             dist/plugins/plugin-descriptions.json
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: |
+          sccache --show-stats
+          {
+            echo '### sccache'
+            echo '```'
+            sccache --show-stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   core-integration:
     name: Installed official plugins ↔ real Core host (Linux)
     needs: build
@@ -128,6 +152,12 @@ jobs:
           name: fiex-plugins-x86_64-unknown-linux-gnu
           path: packages
       - uses: dtolnay/rust-toolchain@stable
+      - name: Configure sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable compiler cache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core/src-tauri -> target
@@ -175,6 +205,18 @@ jobs:
           HOME="$RUNNER_TEMP/fiex-ssh-home" python3 scripts/test-ssh-plugin.py \
             --binary "$binary" --host 127.0.0.1 --port 2222 --user root --identity "$key"
 
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: |
+          sccache --show-stats
+          {
+            echo '### sccache'
+            echo '```'
+            sccache --show-stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
     needs: build
@@ -192,6 +234,12 @@ jobs:
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk
       - uses: dtolnay/rust-toolchain@stable
+      - name: Configure sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable compiler cache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: integration -> target
@@ -285,6 +333,18 @@ jobs:
         run: |
           cat .ci/webdav.log 2>/dev/null || true
           cat .ci/smb.log 2>/dev/null || true
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: |
+          sccache --show-stats
+          {
+            echo '### sccache'
+            echo '```'
+            sccache --show-stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release:
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/plugins-v'))
     needs: [build, core-integration, remote-integration]

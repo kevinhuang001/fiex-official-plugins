@@ -11,8 +11,15 @@ from pathlib import Path
 import queue
 import socket
 import subprocess
+import sys
 import threading
 import time
+
+
+# Keep standalone runs and inherited Windows test subprocesses in UTF-8 too.
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8")
 
 
 def send(stream, lock, value):
@@ -88,7 +95,8 @@ def main():
     try:
         send(child.stdin, lock, {"jsonrpc": "2.0", "id": 1, "method": "plugin.initialize",
                                  "params": {"protocolVersion": "5.0"}})
-        assert receive(child.stdout)["result"]["pluginId"] == "org.fiex.ssh"
+        initialized = receive(child.stdout)
+        assert initialized.get("result", {}).get("pluginId") == "org.fiex.ssh", initialized
         threading.Thread(target=read_messages, daemon=True).start()
         send(child.stdin, lock, {
             "jsonrpc": "2.0", "id": 2, "method": "terminal.open",

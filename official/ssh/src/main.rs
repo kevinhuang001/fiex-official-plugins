@@ -1,7 +1,6 @@
 //! SSH over the Host-brokered TCP stream. The plugin never opens a socket
 //! directly: `ctx.tcp()` resolves and connects through Core's network broker,
 //! then the SSH handshake and channel run over that stream.
-use fiex_plugin_sdk::tcp::TcpStream;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 #[cfg(unix)]
 use russh::keys::agent::client::AgentClient;
@@ -11,22 +10,30 @@ use russh::{
     keys::{load_secret_key, PrivateKeyWithHashAlg},
 };
 use serde_json::{json, Value};
-use std::{
-    io::{Read, Write},
-    path::Path,
-    sync::Arc,
-    time::Duration,
-};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
+use std::{path::Path, sync::Arc, time::Duration};
+use tokio::io::AsyncWriteExt;
 
 struct ServerKey {
     host: String,
     port: u16,
+    task: Arc<sdk::TaskContext>,
+    session_id: String,
 }
 
 impl Handler for ServerKey {
     type Error = russh::Error;
 
+    async fn auth_banner(
+        &mut self,
+        banner: &str,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        let _ = self
+            .task
+            .terminal(&self.session_id)
+            .output(banner.as_bytes());
+        Ok(())
+    }
     async fn check_server_key(
         &mut self,
         key: &PublicKeyOrCertificate,
@@ -61,57 +68,28 @@ fn expanded(value: &str) -> String {
     value.to_string()
 }
 
-/// Adapt the Host-brokered blocking stream to the AsyncRead/AsyncWrite stream
-/// required by russh. Two small pump threads keep all socket I/O inside Core.
-fn bridge(tcp: TcpStream) -> Result<DuplexStream, RpcError> {
-    let (client, server) = tokio::io::duplex(64 * 1024);
-    let mut reader = tcp.clone();
-    let mut writer = tcp;
-    let (to_sdk, mut to_sdk_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
-    let (from_sdk, mut from_sdk_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
-    std::thread::spawn(move || {
-        let mut buffer = [0u8; 16 * 1024];
+async fn request_accepted(
+    channel: &mut russh::Channel<client::Msg>,
+    request: &str,
+) -> Result<(), RpcError> {
+    tokio::time::timeout(Duration::from_secs(30), async {
         loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(size) => {
-                    if from_sdk.blocking_send(buffer[..size].to_vec()).is_err() {
-                        break;
-                    }
+            match channel.wait().await {
+                Some(russh::ChannelMsg::Success) => return Ok(()),
+                Some(russh::ChannelMsg::Failure) => {
+                    return Err(RpcError::internal(format!("SSH server rejected {request}")))
                 }
-                Err(_) => break,
-            }
-        }
-    });
-    std::thread::spawn(move || {
-        while let Some(data) = to_sdk_rx.blocking_recv() {
-            if writer.write_all(&data).is_err() {
-                break;
-            }
-        }
-    });
-    let (mut server_reader, mut server_writer) = tokio::io::split(server);
-    tokio::spawn(async move {
-        while let Some(data) = from_sdk_rx.recv().await {
-            if server_writer.write_all(&data).await.is_err() {
-                break;
-            }
-        }
-    });
-    tokio::spawn(async move {
-        let mut buffer = [0u8; 16 * 1024];
-        loop {
-            match server_reader.read(&mut buffer).await {
-                Ok(0) | Err(_) => break,
-                Ok(size) => {
-                    if to_sdk.send(buffer[..size].to_vec()).await.is_err() {
-                        break;
-                    }
+                Some(russh::ChannelMsg::Close | russh::ChannelMsg::Eof) | None => {
+                    return Err(RpcError::internal(format!(
+                        "SSH channel closed during {request}"
+                    )))
                 }
+                _ => {}
             }
         }
-    });
-    Ok(client)
+    })
+    .await
+    .map_err(|_| RpcError::internal(format!("SSH {request} timed out")))?
 }
 
 fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
@@ -152,29 +130,34 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let identity = expanded(text(connection, "identityFile"));
     let password = text(connection, "password").to_string();
 
-    // The TCP socket is created by Core's network broker. The plugin only gets
-    // a Read + Write stream and cannot bypass the host allowlist.
-    let tcp = ctx
-        .tcp()
-        .connect(&host, port)
-        .map_err(|error| RpcError::internal(format!("SSH TCP 连接失败：{error}")))?;
-
+    let terminal_type = match text(connection, "terminalType") {
+        "" => "xterm-256color",
+        value => value,
+    }
+    .to_owned();
     ctx.spawn_internal_task("SSH 终端", move |task| {
+        let task = Arc::new(task);
+        let result = (|| {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
             .build()
             .map_err(|error| RpcError::internal(error.to_string()))?;
-        runtime.block_on(async move {
-            let stream = bridge(tcp)?;
+        runtime.block_on(async {
+            let stream = task
+                .tcp()
+                .connect_async(host.clone(), port)
+                .await
+                .map_err(|error| RpcError::internal(format!("SSH TCP 连接失败：{error}")))?;
             let key_handler = ServerKey {
                 host: host.clone(),
                 port,
+                task: Arc::clone(&task), session_id: session_id.clone(),
             };
-            let mut handle =
-                client::connect_stream(Arc::new(client::Config::default()), stream, key_handler)
-                    .await
-                    .map_err(|error| RpcError::internal(format!("SSH 握手失败：{error}")))?;
+            let mut handle = tokio::time::timeout(Duration::from_secs(30),
+                client::connect_stream(Arc::new(client::Config::default()), stream, key_handler))
+                .await.map_err(|_| RpcError::internal("SSH handshake timed out"))?
+                .map_err(|error| RpcError::internal(format!("SSH 握手失败：{error}")))?;
 
             let mut authenticated = false;
             if !identity.is_empty() {
@@ -221,42 +204,37 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 ));
             }
 
-            let channel = handle
+            let mut channel = handle
                 .channel_open_session()
                 .await
                 .map_err(|error| RpcError::internal(error.to_string()))?;
             channel
-                .request_pty(true, "xterm-256color", cols, rows, 0, 0, &[])
+                .request_pty(true, &terminal_type, cols, rows, 0, 0, &[])
                 .await
                 .map_err(|error| RpcError::internal(format!("SSH PTY 请求失败：{error}")))?;
+            request_accepted(&mut channel, "PTY").await?;
             channel
                 .request_shell(true)
                 .await
                 .map_err(|error| RpcError::internal(format!("SSH shell 启动失败：{error}")))?;
 
+            request_accepted(&mut channel, "shell").await?;
+            task.terminal(&session_id).ready()?;
             let (mut read_half, write_half) = channel.split();
             let (output_tx, mut output_rx) =
                 tokio::sync::mpsc::channel::<Result<Vec<u8>, String>>(16);
             tokio::spawn(async move {
-                let mut reader = read_half.make_reader();
-                let mut buffer = [0u8; 16 * 1024];
-                loop {
-                    match reader.read(&mut buffer).await {
-                        Ok(0) => {
-                            let _ = output_tx.send(Ok(Vec::new())).await;
-                            break;
-                        }
-                        Ok(size) => {
-                            if output_tx.send(Ok(buffer[..size].to_vec())).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(error) => {
-                            let _ = output_tx.send(Err(error.to_string())).await;
-                            break;
-                        }
-                    }
+                while let Some(message) = read_half.wait().await {
+                    let result = match message {
+                        russh::ChannelMsg::Data { data } | russh::ChannelMsg::ExtendedData { data, .. } => Ok(data.to_vec()),
+                        russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+                        russh::ChannelMsg::ExitSignal { error_message, signal_name, .. } => Err(format!("SSH shell exited ({signal_name:?}): {error_message}")),
+                        russh::ChannelMsg::ExitStatus { exit_status } if exit_status != 0 => Err(format!("SSH shell exited with status {exit_status}")),
+                        _ => continue,
+                    };
+                    if output_tx.send(result).await.is_err() { return; }
                 }
+                let _ = output_tx.send(Ok(Vec::new())).await;
             });
             let mut writer = write_half.make_writer();
             let mut input = Vec::<u8>::new();
@@ -275,8 +253,7 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                                 }
                             }
                             Some(Err(error)) => {
-                                let _ = terminal.end(Some(&error));
-                                return Ok(Value::Null);
+                                return Err(RpcError::internal(error));
                             }
                             None => break,
                         }
@@ -294,8 +271,7 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                         }
                         if !input.is_empty() {
                             if let Err(error) = writer.write_all(&input).await {
-                                let _ = terminal.end(Some(&error.to_string()));
-                                return Ok(Value::Null);
+                                return Err(RpcError::internal(error.to_string()));
                             }
                             input.clear();
                         }
@@ -311,33 +287,42 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 }
             }
             let _ = writer.shutdown().await;
-            let _ = terminal.end(None);
             Ok(Value::Null)
         })
+        })();
+        let _ = task.terminal(&session_id).end(result.as_ref().err().map(|error: &RpcError| error.message.as_str()));
+        result
     })?;
 
     Ok(json!({ "started": true }))
 }
 
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
-    let p = ctx.params();
     match ctx.method() {
-        "connection.validate" => {
-            let host = p
-                .pointer("/connection/host")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .trim();
-            Ok(json!({ "valid": !host.is_empty() }))
-        }
         "terminal.open" => open_terminal(ctx),
         _ => Err(RpcError::method_not_found(ctx.method())),
     }
 }
 
 fn main() {
-    if let Err(error) = sdk::serve("org.fiex.ssh", run) {
+    if let Err(error) = sdk::Providers::new()
+        .connection(SshConnection)
+        .serve_with("org.fiex.ssh", run)
+    {
         eprintln!("SSH provider failed: {error}");
         std::process::exit(1);
+    }
+}
+
+struct SshConnection;
+impl sdk::ConnectionProvider for SshConnection {
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        let host = ctx
+            .params()
+            .pointer("/connection/host")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
+        Ok(json!({"valid":!host.is_empty()}))
     }
 }

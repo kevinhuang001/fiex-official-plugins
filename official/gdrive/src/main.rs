@@ -185,13 +185,18 @@ fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
     Ok(json!({"valid":true}))
 }
 
+impl sdk::ConnectionProvider for Drive {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        open(ctx)
+    }
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        validate(ctx)
+    }
+}
+
 fn main() {
-    let providers = sdk::Providers::new().filesystem(Drive);
-    if let Err(e) = providers.serve_with("org.fiex.gdrive", |ctx| match ctx.method() {
-        "connection.open" => open(&ctx),
-        "connection.validate" => validate(&ctx),
-        method => Err(RpcError::method_not_found(method)),
-    }) {
+    let providers = sdk::Providers::new().filesystem(Drive).connection(Drive);
+    if let Err(e) = providers.serve("org.fiex.gdrive") {
         eprintln!("Drive IPC failed: {e}");
         std::process::exit(1);
     }

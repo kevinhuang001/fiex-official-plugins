@@ -11,8 +11,10 @@
 //! FIEX_PLUGIN_DIR=/tmp/fiex-plugins \
 //!   cargo run --manifest-path integration/Cargo.toml --example plugin_archive_e2e
 //! ```
-use fiex_lib::plugin_host;
-use fiex_lib::plugin_resource_context::ResourceSnapshot;
+#[path = "../support/fixtures.rs"]
+mod fixtures;
+use fiex_lib::plugins::host as plugin_host;
+use fiex_lib::plugins::resource::resource_context::ResourceSnapshot;
 use serde_json::{json, Value};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -75,7 +77,7 @@ fn wait_until(what: &str, seconds: u64, mut done: impl FnMut() -> bool) {
 
 fn execute_menu(info: &plugin_host::PluginInfo, item: &str, selected: &Path, root: &Path) -> Value {
     let resource = ResourceSnapshot::new(selected.to_str().unwrap(), selected);
-    fiex_lib::plugin_events::call_owner(
+    fiex_lib::plugins::events::call_owner(
         "contextMenu.execute",
         &info.id,
         json!({
@@ -84,7 +86,7 @@ fn execute_menu(info: &plugin_host::PluginInfo, item: &str, selected: &Path, roo
             "interactionId": "archive-e2e",
             "paths": [selected],
             "path": selected,
-            "root": root,
+            "root": fixtures::reference(std::path::Path::new(&root)),
         }),
         std::slice::from_ref(&resource),
         Some(root.to_str().unwrap()),
@@ -94,7 +96,7 @@ fn execute_menu(info: &plugin_host::PluginInfo, item: &str, selected: &Path, roo
 
 fn before_open(info: &plugin_host::PluginInfo, path: &Path) -> Value {
     let resource = ResourceSnapshot::new(path.to_str().unwrap(), path);
-    fiex_lib::plugin_events::invoke_resources(
+    fiex_lib::plugins::events::invoke_resources(
         info,
         "hooks.invoke",
         json!({"event": "beforeOpen"}),
@@ -105,7 +107,7 @@ fn before_open(info: &plugin_host::PluginInfo, path: &Path) -> Value {
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let temp = tempfile::tempdir().unwrap();
     let root = std::fs::canonicalize(temp.path()).unwrap();
     let file = root.join("hello.txt");
@@ -161,21 +163,20 @@ fn main() {
     // 2b. The advanced-compress panel names its output folder in the same
     //     invocation, so Core grants that folder as an explicit candidate.
     let panel_archive = root.join("panel.zip");
-    let started = plugin_host::global()
-        .invoke_selected(
-            "org.fiex.archive",
-            "archive.compress",
-            json!({
-                "paths": [file],
-                "root": root,
-                "destinationName": "panel.zip",
-                "format": "zip",
-                "ignores": [],
-            }),
-            root.to_str().unwrap(),
-            &[file.clone(), root.clone()],
-        )
-        .expect("advanced panel compress failed");
+    let started = fixtures::invoke_selected(
+        "org.fiex.archive",
+        "archive.compress",
+        json!({
+            "paths": [fixtures::reference(std::path::Path::new(&file))],
+            "root": fixtures::reference(std::path::Path::new(&root)),
+            "destinationName": "panel.zip",
+            "format": "zip",
+            "ignores": [],
+        }),
+        root.to_str().unwrap(),
+        &[file.clone(), root.clone()],
+    )
+    .expect("advanced panel compress failed");
     wait_task(started["taskId"].as_str().expect("panel task id"));
     assert!(panel_archive.is_file(), "advanced panel created no archive");
 
@@ -202,17 +203,17 @@ fn main() {
     //    error channel instead of falling through to the OS handler.
     let broken = root.join("broken.zip");
     std::fs::write(&broken, b"this is not a zip").unwrap();
-    fiex_lib::plugin_errors::clear("org.fiex.archive");
+    fiex_lib::plugins::errors::clear("org.fiex.archive");
     let response = before_open(&info, &broken);
     assert_eq!(response["handled"], true);
     assert!(response.get("taskId").is_none());
     wait_until("hook failure report", 30, || {
-        !fiex_lib::plugin_errors::list("org.fiex.archive").is_empty()
+        !fiex_lib::plugins::errors::list("org.fiex.archive").is_empty()
     });
 
     // 5. The negotiated budget is part of the preview API response, so the
     //    preview document can align its own request timer with Core.
-    let preview = fiex_lib::plugin_preview::open_resource(
+    let preview = fiex_lib::plugins::resolvers::preview::open_resource(
         archive.to_str().unwrap(),
         Some("plugin:org.fiex.archive"),
         None,
@@ -226,15 +227,14 @@ fn main() {
         .contains("archive.list"));
 
     // The preview document lists through the same Core host.
-    let listing = plugin_host::global()
-        .invoke_selected(
-            "org.fiex.archive",
-            "archive.list",
-            json!({"path": archive}),
-            root.to_str().unwrap(),
-            std::slice::from_ref(&archive),
-        )
-        .expect("archive.list through the host");
+    let listing = fixtures::invoke_selected(
+        "org.fiex.archive",
+        "archive.list",
+        json!({"path": fixtures::reference(std::path::Path::new(&archive))}),
+        root.to_str().unwrap(),
+        std::slice::from_ref(&archive),
+    )
+    .expect("archive.list through the host");
     assert_eq!(listing["supported"], true);
     assert!(listing["entries"]
         .as_array()

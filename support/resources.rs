@@ -3,6 +3,11 @@ use fiex_plugin_sdk::{RequestContext, ResourceContext, ResourceRef, RpcError};
 
 pub fn input(ctx: &RequestContext, key: &str) -> Result<ResourceContext, RpcError> {
     let value = &ctx.params()[key];
+    if !value.is_null() && !value.is_object() {
+        return Err(RpcError::invalid_params(
+            "resource arguments must be ResourceRefs",
+        ));
+    }
     let reference = if value.is_object() {
         serde_json::from_value::<ResourceRef>(value.get("ref").unwrap_or(value).clone())
             .map_err(|error| RpcError::invalid_params(error.to_string()))?

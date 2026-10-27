@@ -272,104 +272,12 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
     Ok(json!({"rows": rows}))
 }
 
-fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
-    let method = ctx.method();
-    let mut params = ctx.params().clone();
-    if method == "decorations.resolve" {
-        let mut decorations = Vec::new();
-        {
-            for target in ctx.targets() {
-                let Some(metadata) = target.metadata.as_ref() else {
-                    continue;
-                };
-                let entry = serde_json::to_value(metadata)
-                    .map_err(|e| RpcError::internal(e.to_string()))?;
-                let Some(name) = entry.get("name").and_then(Value::as_str) else {
-                    continue;
-                };
-                if entry["kind"] == "directory" {
-                    continue;
-                }
-                let extension = entry
-                    .get("extension")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                let label = match extension.as_str() {
-                    "zip" => "ZIP",
-                    "rar" => "RAR",
-                    "7z" => "7Z",
-                    "tar" => "TAR",
-                    "gz" | "tgz" => "TGZ",
-                    "bz2" | "tbz2" => "TBZ",
-                    "xz" | "txz" => "TXZ",
-                    _ => continue,
-                };
-                decorations.push(json!({
-                    "name": name,
-                    "badge": {"text": label, "color": "neutral", "tooltip": "压缩包"}
-                }));
-            }
-        }
-        return Ok(json!({"decorations": decorations}));
-    }
-    if method == "info.resolve" {
-        let _name = ctx
-            .targets()
-            .first()
-            .and_then(sdk::ResourceContext::name)
-            .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?
-            .to_owned();
-        let rows = archive_info(&json!({"path": ctx.target().unwrap().reference}), &ctx)?;
-        return Ok(
-            json!({"sections":[{"id":"archive","title":"压缩包","rows":rows["rows"].clone()}]}),
-        );
-    }
-    if method == "preview.open" {
-        return Ok(json!({
-            "kind": "html",
-            "view": {"source":"package","entry":"ui/preview.html"}
-        }));
-    }
-    if method == "contextMenu.resolve" {
-        return Ok(archive_menu(&params));
-    }
-    let operation = if method == "contextMenu.execute" {
-        let item = params["itemId"]
-            .as_str()
-            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
-        if item == "archive.advanced" {
-            return Ok(json!({
-                "kind": "panel", "entry": "ui/dist/index.html",
-                "panelId": item, "title": "高级压缩",
-                "size": {"width":400,"height":420}
-            }));
-        }
-        let format = match item {
-            "archive.zip" => "zip",
-            "archive.rar" => "rar",
-            "archive.7z" => "7z",
-            "archive.tar" => "tar",
-            "archive.tar.gz" => "tar.gz",
-            "archive.tar.bz2" => "tar.bz2",
-            "archive.tar.xz" => "tar.xz",
-            "archive.extract" => "",
-            _ => return Err(RpcError::invalid_params("unknown menu action")),
-        };
-        if !format.is_empty() {
-            params["format"] = json!(format);
-            "archive.compress"
-        } else {
-            params["path"] = json!(
-                ctx.target()
-                    .ok_or_else(|| RpcError::invalid_params("missing target"))?
-                    .reference
-            );
-            "archive.extract"
-        }
-    } else {
-        method
-    };
+fn run_operation(
+    ctx: &sdk::RequestContext,
+    params: Value,
+    operation: &str,
+) -> Result<Value, RpcError> {
+    let method = operation;
     let p = &params;
     let host = &ctx;
     match operation {
@@ -435,12 +343,6 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         // Runs before Core opens the file: consume the open and extract into
         // the archive's folder. Never fall through for a matching archive, and
         // never mistake this event's response for a menu/task result.
-        "hooks.invoke" => {
-            if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
-                return Ok(json!({ "handled": false }));
-            }
-            before_open(&resources::input(host, "path")?.reference, p, host)
-        }
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
@@ -474,7 +376,16 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.archive", run) {
+    if let Err(e) = sdk::Providers::new()
+        .info(Archive)
+        .preview(Archive)
+        .decorations(Archive)
+        .context_menu(Archive)
+        .hooks(Archive)
+        .serve_with("org.fiex.archive", |ctx| {
+            run_operation(&ctx, ctx.params().clone(), ctx.method())
+        })
+    {
         eprintln!("Archive plugin failed: {e}");
         std::process::exit(1);
     }
@@ -534,5 +445,118 @@ mod context_menu_tests {
             .as_array()
             .unwrap()
             .is_empty());
+    }
+}
+
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
+struct Archive;
+impl sdk::InfoProvider for Archive {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        let target = ctx
+            .target()
+            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        let rows = archive_info(&json!({"path":target.reference}), ctx)?;
+        provider_results::section("archive", "压缩包", rows["rows"].clone())
+    }
+}
+impl sdk::PreviewProvider for Archive {
+    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+        Ok(sdk::PreviewView::html("ui/preview.html"))
+    }
+}
+impl sdk::DecorationProvider for Archive {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        let mut decorations = Vec::new();
+        {
+            for target in ctx.targets() {
+                let Some(metadata) = target.metadata.as_ref() else {
+                    continue;
+                };
+                let entry = serde_json::to_value(metadata)
+                    .map_err(|e| RpcError::internal(e.to_string()))?;
+                let Some(name) = entry.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                if entry["kind"] == "directory" {
+                    continue;
+                }
+                let extension = entry
+                    .get("extension")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                let label = match extension.as_str() {
+                    "zip" => "ZIP",
+                    "rar" => "RAR",
+                    "7z" => "7Z",
+                    "tar" => "TAR",
+                    "gz" | "tgz" => "TGZ",
+                    "bz2" | "tbz2" => "TBZ",
+                    "xz" | "txz" => "TXZ",
+                    _ => continue,
+                };
+                decorations.push(json!({
+                    "name": name,
+                    "badge": {"text": label, "color": "neutral", "tooltip": "压缩包"}
+                }));
+            }
+        }
+        Ok(decorations)
+    }
+}
+impl sdk::ContextMenuProvider for Archive {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        serde_json::from_value(archive_menu(ctx.params())["items"].clone())
+            .map_err(|error| RpcError::internal(error.to_string()))
+    }
+    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        let mut params = ctx.params().clone();
+        let operation = {
+            let item = params["itemId"]
+                .as_str()
+                .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+            if item == "archive.advanced" {
+                return Ok(json!({
+                    "kind": "panel", "entry": "ui/dist/index.html",
+                    "panelId": item, "title": "高级压缩",
+                    "size": {"width":400,"height":420}
+                }));
+            }
+            let format = match item {
+                "archive.zip" => "zip",
+                "archive.rar" => "rar",
+                "archive.7z" => "7z",
+                "archive.tar" => "tar",
+                "archive.tar.gz" => "tar.gz",
+                "archive.tar.bz2" => "tar.bz2",
+                "archive.tar.xz" => "tar.xz",
+                "archive.extract" => "",
+                _ => return Err(RpcError::invalid_params("unknown menu action")),
+            };
+            if !format.is_empty() {
+                params["format"] = json!(format);
+                "archive.compress"
+            } else {
+                params["path"] = json!(
+                    ctx.target()
+                        .ok_or_else(|| RpcError::invalid_params("missing target"))?
+                        .reference
+                );
+                "archive.extract"
+            }
+        };
+        run_operation(ctx, params, operation)
+    }
+}
+impl sdk::HookProvider for Archive {
+    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        let p = ctx.params();
+        let host = ctx;
+
+        if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
+            return Ok(json!({ "handled": false }));
+        }
+        before_open(&resources::input(host, "path")?.reference, p, host)
     }
 }

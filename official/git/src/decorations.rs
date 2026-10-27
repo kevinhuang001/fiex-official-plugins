@@ -58,6 +58,15 @@ pub fn list(_params: &Value, host: &sdk::RequestContext) -> Result<Value, String
     Ok(json!({ "decorations": decorations }))
 }
 
+pub struct GitDecorations;
+impl sdk::DecorationProvider for GitDecorations {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, sdk::RpcError> {
+        let value = list(ctx.params(), ctx).map_err(sdk::RpcError::internal)?;
+        serde_json::from_value(value["decorations"].clone())
+            .map_err(|error| sdk::RpcError::internal(error.to_string()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

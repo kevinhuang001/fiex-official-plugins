@@ -1,6 +1,6 @@
 //! Cross-repository smoke test: real WebDAV plugin through Core's process host,
 //! generic listing, virtual entries and bounded stream download.
-use fiex_lib::{plugin_host, remote};
+use fiex_lib::{plugins::host as plugin_host, remote};
 use serde_json::json;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -10,16 +10,16 @@ use std::sync::{
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
 fn ensure_approved(id: &str) {
-    if !fiex_lib::plugin_host::catalog()
+    if !fiex_lib::plugins::host::catalog()
         .iter()
         .any(|plugin| plugin.id == id && plugin.approved)
     {
-        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
     }
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let id = "org.fiex.webdav";
     let entry = plugin_host::catalog()
         .into_iter()

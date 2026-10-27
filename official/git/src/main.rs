@@ -191,7 +191,6 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             host,
         )),
         "git.remoteRemove" => response(remote_host::remove(root()?, param(p, "name")?, host)),
-        "decorations.resolve" => decorations::list(p, host).map_err(RpcError::internal),
         "git.remoteSync" => response(remote_host::sync(
             root()?,
             param(p, "remote")?,
@@ -204,7 +203,9 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 }
 
 fn main() {
-    let providers = sdk::Providers::new().filesystem(GitView);
+    let providers = sdk::Providers::new()
+        .filesystem(GitView)
+        .decorations(decorations::GitDecorations);
     if let Err(e) = providers.serve_with("org.fiex.git", dispatch) {
         eprintln!("Git plugin IPC error: {e}");
         std::process::exit(1);

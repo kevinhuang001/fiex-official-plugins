@@ -581,13 +581,18 @@ impl FileSystemProvider for Smb {
     }
 }
 
+impl sdk::ConnectionProvider for Smb {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        open(ctx)
+    }
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        validate(ctx)
+    }
+}
+
 fn main() {
-    let providers = sdk::Providers::new().filesystem(Smb);
-    let result = providers.serve_with("org.fiex.smb", |ctx| match ctx.method() {
-        "connection.open" => open(&ctx),
-        "connection.validate" => validate(&ctx),
-        method => Err(RpcError::method_not_found(method)),
-    });
+    let providers = sdk::Providers::new().filesystem(Smb).connection(Smb);
+    let result = providers.serve("org.fiex.smb");
     if let Err(error) = result {
         eprintln!("SMB plugin IPC failed: {error}");
         std::process::exit(1);

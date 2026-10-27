@@ -1,20 +1,20 @@
 //! Cross-repository test for dynamic-only decorations with manifest match rules.
-use fiex_lib::plugin_decorations::DecorationEntry;
-use fiex_lib::plugin_host;
+use fiex_lib::plugins::host as plugin_host;
+use fiex_lib::plugins::resolvers::decorations::DecorationEntry;
 
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
 fn ensure_approved(id: &str) {
-    if !fiex_lib::plugin_host::catalog()
+    if !fiex_lib::plugins::host::catalog()
         .iter()
         .any(|plugin| plugin.id == id && plugin.approved)
     {
-        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
     }
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == "org.fiex.archive")
@@ -27,7 +27,7 @@ fn main() {
     .unwrap();
     let root = std::env::temp_dir();
     let path = root.join("decoration-fixture.zip");
-    let values = fiex_lib::plugin_decorations::query(
+    let values = fiex_lib::plugins::resolvers::decorations::query(
         root.to_str().unwrap(),
         vec![DecorationEntry {
             path: path.to_string_lossy().into_owned(),

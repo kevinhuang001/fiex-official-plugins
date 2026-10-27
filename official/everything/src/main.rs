@@ -65,7 +65,6 @@ fn query(_p: &Value, _host: &sdk::RequestContext) -> Result<Value, RpcError> {
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     match method {
-        "search.query" => query(ctx.params(), &ctx),
         "search.status" => Ok(
             json!({"available":cfg!(windows),"provider":"everything","indexOwner":"Everything","requires":"Everything and ES command in PATH"}),
         ),
@@ -74,8 +73,19 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.everything", dispatch) {
+    if let Err(e) = sdk::Providers::new()
+        .search(Everything)
+        .serve_with("org.fiex.everything", dispatch)
+    {
         eprintln!("Everything IPC failed: {e}");
         std::process::exit(1);
+    }
+}
+
+struct Everything;
+impl sdk::SearchProvider for Everything {
+    fn query(&self, ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+        serde_json::from_value(query(ctx.params(), ctx)?)
+            .map_err(|error| RpcError::internal(error.to_string()))
     }
 }

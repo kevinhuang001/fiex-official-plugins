@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.data-preview",
   "name": "数据预览",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "description": "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。",
   "icon": "database",
   "author": {

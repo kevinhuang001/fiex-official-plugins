@@ -3,7 +3,6 @@
 //! Every credential — server, account and timeout — belongs to the connection,
 //! so a profile can hold several servers without sharing a login.
 mod client;
-mod commands;
 mod fs;
 mod mutate;
 mod sync;
@@ -49,14 +48,28 @@ impl FileSystemProvider for OpenList {
     }
 }
 
+impl sdk::ConnectionProvider for OpenList {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        let mount = ctx.params()["mountId"]
+            .as_str()
+            .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
+        Ok(
+            serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
+        )
+    }
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        fs::validate(ctx, &self.session)
+    }
+}
+
 fn main() {
     let session = Arc::new(client::Session::default());
-    let providers = sdk::Providers::new().filesystem(OpenList {
-        session: Arc::clone(&session),
-    });
-    if let Err(error) = providers.serve_with("org.fiex.openlist", move |ctx| {
-        commands::dispatch(ctx, &session)
-    }) {
+    let providers = sdk::Providers::new()
+        .filesystem(OpenList {
+            session: Arc::clone(&session),
+        })
+        .connection(OpenList { session });
+    if let Err(error) = providers.serve("org.fiex.openlist") {
         eprintln!("OpenList IPC failed: {error}");
         std::process::exit(1);
     }

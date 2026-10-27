@@ -14,9 +14,13 @@ use std::sync::Mutex;
 
 fn main() {
     let cache = Mutex::new(None);
-    if let Err(error) = sdk::serve("org.fiex.data-preview", move |ctx| {
-        dispatch::dispatch(ctx, &cache)
-    }) {
+    if let Err(error) = sdk::Providers::new()
+        .info(dispatch::Presentation)
+        .preview(dispatch::Presentation)
+        .serve_with("org.fiex.data-preview", move |ctx| {
+            dispatch::dispatch(ctx, &cache)
+        })
+    {
         eprintln!("Data preview IPC failed: {error}");
         std::process::exit(1);
     }

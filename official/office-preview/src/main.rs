@@ -34,19 +34,6 @@ fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result
 
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
-    if method == "info.resolve" {
-        let target = resources::input(&ctx, "path")?;
-        let rows = info_rows(&ctx, &target)?;
-        return Ok(serde_json::json!({
-            "sections": [{"id":"office","title":"文档","rows": rows["rows"].clone()}]
-        }));
-    }
-    if method == "preview.open" {
-        return Ok(serde_json::json!({
-            "kind": "html",
-            "view": {"source":"package","entry":"ui/index.html"}
-        }));
-    }
     match method {
         "office.info" => {
             let target = resources::input(&ctx, "path")?;
@@ -66,8 +53,28 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 }
 
 fn main() {
-    if let Err(error) = sdk::serve("org.fiex.office-preview", dispatch) {
+    if let Err(error) = sdk::Providers::new()
+        .info(Presentation)
+        .preview(Presentation)
+        .serve_with("org.fiex.office-preview", dispatch)
+    {
         eprintln!("Office preview IPC failed: {error}");
         std::process::exit(1);
+    }
+}
+
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
+pub(crate) struct Presentation;
+impl sdk::InfoProvider for Presentation {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        let target = resources::input(ctx, "path")?;
+        let rows = info_rows(ctx, &target)?;
+        provider_results::section("office", "文档", rows["rows"].clone())
+    }
+}
+impl sdk::PreviewProvider for Presentation {
+    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+        Ok(sdk::PreviewView::html("ui/index.html"))
     }
 }

@@ -1,16 +1,16 @@
 //! Real HTTP and TCP SDK calls through Core, including explicit host consent.
 use base64::{engine::general_purpose::STANDARD, Engine};
-use fiex_lib::plugin_host;
+use fiex_lib::plugins::host as plugin_host;
 use serde_json::{json, Value};
 
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
 fn ensure_approved(id: &str) {
-    if !fiex_lib::plugin_host::catalog()
+    if !fiex_lib::plugins::host::catalog()
         .iter()
         .any(|plugin| plugin.id == id && plugin.approved)
     {
-        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
     }
 }
 
@@ -123,7 +123,9 @@ fn check(id: &str, config: Value, expected: &[u8]) {
             )
             .unwrap();
         assert_eq!(
-            STANDARD.decode(readback["base64"].as_str().unwrap()).unwrap(),
+            STANDARD
+                .decode(readback["base64"].as_str().unwrap())
+                .unwrap(),
             contents
         );
         plugin_host::global()
@@ -166,7 +168,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     check(
         "org.fiex.webdav",
         json!({"url": "http://127.0.0.1:8080/"}),

@@ -50,9 +50,7 @@ pub(crate) fn config(connection: Option<&Value>) -> Result<Config, RpcError> {
         .trim_end_matches('/')
         .to_string();
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(RpcError::internal(
-            "请在连接设置中填写 http(s) 服务器地址",
-        ));
+        return Err(RpcError::internal("请在连接设置中填写 http(s) 服务器地址"));
     }
     Ok(Config {
         url,

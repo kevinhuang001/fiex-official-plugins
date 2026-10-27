@@ -1,7 +1,6 @@
 //! Standalone WebDAV adapter. The Fiex host owns mount configuration,
 //! credential storage, cache, sync rules and conflict resolution.
 mod client;
-mod commands;
 mod fs;
 
 use fiex_plugin_sdk::{
@@ -42,9 +41,23 @@ impl FileSystemProvider for WebDav {
     }
 }
 
+impl sdk::ConnectionProvider for WebDav {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        let mount = ctx.params()["mountId"]
+            .as_str()
+            .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
+        Ok(
+            serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
+        )
+    }
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        fs::validate(ctx)
+    }
+}
+
 fn main() {
-    let providers = sdk::Providers::new().filesystem(WebDav);
-    if let Err(e) = providers.serve_with("org.fiex.webdav", commands::dispatch) {
+    let providers = sdk::Providers::new().filesystem(WebDav).connection(WebDav);
+    if let Err(e) = providers.serve("org.fiex.webdav") {
         eprintln!("WebDAV IPC failed: {e}");
         std::process::exit(1);
     }

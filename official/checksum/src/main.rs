@@ -30,18 +30,6 @@ fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
 
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
-    if method == "info.resolve" {
-        let target = ctx
-            .targets()
-            .first()
-            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
-        let reader = ctx
-            .files()
-            .open_read(&target.reference)
-            .map_err(|e| RpcError::internal(e.to_string()))?;
-        let rows = hash_rows(reader)?;
-        return Ok(json!({"sections":[{"id":"checksum","title":"校验和","rows":rows}]}));
-    }
     match method {
         "checksum.calculate" => {
             let target = resources::input(&ctx, "path")?;
@@ -70,8 +58,28 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.checksum", run) {
+    if let Err(e) = sdk::Providers::new()
+        .info(Presentation)
+        .serve_with("org.fiex.checksum", run)
+    {
         eprintln!("Checksum plugin failed: {e}");
         std::process::exit(1);
+    }
+}
+
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
+pub(crate) struct Presentation;
+impl sdk::InfoProvider for Presentation {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        let target = ctx
+            .target()
+            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        provider_results::section(
+            "checksum",
+            "校验和",
+            serde_json::to_value(checksum_rows(ctx, &target.reference)?)
+                .map_err(|error| RpcError::internal(error.to_string()))?,
+        )
     }
 }

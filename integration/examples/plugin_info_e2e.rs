@@ -1,15 +1,17 @@
 //! Cross-repository test for the 2-column "show info" metadata extension.
-use fiex_lib::plugin_host;
+#[path = "../support/fixtures.rs"]
+mod fixtures;
+use fiex_lib::plugins::host as plugin_host;
 use serde_json::json;
 
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
 fn ensure_approved(id: &str) {
-    if !fiex_lib::plugin_host::catalog()
+    if !fiex_lib::plugins::host::catalog()
         .iter()
         .any(|plugin| plugin.id == id && plugin.approved)
     {
-        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
     }
 }
 
@@ -47,7 +49,7 @@ fn wait_task(task_id: &str) -> serde_json::Value {
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let root = std::env::temp_dir().join(format!("fiex-info-e2e-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
@@ -55,7 +57,8 @@ fn main() {
     std::fs::write(&file, b"abc").unwrap();
 
     approve("org.fiex.checksum");
-    let details = fiex_lib::plugin_info::file_info(file.to_str().unwrap());
+    let details =
+        fiex_lib::plugins::resolvers::info::file_info_resource(file.to_str().unwrap()).unwrap();
     assert!(
         details.iter().any(|section| section.id == "core.metadata"),
         "built-in metadata section is missing"
@@ -72,20 +75,19 @@ fn main() {
 
     approve("org.fiex.archive");
     let archive = root.join("bundle.zip");
-    let started = plugin_host::global()
-        .invoke_selected(
-            "org.fiex.archive",
-            "archive.compress",
-            json!({
-                "paths": [file],
-                "destination": archive,
-                "format": "zip",
-                "ignores": []
-            }),
-            root.to_str().unwrap(),
-            &[file.clone(), archive.clone()],
-        )
-        .expect("compress failed");
+    let started = fixtures::invoke_selected(
+        "org.fiex.archive",
+        "archive.compress",
+        json!({
+            "paths": [fixtures::reference(std::path::Path::new(&file))],
+            "destination": fixtures::reference(std::path::Path::new(&archive)),
+            "format": "zip",
+            "ignores": []
+        }),
+        root.to_str().unwrap(),
+        &[file.clone(), archive.clone()],
+    )
+    .expect("compress failed");
     let task_id = started["taskId"].as_str().expect("compress task id");
     let created = wait_task(task_id);
     assert!(
@@ -93,7 +95,8 @@ fn main() {
         "archive task result should be a ref: {created}"
     );
 
-    let details = fiex_lib::plugin_info::file_info(archive.to_str().unwrap());
+    let details =
+        fiex_lib::plugins::resolvers::info::file_info_resource(archive.to_str().unwrap()).unwrap();
     let info = details
         .iter()
         .find(|section| section.title == "压缩包")

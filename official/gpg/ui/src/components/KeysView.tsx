@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyRound, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import { KeyRound, LoaderCircle, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import type { CreateKeyInput, Key } from "../types";
 import { CreateKeyForm } from "./CreateKeyForm";
 import { DeleteKeyDialog } from "./DeleteKeyDialog";
@@ -33,6 +33,7 @@ export function KeysView({
   onImport,
   onRefresh,
   busy,
+  loading,
 }: {
   keys: Key[];
   total: number;
@@ -45,6 +46,7 @@ export function KeysView({
   onImport: () => void;
   onRefresh: () => void;
   busy: boolean;
+  loading: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [menu, setMenu] = useState<{ key: Key; x: number; y: number } | null>(
@@ -79,22 +81,22 @@ export function KeysView({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            disabled={busy}
+            disabled={busy || loading}
           >
             <Plus size={13} />
             新建
           </button>
-          <button type="button" onClick={onImport} disabled={busy}>
+          <button type="button" onClick={onImport} disabled={busy || loading}>
             <Upload size={13} />
             导入
           </button>
           <button
             type="button"
             onClick={onRefresh}
-            disabled={busy}
+            disabled={busy || loading}
             aria-label="刷新密钥"
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={13} className={loading ? "gpg-spin" : ""} />
           </button>
         </div>
       </div>
@@ -139,17 +141,24 @@ export function KeysView({
             </button>
           </li>
         ))}
-        {keys.length === 0 && (
-          <li className="gpg-keychain-empty">
-            <KeyRound size={18} />
-            <span>{total ? "没有匹配的密钥" : "本机钥匙串为空"}</span>
-            {!total && (
-              <button type="button" onClick={onImport} disabled={busy}>
-                <Upload size={13} />
-                导入密钥
-              </button>
-            )}
+        {loading && !keys.length ? (
+          <li className="gpg-keychain-empty" aria-busy="true">
+            <LoaderCircle className="gpg-spin" size={18} />
+            <span>正在加载系统密钥…</span>
           </li>
+        ) : (
+          keys.length === 0 && (
+            <li className="gpg-keychain-empty">
+              <KeyRound size={18} />
+              <span>{total ? "没有匹配的密钥" : "本机钥匙串为空"}</span>
+              {!total && (
+                <button type="button" onClick={onImport} disabled={busy || loading}>
+                  <Upload size={13} />
+                  导入密钥
+                </button>
+              )}
+            </li>
+          )
         )}
       </ul>
       {menu && (

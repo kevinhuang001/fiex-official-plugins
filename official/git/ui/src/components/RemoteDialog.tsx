@@ -45,7 +45,7 @@ export function RemoteDialog({
   onClose: () => void;
 }) {
   return (
-    <div className="git-sheet" role="dialog" aria-label="远程仓库">
+    <div className="git-sheet git-remote-sheet" role="dialog" aria-label="远程仓库">
       <div className="git-sheet-card git-remote-card">
         <header>
           <strong>

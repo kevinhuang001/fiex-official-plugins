@@ -23,6 +23,9 @@ pub(crate) enum Source {
 pub(crate) struct Cache {
     pub(crate) path: String,
     pub(crate) source: Source,
+    /// The `open` response, kept so `info.resolve` and `data.open` share one
+    /// parse instead of parsing the same workbook twice.
+    pub(crate) meta: Value,
 }
 
 fn extension(path: &str) -> String {
@@ -92,6 +95,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             let cache = Cache {
                 path: path.to_string(),
                 source: Source::Sqlite(connection),
+                meta: Value::Null,
             };
             Ok((
                 json!({ "format": "sqlite", "datasets": datasets, "summary": summary }),
@@ -104,6 +108,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             let cache = Cache {
                 path: path.to_string(),
                 source: Source::Single(table),
+                meta: Value::Null,
             };
             Ok((
                 json!({
@@ -137,6 +142,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
                         extension,
                         cache: Mutex::new(cache),
                     },
+                    meta: Value::Null,
                 },
             ))
         }
@@ -148,6 +154,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
                 Cache {
                     path: path.to_string(),
                     source: Source::Single(table),
+                    meta: Value::Null,
                 },
             ))
         }
@@ -159,6 +166,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
                 Cache {
                     path: path.to_string(),
                     source: Source::Single(table),
+                    meta: Value::Null,
                 },
             ))
         }
@@ -170,6 +178,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
                 Cache {
                     path: path.to_string(),
                     source: Source::Single(table),
+                    meta: Value::Null,
                 },
             ))
         }

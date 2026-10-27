@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 export function BranchSelect({
@@ -11,8 +11,39 @@ export function BranchSelect({
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [up, setUp] = useState(false);
+  const [placement, setPlacement] = useState({ up: false, maxHeight: 180 });
   const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+
+  // Measure against the nearest scrolling sheet, not the whole iframe: the
+  // remote sheet clips its overflow, so an iframe-height check lists the menu
+  // downward and cuts it off at the sheet's bottom edge.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const trigger = root.current?.getBoundingClientRect();
+    if (!trigger) return;
+    let top = 8;
+    let bottom = window.innerHeight - 8;
+    let ancestor = root.current?.parentElement;
+    while (ancestor) {
+      const style = getComputedStyle(ancestor);
+      if (style.overflowY !== "visible") {
+        const rect = ancestor.getBoundingClientRect();
+        top = Math.max(top, rect.top + 6);
+        bottom = Math.min(bottom, rect.bottom - 6);
+        break;
+      }
+      ancestor = ancestor.parentElement;
+    }
+    const wanted = Math.min(180, options.length * 32 + 8);
+    const below = bottom - trigger.bottom - 4;
+    const above = trigger.top - top - 4;
+    const up = below < Math.min(wanted, 96) && above > below;
+    setPlacement({
+      up,
+      maxHeight: Math.max(64, Math.min(wanted, up ? above : below)),
+    });
+  }, [open, options.length]);
   useEffect(() => {
     if (!open) return;
     const close = (event: PointerEvent) => {
@@ -29,26 +60,18 @@ export function BranchSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="同步分支"
-        onClick={() => {
-          const rect = root.current?.getBoundingClientRect();
-          setUp(
-            Boolean(
-              rect &&
-              rect.bottom + Math.min(180, options.length * 32 + 8) >
-                window.innerHeight - 8,
-            ),
-          );
-          setOpen(!open);
-        }}
+        onClick={() => setOpen(!open)}
       >
         {value || "选择分支"}
         <ChevronDown size={13} className={open ? "open" : ""} />
       </button>
       {open && (
         <div
-          className={`branch-select-menu${up ? " open-up" : ""}`}
+          ref={menu}
+          className={`branch-select-menu${placement.up ? " open-up" : ""}`}
           role="listbox"
           aria-label="同步分支"
+          style={{ maxHeight: placement.maxHeight }}
         >
           {options.map((item) => (
             <button

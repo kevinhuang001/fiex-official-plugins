@@ -5,12 +5,37 @@ use fiex_plugin_sdk::RpcError;
 use serde_json::Value;
 use std::sync::Mutex;
 
-fn info_rows(ctx: &sdk::RequestContext, path: &str) -> Result<Value, RpcError> {
+fn cached_open(
+    ctx: &sdk::RequestContext,
+    path: &str,
+    cache: &Mutex<Option<Cache>>,
+) -> Result<Value, RpcError> {
+    if let Some(value) = cache.lock().ok().and_then(|entry| {
+        entry
+            .as_ref()
+            .filter(|entry| entry.path == path)
+            .map(|entry| entry.meta.clone())
+    }) {
+        return Ok(value);
+    }
     let bytes = ctx
         .files()
         .read(path)
         .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-    let (value, _) = open(path, bytes).map_err(RpcError::internal)?;
+    let (value, mut opened) = open(path, bytes).map_err(RpcError::internal)?;
+    opened.meta = value.clone();
+    *cache
+        .lock()
+        .map_err(|_| RpcError::internal("preview cache unavailable"))? = Some(opened);
+    Ok(value)
+}
+
+fn info_rows(
+    ctx: &sdk::RequestContext,
+    path: &str,
+    cache: &Mutex<Option<Cache>>,
+) -> Result<Value, RpcError> {
+    let value = cached_open(ctx, path, cache)?;
     let datasets = value
         .get("datasets")
         .and_then(Value::as_array)
@@ -53,7 +78,7 @@ pub(crate) fn dispatch(
             .first()
             .and_then(sdk::ResourceContext::name)
             .ok_or_else(|| RpcError::invalid_params("missing target metadata name"))?;
-        let rows = info_rows(&ctx, name)?;
+        let rows = info_rows(&ctx, name, cache)?;
         return Ok(serde_json::json!({
             "sections": [{"id":"data","title":"数据表","rows": rows["rows"].clone()}]
         }));
@@ -70,22 +95,14 @@ pub(crate) fn dispatch(
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            info_rows(&ctx, path)
+            info_rows(&ctx, path, cache)
         }
         "data.open" => {
             let path = p
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let bytes = ctx
-                .files()
-                .read(path)
-                .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-            let (value, opened) = open(path, bytes).map_err(RpcError::internal)?;
-            *cache
-                .lock()
-                .map_err(|_| RpcError::internal("preview cache unavailable"))? = Some(opened);
-            Ok(value)
+            cached_open(&ctx, path, cache)
         }
         "data.page" => {
             let path = p
@@ -105,7 +122,8 @@ pub(crate) fn dispatch(
                     .files()
                     .read(path)
                     .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-                let (_, opened) = open(path, bytes).map_err(RpcError::internal)?;
+                let (value, mut opened) = open(path, bytes).map_err(RpcError::internal)?;
+                opened.meta = value;
                 *cached = Some(opened);
             }
             let entry = cached.as_ref().unwrap();

@@ -31,7 +31,7 @@ export function App() {
   const [status, setStatus] = useState<Status>({ kind: "idle", text: "" });
   const loaded = useRef(false);
 
-  const { keys, fingerprint, setFingerprint, gpg, loadKeys, refreshKeys } =
+  const { keys, fingerprint, setFingerprint, gpg, loadKeys, refreshKeys, loading } =
     useGpgKeys();
   const { progress, run } = useGpgAction({
     action,
@@ -154,6 +154,7 @@ export function App() {
             onImport={imports}
             onRefresh={() => void refreshKeys()}
             busy={busy}
+            loading={loading}
           />
         ) : action === "verify" ? (
           <VerifyForm
@@ -175,6 +176,7 @@ export function App() {
             query={query}
             onQuery={setQuery}
             busy={busy}
+            loading={loading}
             armor={armor}
             onArmor={setArmor}
             trust={trust}
@@ -193,6 +195,7 @@ export function App() {
             query={query}
             onQuery={setQuery}
             busy={busy}
+            loading={loading}
             armor={armor}
             onArmor={setArmor}
           />

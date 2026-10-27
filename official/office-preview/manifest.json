@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.office-preview",
   "name": "Office 预览",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。",
   "icon": "file-text",
   "author": {
@@ -86,6 +86,15 @@
           "pptx"
         ]
       }
-    }
+    },
+    "settings": [
+      {
+        "id": "previewPages",
+        "label": "预览页数",
+        "type": "number",
+        "defaultValue": 6,
+        "placeholder": "6"
+      }
+    ]
   }
 }

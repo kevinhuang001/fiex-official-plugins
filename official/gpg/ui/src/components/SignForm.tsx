@@ -14,6 +14,7 @@ export function SignForm({
   query,
   onQuery,
   busy,
+  loading,
   armor,
   onArmor,
 }: {
@@ -26,6 +27,7 @@ export function SignForm({
   query: string;
   onQuery: (value: string) => void;
   busy: boolean;
+  loading: boolean;
   armor: boolean;
   onArmor: (value: boolean) => void;
 }) {
@@ -46,6 +48,7 @@ export function SignForm({
         query={query}
         onQuery={onQuery}
         busy={busy}
+        loading={loading}
         kind="secret"
       />
       <div className="gpg-options">

@@ -50,6 +50,8 @@
       .entry-chevron svg { width: 13px; height: 13px; transition: transform 120ms ease; }
       .entry-chevron.open svg { transform: rotate(90deg); }
       .entry-chevron.empty { visibility: hidden; }
+      .entry.empty-folder { color: var(--muted); font-size: 11px; cursor: default; }
+      .entry.empty-folder:hover { background: transparent; }
       .empty { padding: 42px 18px; text-align: center; color: var(--muted); }
       .hint, .error { padding: 18px; text-align: center; color: var(--muted); }
       .preview-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 240px; color: var(--muted); }
@@ -184,7 +186,16 @@
                 })
               }
               listing.append(row)
-              if (entry.isDir && expanded.has(entry.path)) append(entry.path, depth + 1)
+              if (entry.isDir && expanded.has(entry.path)) {
+                if (childrenFor(entry.path).length) append(entry.path, depth + 1)
+                else {
+                  const empty = document.createElement('div')
+                  empty.className = 'entry empty-folder'
+                  empty.style.paddingLeft = `${12 + (depth + 1) * 18}px`
+                  empty.textContent = '此文件夹为空'
+                  listing.append(empty)
+                }
+              }
             }
           }
 
@@ -289,7 +300,18 @@
           port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
           start()
         })
-        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+        const announce = () =>
+          window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+        announce()
+        // A srcDoc iframe can execute this script before the host has attached
+        // its message listener. Keep announcing until the host answers.
+        const announceTimer = setInterval(() => {
+          if (port) {
+            clearInterval(announceTimer)
+            return
+          }
+          announce()
+        }, 250)
       })()
     </script>
   </body>

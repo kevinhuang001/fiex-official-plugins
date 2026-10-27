@@ -903,7 +903,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fiex-plugin-archive"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bzip2",
  "fiex-plugin-sdk",
@@ -934,7 +934,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-data-preview"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "apache-avro",
  "arrow",
@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gpg"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "fiex-plugin-sdk",
  "serde_json",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-office-preview"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "fiex-plugin-sdk",
  "office_oxide",

@@ -488,13 +488,13 @@ for (const [key, value] of Object.entries(tokens)) {
 | `contextMenus` | `true` 或 `{match}`               | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
 | `decorations`  | `{match?,priority?}`              | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
 | `info`         | `{match?,priority?}`              | 用户“显示简介” → 固定 `info.resolve`                       |
-| `preview`      | `{id,match?,priority?,maxBytes?}` | 用户预览 → `preview.open`                                  |
-| `connections`  | `[{id,title,fields}]`             | 添加连接 / 点击连接 → `connection.create/open`             |
-| `vfs`          | `[{id,title,readOnly?}]`          | Core Explorer 的文件树请求                                 |
-| `search`       | `[{icon?,scope?}]`                | 搜索框 → 固定 `search.query`                               |
+| `preview`      | `{match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
+| `connections`  | `{title,fields}`                  | 添加连接 / 点击连接 → `connection.create/open`             |
+| `vfs`          | `{title,readOnly?}`               | Core Explorer 的文件树请求                                 |
+| `search`       | `{icon?,scope?}`                  | 搜索框 → 固定 `search.query`                               |
 | `toolbar`      | `{title,icon?,panel?}`            | 工具栏点击 → 固定 `toolbar.invoke`                         |
 | `settings`     | `[{id,label,type,...}]`           | 设置页渲染；值通过 `ctx.storage()` / `ctx.secrets()`       |
-| `hooks`        | `[{event,priority?,match?}]`      | 文件生命周期 → 固定 `hooks.invoke`                         |
+| `hooks`        | `{event,priority?,extensions?,match?}` | 文件生命周期 → 固定 `hooks.invoke`                    |
 | `themes`       | `[{path}]`                        | 主题包；声明式 JSON，不含代码                              |
 
 `match` 对所有带条件的扩展点通用：
@@ -762,14 +762,15 @@ Manifest：
 插件侧：
 
 ```rust
-"hooks.invoke" => Ok(json!({
-    "handled": false
-})),
+struct ExampleHooks;
+impl sdk::HookProvider for ExampleHooks {
+    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({"handled": false}))
+    }
+}
 ```
 
 `handled: true` 表示插件已经接管该操作（例如 Archive 的“先解压再打开”）；`false` 表示继续 Core 的默认流程。
-
-> **当前分支状态**：Core 已经校验 `permissions.hooks` 和 `extensions.hooks` 注册，但文件生命周期里的 `hooks.invoke` 接线还没完成；示例 handler 展示的是目标合同，接线前不会自动执行。不要把它当成已经可用的拦截点。
 
 ### 7.7 Themes：声明式主题包
 

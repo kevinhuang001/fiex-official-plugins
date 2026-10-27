@@ -8,6 +8,17 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .into_iter()
         .find(|(manifest, _)| manifest.id == id)
         .expect("network plugin must be installed");
+    // CI unpacks the packages directly instead of going through the installer
+    // UI, so record the installation approval the real flow would have stored.
+    plugin_host::approve_install(id)
+        .or_else(|error| {
+            if error.contains("already authorized") {
+                Ok(())
+            } else {
+                Err(error)
+            }
+        })
+        .unwrap();
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),

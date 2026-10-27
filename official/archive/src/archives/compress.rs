@@ -42,7 +42,13 @@ pub(crate) fn sources(
         });
         if meta.kind == "directory" {
             for child in files.list(path).map_err(err)? {
-                visit(files, &child.reference, &name.join(child.name().ok_or("missing child metadata")?), ignore, out)?;
+                visit(
+                    files,
+                    &child.reference,
+                    &name.join(child.name().ok_or("missing child metadata")?),
+                    ignore,
+                    out,
+                )?;
             }
         }
         Ok(())

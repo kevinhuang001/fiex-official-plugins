@@ -61,7 +61,11 @@ pub fn save(
     )?;
     Ok(Value::Null)
 }
-pub fn remove(root: &sdk::ResourceRef, name: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn remove(
+    root: &sdk::ResourceRef,
+    name: &str,
+    host: &sdk::RequestContext,
+) -> Result<Value, String> {
     valid(name)?;
     run(host, root, &["remote", "remove", name])?;
     Ok(Value::Null)

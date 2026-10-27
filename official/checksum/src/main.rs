@@ -1,10 +1,13 @@
+mod checksums;
 #[path = "../../../support/resources.rs"]
 mod resources;
-mod checksums;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
-fn checksum_rows(ctx: &sdk::RequestContext, path: &sdk::ResourceRef) -> Result<Vec<Value>, RpcError> {
+fn checksum_rows(
+    ctx: &sdk::RequestContext,
+    path: &sdk::ResourceRef,
+) -> Result<Vec<Value>, RpcError> {
     let files = ctx.files();
     let reader = files
         .open_read(path)
@@ -51,7 +54,8 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .open_read(path)
                 .map_err(|e| RpcError::internal(e.to_string()))?;
             let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
-            let mut result = json!({"ref": path, "name": resources::name(&target)?, "size": metadata.size});
+            let mut result =
+                json!({"ref": path, "name": resources::name(&target)?, "size": metadata.size});
             for hash in hashes {
                 result[hash.algorithm.to_ascii_lowercase().replace('-', "")] = json!(hash.value);
             }

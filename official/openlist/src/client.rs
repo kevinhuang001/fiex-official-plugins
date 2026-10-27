@@ -65,8 +65,10 @@ pub(crate) fn config(
         url,
         username: text(stored(host, "username")),
         password: host
-            .secrets().get::<String>("password")
-            .map_err(|error| RpcError::internal(error.to_string()))?.unwrap_or_default()
+            .secrets()
+            .get::<String>("password")
+            .map_err(|error| RpcError::internal(error.to_string()))?
+            .unwrap_or_default()
             .trim()
             .to_string(),
         timeout,

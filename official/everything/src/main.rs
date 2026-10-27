@@ -5,10 +5,15 @@ use serde_json::{json, Value};
 #[cfg(windows)]
 fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let query = p.get("query").and_then(Value::as_str).unwrap_or("").trim();
-    let root = p
-        .get("root")
-        .and_then(Value::as_str)
-        .filter(|r| !r.is_empty() && *r != "everywhere://");
+    // Core now sends the search root as an opaque ref. The ES adapter must
+    // not receive host paths; `process_run` resolves command args that carry
+    // the SDK's `fiex-ref:` prefix inside the operation scope.
+    let root = p.get("root").and_then(|value| {
+        serde_json::from_value::<sdk::ResourceRef>(
+            value.get("ref").cloned().unwrap_or(value.clone()),
+        )
+        .ok()
+    });
     let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
     let limit = p
         .get("limit")
@@ -18,8 +23,8 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let mut entries = Vec::new();
     for (filter, is_dir) in [("/ad", true), ("/a-d", false)] {
         let mut args = vec!["-n".into(), (limit + 1).to_string(), filter.into()];
-        if let Some(root) = root {
-            args.extend(["-path".into(), root.into()]);
+        if let Some(root) = &root {
+            args.extend(["-path".into(), root.command_arg()]);
         }
         if !hidden {
             args.push("/a-h".into());

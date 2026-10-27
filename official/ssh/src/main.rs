@@ -1,7 +1,6 @@
 //! SSH over the Host-brokered TCP stream. The plugin never opens a socket
 //! directly: `ctx.tcp()` resolves and connects through Core's network broker,
 //! then the SSH handshake and channel run over that stream.
-use base64::{engine::general_purpose::STANDARD, Engine};
 use fiex_plugin_sdk::tcp::TcpStream;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 #[cfg(unix)]
@@ -172,13 +171,10 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 host: host.clone(),
                 port,
             };
-            let mut handle = client::connect_stream(
-                Arc::new(client::Config::default()),
-                stream,
-                key_handler,
-            )
-            .await
-            .map_err(|error| RpcError::internal(format!("SSH 握手失败：{error}")))?;
+            let mut handle =
+                client::connect_stream(Arc::new(client::Config::default()), stream, key_handler)
+                    .await
+                    .map_err(|error| RpcError::internal(format!("SSH 握手失败：{error}")))?;
 
             let mut authenticated = false;
             if !identity.is_empty() {
@@ -239,7 +235,8 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .map_err(|error| RpcError::internal(format!("SSH shell 启动失败：{error}")))?;
 
             let (mut read_half, write_half) = channel.split();
-            let (output_tx, mut output_rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, String>>(16);
+            let (output_tx, mut output_rx) =
+                tokio::sync::mpsc::channel::<Result<Vec<u8>, String>>(16);
             tokio::spawn(async move {
                 let mut reader = read_half.make_reader();
                 let mut buffer = [0u8; 16 * 1024];
@@ -265,6 +262,7 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             let mut input = Vec::<u8>::new();
             let mut last_size = (cols, rows);
             let mut tick = tokio::time::interval(Duration::from_millis(8));
+            let terminal = task.terminal(&session_id);
 
             loop {
                 tokio::select! {
@@ -272,68 +270,48 @@ fn open_terminal(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                         match incoming {
                             Some(Ok(bytes)) if bytes.is_empty() => break,
                             Some(Ok(bytes)) => {
-                                let data = STANDARD.encode(bytes);
-                                if task.invoke("host.terminal.output", json!({
-                                    "sessionId": session_id,
-                                    "dataBase64": data
-                                })).is_err() {
+                                if terminal.output(&bytes).is_err() {
                                     break;
                                 }
                             }
                             Some(Err(error)) => {
-                                let _ = task.invoke("host.terminal.end", json!({
-                                    "sessionId": session_id,
-                                    "error": error
-                                }));
+                                let _ = terminal.end(Some(&error));
                                 return Ok(Value::Null);
                             }
                             None => break,
                         }
                     }
                     _ = tick.tick() => {
-                        let closed = task.invoke("host.terminal.closed", json!({"sessionId": session_id}))
-                            .ok()
-                            .and_then(|value| value.get("closed").and_then(Value::as_bool))
-                            .unwrap_or(true);
-                        if closed { break; }
+                        if terminal.closed().unwrap_or(true) {
+                            break;
+                        }
 
-                        if let Ok(value) = task.invoke("host.terminal.input", json!({
-                            "sessionId": session_id,
-                            "maxBytes": 8192
-                        })) {
-                            if value.get("eof").and_then(Value::as_bool).unwrap_or(false) {
+                        if let Ok(pending) = terminal.input(8192) {
+                            if pending.eof {
                                 break;
                             }
-                            if let Some(data) = value.get("dataBase64").and_then(Value::as_str) {
-                                if let Ok(bytes) = STANDARD.decode(data) {
-                                    input.extend(bytes);
-                                }
-                            }
+                            input.extend(pending.data);
                         }
                         if !input.is_empty() {
                             if let Err(error) = writer.write_all(&input).await {
-                                let _ = task.invoke("host.terminal.end", json!({
-                                    "sessionId": session_id,
-                                    "error": error.to_string()
-                                }));
+                                let _ = terminal.end(Some(&error.to_string()));
                                 return Ok(Value::Null);
                             }
                             input.clear();
                         }
 
-                        if let Ok(value) = task.invoke("host.terminal.size", json!({"sessionId": session_id})) {
-                            let current_cols = value.get("cols").and_then(Value::as_u64).unwrap_or(80) as u32;
-                            let current_rows = value.get("rows").and_then(Value::as_u64).unwrap_or(24) as u32;
-                            if (current_cols, current_rows) != last_size {
-                                let _ = write_half.window_change(current_cols, current_rows, 0, 0).await;
-                                last_size = (current_cols, current_rows);
+                        if let Ok(size) = terminal.size() {
+                            let current = (size.cols as u32, size.rows as u32);
+                            if current != last_size {
+                                let _ = write_half.window_change(current.0, current.1, 0, 0).await;
+                                last_size = current;
                             }
                         }
                     }
                 }
             }
             let _ = writer.shutdown().await;
-            let _ = task.invoke("host.terminal.end", json!({"sessionId": session_id}));
+            let _ = terminal.end(None);
             Ok(Value::Null)
         })
     })?;

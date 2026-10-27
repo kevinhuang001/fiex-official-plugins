@@ -50,7 +50,12 @@ pub fn list(
     password: Option<&str>,
     host: &sdk::RequestContext,
 ) -> Result<Value, String> {
-    let lower = host.files().metadata(source).map_err(|error| error.to_string())?.name.to_lowercase();
+    let lower = host
+        .files()
+        .metadata(source)
+        .map_err(|error| error.to_string())?
+        .name
+        .to_lowercase();
     let password = password.filter(|value| !value.is_empty());
     let files = host.files();
     if lower.ends_with(".zip") {

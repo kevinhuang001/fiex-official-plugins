@@ -71,7 +71,13 @@ fn send(ctx: &sdk::RequestContext, upload: &mut Upload, final_chunk: bool) -> Re
 pub(super) fn write_file(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
     let p = ctx.params();
     let size = p["size"].as_u64().ok_or_else(|| error("missing size"))?;
-    let mut reader = ctx.files().open_read(&serde_json::from_value::<fiex_plugin_sdk::ResourceRef>(p["source"].clone()).map_err(error)?).map_err(error)?;
+    let mut reader = ctx
+        .files()
+        .open_read(
+            &serde_json::from_value::<fiex_plugin_sdk::ResourceRef>(p["source"].clone())
+                .map_err(error)?,
+        )
+        .map_err(error)?;
     if reader.len() != size {
         return Err(error("upload source size changed"));
     }

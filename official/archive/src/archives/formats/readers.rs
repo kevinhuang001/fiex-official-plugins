@@ -2,7 +2,7 @@
 use super::super::{
     err,
     extract::extract_file,
-    paths::{safe_name, entry_ref},
+    paths::{entry_ref, safe_name},
     ArchiveContext, CANCELLED, MAX_ENTRIES,
 };
 use crate::ignores::IgnoreSet;
@@ -158,8 +158,12 @@ pub(crate) fn extract_rar(
             if ignore.is_ignored(Path::new(&name)) {
                 return Ok(Box::new(io::sink()));
             }
-            let reference = entry_ref(&files, root, Path::new(&name), meta.is_directory).map_err(|error| rars::Error::from(io::Error::other(error)))?;
-            if meta.is_directory { context.progress(count as u64, None); return Ok(Box::new(io::sink())); }
+            let reference = entry_ref(&files, root, Path::new(&name), meta.is_directory)
+                .map_err(|error| rars::Error::from(io::Error::other(error)))?;
+            if meta.is_directory {
+                context.progress(count as u64, None);
+                return Ok(Box::new(io::sink()));
+            }
             let output = Arc::new(Mutex::new(Some(
                 files
                     .begin_write(&reference, true)

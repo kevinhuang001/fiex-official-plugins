@@ -36,8 +36,14 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     let host = &ctx;
-    let repository = serde_json::from_value::<sdk::ResourceRef>(p["root"].clone()).ok().or_else(|| ctx.directory().map(|directory| directory.reference));
-    let root = || repository.as_ref().ok_or_else(|| RpcError::invalid_params("missing repository ref"));
+    let repository = serde_json::from_value::<sdk::ResourceRef>(p["root"].clone())
+        .ok()
+        .or_else(|| ctx.directory().map(|directory| directory.reference));
+    let root = || {
+        repository
+            .as_ref()
+            .ok_or_else(|| RpcError::invalid_params("missing repository ref"))
+    };
     match method {
         "git.status" => Ok(json!(git_host::status(root()?, host))),
         "git.init" => response(git_host::init(root()?, host)),

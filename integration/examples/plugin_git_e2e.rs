@@ -3,6 +3,17 @@
 use fiex_lib::{plugin_decorations, plugin_host, plugin_vfs};
 use serde_json::json;
 
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn main() {
     fiex_lib::plugin_sandbox::run_wrapper_if_requested();
     let id = "org.fiex.git";
@@ -15,6 +26,7 @@ fn main() {
         .into_iter()
         .find(|(m, _)| m.id == id)
         .unwrap();
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -76,6 +88,7 @@ fn main() {
             is_dir: false,
             extension: "txt".into(),
             mime: "text/plain".into(),
+            ..Default::default()
         }],
     );
     assert_eq!(decorated.len(), 1, "{decorated:?}");

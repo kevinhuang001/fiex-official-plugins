@@ -2,6 +2,17 @@
 use fiex_lib::plugin_host;
 use serde_json::json;
 
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn approve(id: &str) {
     let entry = plugin_host::catalog()
         .into_iter()
@@ -12,6 +23,7 @@ fn approve(id: &str) {
         .into_iter()
         .find(|(m, _)| m.id == id)
         .unwrap();
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -82,7 +94,10 @@ fn main() {
             .expect("compress failed");
         let task_id = created["taskId"].as_str().expect("compress task id");
         let created = wait_task(task_id);
-        assert_eq!(created.as_str(), Some(archive.to_string_lossy().as_ref()));
+        assert!(
+            created["mountId"].is_string() && created["nodeId"].is_string(),
+            "{format} task result should be an archive ref: {created}"
+        );
         assert!(archive.is_file(), "{format} archive was not created");
         let output = root.join(format!("out-{format}"));
         std::fs::create_dir_all(&output).unwrap();
@@ -97,9 +112,18 @@ fn main() {
             .expect("extract failed");
         let task_id = extracted["taskId"].as_str().expect("extract task id");
         let extracted = wait_task(task_id);
-        let extracted = extracted.as_str().expect("extract path").to_string();
+        assert!(
+            extracted["mountId"].is_string() && extracted["nodeId"].is_string(),
+            "{format} task result should be a folder ref: {extracted}"
+        );
+        let folder = std::fs::read_dir(&output)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| path.is_dir())
+            .expect("extract output folder");
         assert_eq!(
-            std::fs::read(std::path::Path::new(&extracted).join("hello.txt")).unwrap(),
+            std::fs::read(folder.join("hello.txt")).unwrap(),
             b"abc",
             "{format} roundtrip"
         );

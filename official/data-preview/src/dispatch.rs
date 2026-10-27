@@ -12,7 +12,7 @@ fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result
         .files()
         .read(&target.reference)
         .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-    let (value, _) = open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
+    let (value, _) = open(resources::name(target)?, bytes).map_err(RpcError::internal)?;
     let datasets = value
         .get("datasets")
         .and_then(Value::as_array)
@@ -73,7 +73,8 @@ pub(crate) fn dispatch(
                 .files()
                 .read(&target.reference)
                 .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-            let (value, mut opened) = open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
+            let (value, mut opened) =
+                open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
             opened.path = serde_json::to_string(&target.reference).unwrap_or_default();
             *cache
                 .lock()
@@ -88,14 +89,17 @@ pub(crate) fn dispatch(
                 .map_err(|_| RpcError::internal("preview cache unavailable"))?;
             if cached
                 .as_ref()
-                .map(|entry| entry.path != serde_json::to_string(&target.reference).unwrap_or_default())
+                .map(|entry| {
+                    entry.path != serde_json::to_string(&target.reference).unwrap_or_default()
+                })
                 .unwrap_or(true)
             {
                 let bytes = ctx
                     .files()
                     .read(&target.reference)
                     .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-                let (_, mut opened) = open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
+                let (_, mut opened) =
+                    open(resources::name(&target)?, bytes).map_err(RpcError::internal)?;
                 opened.path = serde_json::to_string(&target.reference).unwrap_or_default();
                 *cached = Some(opened);
             }

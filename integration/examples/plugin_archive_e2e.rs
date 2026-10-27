@@ -14,7 +14,7 @@
 use fiex_lib::plugin_host;
 use fiex_lib::plugin_resource_context::ResourceSnapshot;
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 fn approve(id: &str) {
@@ -126,10 +126,11 @@ fn main() {
         .expect("compress must return a task id");
     let destination = wait_task(task_id);
     let archive = root.join("hello.zip");
-    assert_eq!(
-        destination.as_str(),
-        Some(archive.to_string_lossy().as_ref()),
-        "task result should be the created archive"
+    // Task results are opaque refs, never host paths. The deterministic
+    // destination still proves the operation ran on the selected file.
+    assert!(
+        destination["mountId"].is_string() && destination["nodeId"].is_string(),
+        "task result should be the created archive ref: {destination}"
     );
     assert!(
         archive.is_file(),
@@ -142,7 +143,11 @@ fn main() {
         .as_str()
         .expect("extract must return a task id");
     let applied = wait_task(task_id);
-    let applied = PathBuf::from(applied.as_str().expect("extract target"));
+    assert!(
+        applied["mountId"].is_string() && applied["nodeId"].is_string(),
+        "extract task result should be a folder ref: {applied}"
+    );
+    let applied = root.join("hello");
     assert!(
         applied.is_dir(),
         "context-menu extract created no folder: {}",
@@ -152,7 +157,6 @@ fn main() {
         std::fs::read(applied.join("hello.txt")).expect("extracted file"),
         b"abc"
     );
-    assert!(root.join("hello").is_dir());
 
     // 2b. The advanced-compress panel names its output folder in the same
     //     invocation, so Core grants that folder as an explicit candidate.
@@ -164,7 +168,7 @@ fn main() {
             json!({
                 "paths": [file],
                 "root": root,
-                "destination": panel_archive,
+                "destinationName": "panel.zip",
                 "format": "zip",
                 "ignores": [],
             }),

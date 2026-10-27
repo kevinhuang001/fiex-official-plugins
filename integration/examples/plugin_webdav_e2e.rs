@@ -7,6 +7,17 @@ use std::sync::{
     Arc,
 };
 
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn main() {
     fiex_lib::plugin_sandbox::run_wrapper_if_requested();
     let id = "org.fiex.webdav";
@@ -19,6 +30,7 @@ fn main() {
         .into_iter()
         .find(|(m, _)| m.id == id)
         .unwrap();
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),

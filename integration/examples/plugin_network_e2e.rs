@@ -3,11 +3,23 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use fiex_lib::plugin_host;
 use serde_json::{json, Value};
 
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn check(id: &str, config: Value, expected: &[u8]) {
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == id)
         .expect("network plugin must be installed");
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),

@@ -5,9 +5,9 @@
 //! slide boundaries. The plugin only sanitizes and styles that HTML; it never
 //! walks the XML by hand. Charts, SmartArt, animations, embedded objects and
 //! legacy `.doc/.xls/.ppt` remain out of scope.
+mod render;
 #[path = "../../../support/resources.rs"]
 mod resources;
-mod render;
 mod sanitize;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};

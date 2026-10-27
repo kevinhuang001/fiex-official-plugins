@@ -2,11 +2,23 @@
 use fiex_lib::plugin_host;
 use serde_json::json;
 
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn approve(id: &str) {
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == id)
         .expect("plugin must be installed in FIEX_PLUGIN_DIR");
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -76,7 +88,10 @@ fn main() {
         .expect("compress failed");
     let task_id = started["taskId"].as_str().expect("compress task id");
     let created = wait_task(task_id);
-    assert_eq!(created.as_str(), Some(archive.to_string_lossy().as_ref()));
+    assert!(
+        created["mountId"].is_string() && created["nodeId"].is_string(),
+        "archive task result should be a ref: {created}"
+    );
 
     let details = fiex_lib::plugin_info::file_info(archive.to_str().unwrap());
     let info = details

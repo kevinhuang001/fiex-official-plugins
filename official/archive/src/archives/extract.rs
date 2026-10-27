@@ -22,7 +22,9 @@ pub(crate) fn extract_file(
     remaining: &mut u64,
 ) -> Result<(), String> {
     let reference = entry_ref(files, root, name, directory)?;
-    if directory { return Ok(()); }
+    if directory {
+        return Ok(());
+    }
     let mut output = files.begin_write(&reference, true).map_err(err)?;
     let mut block = [0u8; 65536];
     loop {
@@ -54,12 +56,21 @@ pub fn extract(
     let metadata = files.metadata(source).map_err(err)?;
     let source_path = Path::new(&metadata.name);
     let base = destination;
-    let target = unique(&files, base, &source_path.file_stem().ok_or("无效文件名")?.to_string_lossy())?;
+    let target = unique(
+        &files,
+        base,
+        &source_path
+            .file_stem()
+            .ok_or("无效文件名")?
+            .to_string_lossy(),
+    )?;
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(err)?
         .as_nanos();
-    let root = files.child(base, &format!(".fiex-extract-{stamp:x}")).map_err(err)?;
+    let root = files
+        .child(base, &format!(".fiex-extract-{stamp:x}"))
+        .map_err(err)?;
     files.create_dir(&root).map_err(err)?;
     let ignore = IgnoreSet::new(ignores);
     let result = (|| {

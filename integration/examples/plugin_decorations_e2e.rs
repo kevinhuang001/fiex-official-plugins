@@ -2,12 +2,24 @@
 use fiex_lib::plugin_decorations::DecorationEntry;
 use fiex_lib::plugin_host;
 
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugin_host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn main() {
     fiex_lib::plugin_sandbox::run_wrapper_if_requested();
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == "org.fiex.archive")
         .expect("archive plugin must be installed");
+    ensure_approved("org.fiex.archive");
     plugin_host::activate(
         "org.fiex.archive",
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -23,6 +35,7 @@ fn main() {
             is_dir: false,
             extension: "zip".into(),
             mime: "application/zip".into(),
+            ..Default::default()
         }],
     );
     let decoration = values

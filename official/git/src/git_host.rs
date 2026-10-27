@@ -6,8 +6,15 @@ use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-pub fn run(host: &sdk::RequestContext, root: &sdk::ResourceRef, args: &[&str]) -> Result<String, String> {
-    let args = args.iter().map(|arg| (*arg).to_string()).collect::<Vec<_>>();
+pub fn run(
+    host: &sdk::RequestContext,
+    root: &sdk::ResourceRef,
+    args: &[&str],
+) -> Result<String, String> {
+    let args = args
+        .iter()
+        .map(|arg| (*arg).to_string())
+        .collect::<Vec<_>>();
     let result = host
         .process_run_at(root, "git", &args, None)
         .map_err(|error| error.to_string())?;
@@ -42,10 +49,7 @@ pub fn status(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Option<Val
         }
         let code = &item[..2];
         let path = &item[3..];
-        entries.insert(
-            path.to_owned(),
-            code.to_owned(),
-        );
+        entries.insert(path.to_owned(), code.to_owned());
         if code.contains(['R', 'C']) {
             records.next();
         }

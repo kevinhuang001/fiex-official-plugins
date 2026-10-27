@@ -56,8 +56,11 @@ impl Settings {
             .is_some_and(|password| !password.is_empty());
         if !provided {
             let password = ctx
-                .secrets().scoped(&format!("connection-{id}")).get::<String>("password")
-                .map_err(|error| error.to_string())?.ok_or("邮箱密码未设置")?;
+                .secrets()
+                .scoped(&format!("connection-{id}"))
+                .get::<String>("password")
+                .map_err(|error| error.to_string())?
+                .ok_or("邮箱密码未设置")?;
             if let Some(object) = fields.as_object_mut() {
                 object.insert("password".into(), Value::String(password));
             }

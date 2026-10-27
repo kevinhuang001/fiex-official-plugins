@@ -669,7 +669,7 @@ checksum = "c6e8948ce679d00a02a94739ea185595dca7118ed04feb991127e443bd3d761f"
 
 [[package]]
 name = "fiex-plugin-data-preview"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "apache-avro",
  "arrow",

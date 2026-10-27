@@ -38,7 +38,7 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "fiex-plugin-gpg"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "fiex-plugin-sdk",
  "serde_json",

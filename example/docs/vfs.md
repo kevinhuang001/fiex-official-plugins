@@ -1,98 +1,83 @@
-# VFS：把远程文件树接进 Core Explorer
+# VFS：把插件文件树接进 Core Explorer
 
 ## 原理
 
-VFS 是 Core 与插件之间的**节点协议**，不是真实挂载。
+VFS 是 Core 与插件之间的**节点协议**，不是真实挂载。Core 负责 URI、权限、
+缓存、离线副本和拖拽；插件只返回节点和内容。
 
 ```
 Explorer 切到 fiex://mount/<id>/
       │
       ▼
-Core 调 fs.list / fs.stat / fs.readSmall ...
+Core 调 vfs.list / vfs.stat / vfs.readSmall / vfs.search
       │
       ▼
-插件返回条目、节点 ID、revision、内容
+插件返回节点、revision、内容
 ```
 
-Core 负责路径拼接、权限、缓存、离线副本、拖拽和本地文件操作；插件只处理自己协议里的节点。
+独立 VFS 用 `VfsProvider`；连接内的文件树用 `ConnectionProvider` 的 `fs.*`。
 
 ## Manifest
 
 ```json
 "extensions": {
-  "vfs": [
-    { "id": "example-files", "title": "示例文件", "readOnly": true }
-  ]
+  "vfs": { "title": "示例文件", "readOnly": true }
 }
 ```
 
-## Rust 实现
+`vfs` 是单个对象。连接工厂还要声明 `extensions.connections`。
+
+## Rust 实现：独立 VFS
 
 ```rust
-"fs.list" => Ok(json!({
-    "entries": [
-        {
-            "name": "README.md",
-            "nodeId": "readme",
-            "isDir": false,
-            "size": 14,
-            "modified": 0,
-            "revision": "1"
-        },
-        {
-            "name": "docs",
-            "nodeId": "docs",
-            "isDir": true,
-            "size": 0,
-            "modified": 0,
-            "revision": "1"
-        }
-    ],
-    "nextCursor": null
-})),
+struct ExampleVfs;
 
-"fs.stat" => Ok(json!({ "revision": "1", "size": 14 })),
-
-"fs.readSmall" => Ok(json!({
-    "base64": "aGVsbG8gZXhhbXBsZQo=", // "hello example\n"
-    "eof": true
-})),
-
-"fs.openRead" => Ok(json!({ "streamId": "example-read" })),
-"fs.readStream" => Ok(json!({
-    "base64": "aGVsbG8gZXhhbXBsZQo=",
-    "eof": true
-})),
-"fs.closeRead" => Ok(Value::Null),
+impl sdk::VfsProvider for ExampleVfs {
+    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        Ok(vec![json!({
+            "name": "README.md", "nodeId": "readme", "kind": "file",
+            "isDir": false, "size": 14, "modified": 0,
+            "extension": "md", "mime": "text/markdown", "readonly": true
+        })])
+    }
+    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({
+            "name": "README.md", "nodeId": "readme", "kind": "file",
+            "isDir": false, "size": 14, "modified": 0,
+            "extension": "md", "mime": "text/markdown", "readonly": true
+        }))
+    }
+    fn read_small(&self, _ctx: &sdk::RequestContext) -> Result<Vec<u8>, RpcError> {
+        Ok(b"hello example\n".to_vec())
+    }
+    fn search(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({"entries": [], "truncated": false}))
+    }
+}
 ```
 
-## 返回字段
+## 连接内的文件树
 
-`fs.list.entries[]`：
+连接文件树由 `ConnectionProvider` 提供：
 
-| 字段                | 说明                         |
-| ------------------- | ---------------------------- |
-| `name`              | 当前目录内的名字，不能含 `/` |
-| `nodeId`            | 插件自己的稳定节点 ID        |
-| `isDir`             | 是否目录                     |
-| `size` / `modified` | 可选元数据                   |
-| `revision`          | 可选，用于缓存失效           |
+```rust
+impl sdk::ConnectionProvider for ExampleConnection {
+    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> { /* fs.list */ }
+    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> { /* fs.stat */ }
+    fn open_read(&self, _ctx: &sdk::RequestContext)
+        -> Result<sdk::ConnectionReader, RpcError> { /* fs.openRead + stream */ }
+}
+```
 
-分页用 `nextCursor`；Core 会带着它继续请求。
+`open_read` 返回 `ConnectionReader`，SDK 自动管理 `fs.readStream` 的 offset、
+分块和 `fs.closeRead`。不要手写 stream ID 表。
 
-## 写操作
+## 规则
 
-只有在 manifest 里批准对应权限，Core 才会调用：
+- `nodeId` 是插件命名空间内稳定 ID，不是宿主路径；
+- 内容变化时 `revision` 必须变化；
+- 大文件用流式读取，不要整文件塞进一条 JSON；
+- `search` 返回 `relativePath`，Core 会绑定到自己的 mount；
+- 路径穿越（`../`、绝对路径、symlink）必须在插件侧拒绝。
 
-- `fs.beginWrite` / `fs.writeChunk` / `fs.commit` / `fs.abort`；
-- `fs.mkdir`；
-- `fs.remove` / `fs.rename`。
-
-**不要**用 `fs.readSmall` 读大文件；它只适合小内容。大文件走 `openRead`/`readStream`。
-
-## 权限
-
-- 列目录：`folders.read`；
-- 读内容：`files.read`；
-- 写/建/删/改名：分别申请对应权限；
-- VFS 节点的真实身份由 Core 的 Scope 约束，插件不能接受任意绝对路径。
+完整实现见 [`hello/src/main.rs`](../hello/src/main.rs)。

@@ -1,20 +1,7 @@
 # Hooks：生命周期钩子
 
-## 原理
-
-Hooks 允许插件在 Core 执行文件操作前介入，例如“先解压再打开”。
-
-```
-Core 准备打开文件
-      │
-      ▼
-hooks.invoke(event, resourceRef, operationSession)
-      │
-      ├─ handled: false → Core 继续默认流程
-      └─ handled: true  → 插件接管
-```
-
-当前分支状态：Core 已校验 `permissions.hooks` 和 `extensions.hooks` 注册，但**文件生命周期里的自动 `hooks.invoke` 接线还没完成**。下面的代码是目标合同，接线前不会被自动调用。
+Core 在文件生命周期事件上调用固定方法 `hooks.invoke`。用 `HookProvider`
+注册，不要手写方法分发。
 
 ## Manifest
 
@@ -23,44 +10,33 @@ hooks.invoke(event, resourceRef, operationSession)
   "hooks": { "enabled": true }
 },
 "extensions": {
-  "hooks": [
-    {
-      "id": "example.beforeOpen",
-      "event": "beforeOpen",
-      "method": "example.beforeOpen",
-      "priority": 100,
-      "match": { "extensions": ["zip"], "kinds": ["file"] }
-    }
-  ]
+  "hooks": {
+    "event": "beforeOpen",
+    "priority": 100,
+    "extensions": ["zip"]
+  }
 }
 ```
 
-- `event`：`beforeOpen` 等生命周期事件；
-- `method`：插件自己的 handler；
-- `priority`：多个 hook 的执行顺序；
-- `match`：可选，不满足就不调用。
+`hooks` 是单个对象，不是数组；不再声明 `id`/`method`。
 
 ## Rust 实现
 
 ```rust
-"hooks.invoke" => {
-    let name = ctx.targets()
-        .first()
-        .and_then(|target| target.metadata.as_ref())
-        .map(|meta| meta.name.as_str())
-        .unwrap_or("");
-    if name.ends_with(".zip") {
-        // 目标合同：返回 handled=true 表示插件接管；
-        // 真实实现应通过 ctx.files()/ctx.process_run() 完成操作。
-        return Ok(json!({ "handled": false }));
+struct ExampleHooks;
+
+impl sdk::HookProvider for ExampleHooks {
+    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        if ctx.params()["event"].as_str() != Some("beforeOpen") {
+            return Ok(json!({"handled": false}));
+        }
+        // 在这里消费打开操作，或返回 handled:false 交给 Core 默认流程。
+        Ok(json!({"handled": false}))
     }
-    Ok(json!({ "handled": false }))
 }
 ```
 
-## 坑
+`handled: true` 表示插件接管；`false` 表示继续默认流程。需要预览时返回
+`{"handled": true, "preview": true}`。
 
-- 不要在没有 `handled: true` 的情况下偷偷执行副作用；
-- 当前 Core 不会自动调用，不要依赖它做安全拦截；
-- 需要读取/写入时严格按权限申请；
-- 多个 hook 的先后顺序由 priority 决定，但不要假设一定串行执行重活。
+完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloHooks`。

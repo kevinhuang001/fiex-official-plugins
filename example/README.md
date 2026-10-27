@@ -54,7 +54,7 @@ org.example.hello/
   "name": "示例插件",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "4.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-example.exe",
       "macos-aarch64": "fiex-plugin-example",
@@ -89,101 +89,120 @@ org.example.hello/
 
 ---
 
-## 2.5 Rust 端：从 `main` 到 `dispatch`
+## 2.5 Rust 端：用 `Providers` 注册标准事件
 
-`example/hello/src/main.rs` 就是完整的 native 端实现。最小结构只有三部分：
+`example/hello/src/main.rs` 不再手写 `match ctx.method()`。标准事件用类型化
+Provider 注册，只注册自己需要的；自定义 RPC 仍然走 fallback。
 
 ```rust
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
-fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+struct ExampleInfo;
+
+impl sdk::InfoProvider for ExampleInfo {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        let name = ctx.targets().first().and_then(|t| t.metadata.as_ref())
+            .map(|m| m.name.as_str()).unwrap_or("unknown");
+        Ok(vec![sdk::InfoSection {
+            source: String::new(),
+            provider: String::new(),
+            plugin_id: None,
+            id: "example".into(),
+            title: "示例信息".into(),
+            rows: vec![sdk::InfoRow {
+                label: "文件".into(),
+                value: name.into(),
+                copyable: false,
+            }],
+        }])
+    }
+}
+
+fn custom(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     match ctx.method() {
         "example.greet" => Ok(json!({"message": "你好，Fiex！"})),
-        _ => Err(RpcError::method_not_found(ctx.method())),
+        method => Err(RpcError::method_not_found(method)),
     }
 }
 
 fn main() {
-    if let Err(error) = sdk::serve("org.example.hello", run) {
+    let providers = sdk::Providers::new()
+        .info(ExampleInfo)
+        // .connection(...) .vfs(...) .preview(...) .decorations(...)
+        // .context_menu(...) .search(...) .hooks(...) .toolbar(...)
+        .serve_with("org.example.hello", custom);
+    if let Err(error) = providers {
         eprintln!("插件启动失败：{error}");
         std::process::exit(1);
     }
 }
 ```
 
-`Cargo.toml`：
+`serve_with` 仍然负责 Content-Length 帧、握手、并发、取消和退出；区别是
+标准事件由 SDK 分发给对应 trait，自定义方法交给 `custom`。不实现某个
+Provider 就不会注册该事件。
 
-```toml
-[package]
-name = "fiex-plugin-example"
-version = "0.1.0"
-edition = "2021"
+| Provider trait | 处理的事件 |
+| --- | --- |
+| `InfoProvider` | `info.resolve` |
+| `PreviewProvider` | `preview.open` |
+| `DecorationProvider` | `decorations.resolve` |
+| `ContextMenuProvider` | `contextMenu.resolve` / `contextMenu.execute` |
+| `SearchProvider` | `search.query` |
+| `HookProvider` | `hooks.invoke` |
+| `ToolbarProvider` | `toolbar.invoke` |
+| `ConnectionProvider` | `connection.validate/open/create`、`fs.list/stat/writeFile`、流式 `fs.openRead/readStream/closeRead`（`open_read` 返回 `ConnectionReader`，SDK 管理 stream ID、offset 和关闭） |
+| `VfsProvider` | `vfs.list/stat/readSmall/search` |
 
-[dependencies]
-fiex-plugin-sdk = { path = "../../sdk/rust" }
-serde_json = "1"
-```
-
-`sdk::serve` 负责：
-
-- 读写 Content-Length + JSON-RPC 2.0 帧；
-- 处理 `initialize` 握手、并发请求、取消和退出；
-- 把 `method` / `params` 包成 `RequestContext` 交给 `run`；
-- 把 `Ok(Value)` / `Err(RpcError)` 编码回 Core。
-
-**不要**自己往 stdout 打印日志或调试信息；stdout 是 IPC 通道。日志写 `stderr`。
-
-### `RequestContext` 常用方法
+`RequestContext` 常用方法（协议 4.0 只接受 `ResourceRef`）：
 
 ```rust
-fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
-    let method = ctx.method();
-    let p = ctx.params();                    // 原始 JSON 参数
+let target = ctx.targets().first()
+    .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+let text = ctx.files().read_to_string(&target.reference)?;
+let output = ctx.process_run("git", &["status".into()], None)?;
 
-    let setting = ctx.storage_get("global", "greeting")?;
-    ctx.storage_set("global", "greeting", json!("嗨"))?;
+let storage = ctx.storage().scoped("global");
+let greeting: Option<String> = storage.get("greeting")?;
+storage.set("greeting", &"嗨".to_string())?;
 
-    let target = ctx.targets().first().ok_or_else(|| RpcError::invalid_params("missing target"))?;
-    let mut reader = ctx.files().open_ref(&target.reference)?;
-    let output = ctx.process_run("git", &["status".into()], None)?;
-    Ok(json!({"method": method, "params": p, "setting": setting}))
+let secrets = ctx.secrets().scoped("connection");
+if secrets.available()? {
+    let token: Option<String> = secrets.get("token")?;
 }
 ```
 
-| 方法                       | 用途                          | 需要的权限                |
-| -------------------------- | ----------------------------- | ------------------------- |
-| `ctx.files()`              | 读/写/列目录、`open_ref` | `files.*` / `folders.*`   |
-| `ctx.process_run()`        | 运行声明过的外部命令          | `commands.enabled/allow`  |
-| `ctx.http()` / `ctx.tcp()` | 经 Core 代理访问网络          | `network.enabled/domains` |
-| `ctx.storage_get/set()`    | 普通设置                      | 无                        |
-| `ctx.secret_get/set()`     | 钥匙串                        | 无                        |
-| `ctx.report_error()`       | 上报 UI 错误                  | 无                        |
+| 方法 | 用途 | 需要的权限 |
+| --- | --- | --- |
+| `ctx.files()` | 按 ref 读/写/列目录/分配子 ref | `files.*` / `folders.*` |
+| `ctx.process_run()` | 运行声明过的外部命令 | `commands.enabled/allow` |
+| `ctx.http()` / `ctx.tcp()` | 经 Core 代理访问网络 | `network.enabled/domains` |
+| `ctx.storage()` | 类型化插件存储，含 CAS/update | `storage` |
+| `ctx.secrets()` | 系统钥匙串，区分拒绝/不可用/缺失 | `secrets` |
+| `ctx.terminal(session)` | 终端 ready/output/input/size/closed/end | 终端类插件 |
+| `ctx.report_error()` | 上报 UI 错误 | 无 |
 
-### Manifest 方法 ↔ Rust `match` 分支
+示例的 Provider 组合：
 
-| Manifest           | Rust 侧处理                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `connections[].id` | `connection.validate` / `connection.open` / `connection.create`                           |
-| `vfs[]`            | `fs.list` / `fs.stat` / `fs.readSmall` / `fs.openRead` / `fs.readStream` / `fs.closeRead` |
-| `decorations`      | `decorations.resolve`                                                                     |
-| `info`             | `info.resolve`                                                                            |
-| `preview`          | `preview.open`                                                                            |
-| `contextMenus`     | `contextMenu.resolve` / `contextMenu.execute`                                             |
-| `search[].id`      | Core 固定调用 `search.query`，没有 command 字段                                           |
-| `toolbar`          | 固定调用 `toolbar.invoke`；有 panel 时由 Core 打开面板                                    |
-| `hooks[].event`    | Core 固定调用 `hooks.invoke`，插件按 event 分支                                           |
-
-完整分支见 [`hello/src/main.rs`](hello/src/main.rs)：
-
-- `connection.open` 返回 `vfs` 或 `pluginView`；
-- `fs.*` 返回 Core 要求的 VFS 结构；
-- `decorations.resolve` 只返回当前目录成员的 `name`；
-- `info.resolve` 返回标准 `{ sections: [...] }`；
-- `preview.open` 返回 `PreviewView` 的 `{kind:"html", view:{...}}`；
-- `contextMenu.resolve/execute` 返回扁平菜单；
-- `search.query` 返回空结果，展示 SearchResponse 外形；
-- `hooks.invoke` 是 hooks 合同示例（Core 生命周期接线前不会自动调用）。
+```rust
+fn main() {
+    let providers = sdk::Providers::new()
+        .connection(HelloConnection)
+        .vfs(HelloVfs)
+        .info(HelloInfo)
+        .preview(HelloPreview)
+        .decorations(HelloDecorations)
+        .context_menu(HelloMenu)
+        .search(HelloSearch)
+        .hooks(HelloHooks)
+        .toolbar(HelloToolbar);
+    if let Err(error) = providers.serve_with("org.example.hello", custom) {
+        eprintln!("插件启动失败：{error}");
+        std::process::exit(1);
+    }
+}
+```
 
 ### 编译和自测
 
@@ -410,7 +429,7 @@ const value = await invoke("plugin.invoke", {
 ```json
 {
   "method": "toolbar.invoke",
-  "params": { "root": "/Users/me/Documents", "selection": [] },
+  "params": { "root": { "mountId": "local", "nodeId": "fiex-resource:…" }, "selection": [] },
   "directory": "/Users/me/Documents",
   "selectedPaths": ["/Users/me/Documents"]
 }
@@ -474,7 +493,7 @@ for (const [key, value] of Object.entries(tokens)) {
 | `vfs`          | `[{id,title,readOnly?}]`          | Core Explorer 的文件树请求                                 |
 | `search`       | `[{icon?,scope?}]`                | 搜索框 → 固定 `search.query`                               |
 | `toolbar`      | `{title,icon?,panel?}`            | 工具栏点击 → 固定 `toolbar.invoke`                         |
-| `settings`     | `[{id,label,type,...}]`           | 设置页渲染；值通过 `ctx.storage_*`                         |
+| `settings`     | `[{id,label,type,...}]`           | 设置页渲染；值通过 `ctx.storage()` / `ctx.secrets()`       |
 | `hooks`        | `[{event,priority?,match?}]`      | 文件生命周期 → 固定 `hooks.invoke`                         |
 | `themes`       | `[{path}]`                        | 主题包；声明式 JSON，不含代码                              |
 
@@ -649,12 +668,12 @@ Manifest：
 }
 ```
 
-Core 传入：
+Core 传入（`root` 是 opaque ref，不是宿主路径）：
 
 ```json
 {
   "query": "report",
-  "root": "/Users/kevin/Documents",
+  "root": { "mountId": "local", "nodeId": "fiex-resource:…" },
   "hidden": false,
   "ignores": [".git"],
   "limit": 200
@@ -686,7 +705,7 @@ Core 传入：
 }
 ```
 
-搜索必须限制在 `root` 内；越界路径会被 Core 拒绝。示例返回空列表，只展示合同外形。
+搜索必须限制在 `root` 内；本地结果可以返回相对于 root 的路径，Core 会解析并校验。示例返回空列表，只展示合同外形。
 
 ### 7.5 Settings：声明式设置 + 存储
 
@@ -707,19 +726,21 @@ Manifest：
 
 ```rust
 let greeting = ctx
-    .storage_get("global", "greeting")
+    .storage()
+    .scoped("global")
+    .get::<String>("greeting")
     .ok()
-    .and_then(|value| value.as_str().map(str::to_owned))
+    .flatten()
     .unwrap_or_else(|| "你好".into());
 ```
 
 写回：
 
 ```rust
-ctx.storage_set("global", "greeting", &json!("嗨"))?;
+ctx.storage().scoped("global").set("greeting", &"嗨".to_string())?;
 ```
 
-敏感值用 `plugin_secret_*` / 钥匙串，不要写进普通 settings。
+敏感值用 `ctx.secrets().scoped(scope).set/get` / 系统钥匙串，不要写进普通 settings。
 
 ### 7.6 Hooks：生命周期钩子
 

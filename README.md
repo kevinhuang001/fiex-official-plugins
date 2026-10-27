@@ -51,6 +51,27 @@ VFS navigation, Info/Preview standard events, decorations (colors/badges/row
 and column styles), context menus, search, settings, hooks and toolbar
 panels/commands.
 
+## Typed provider API
+
+Standard events (`info.resolve`, `preview.open`, `decorations.resolve`,
+`contextMenu.resolve/execute`, `search.query`, `hooks.invoke`, `toolbar.invoke`,
+`connection.*`, `fs.*`, `vfs.*`) can be registered with the optional
+`sdk::Providers` API instead of a hand-written `match ctx.method()`. Connection
+streaming is covered too: `ConnectionProvider::open_read` returns a
+`ConnectionReader` and the SDK owns `fs.openRead/readStream/closeRead` stream
+IDs, offsets and cleanup. Custom RPC remains in the `serve_with` fallback.
+
+```rust
+sdk::Providers::new()
+    .info(MyInfo)
+    .preview(MyPreview)
+    .context_menu(MyMenu)
+    .connection(MyConnection)
+    .serve_with("org.example.plugin", |ctx| custom(ctx))
+```
+
+The beginner example at `example/hello` and its guides use this API.
+
 ## Info and preview contracts
 
 Info and preview are standard events, not command/panel declarations. A plugin

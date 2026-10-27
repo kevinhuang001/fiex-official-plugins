@@ -17,4 +17,4 @@
 | [themes.md](themes.md)               | 声明式主题                   | `extensions.themes`       |
 | [bridge.md](bridge.md)               | 面板 UI ↔ Rust               | 不是扩展点，是 UI Bridge  |
 
-所有示例都来自 [`hello/src/main.rs`](../hello/src/main.rs) 和 [`hello/manifest.json`](../hello/manifest.json)。先读 [`../README.md`](../README.md) 的“Rust 端：从 main 到 dispatch”。
+所有示例都来自 [`hello/src/main.rs`](../hello/src/main.rs) 和 [`hello/manifest.json`](../hello/manifest.json)。先读 [`../README.md`](../README.md) 的“Rust 端：用 Providers 注册标准事件”。

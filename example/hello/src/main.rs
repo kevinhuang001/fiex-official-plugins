@@ -1,64 +1,78 @@
-//! Fiex official-plugin example: connections, decorations and toolbar.
+//! Fiex official-plugin example: providers, connections and toolbar.
 //!
-//! This is deliberately small. It does not touch the network or the user's
-//! files; it shows the wire shapes Core expects. Run it with:
+//! This plugin is deliberately small. It does not touch the network or the
+//! user's files; it shows the typed SDK provider API and the wire shapes Core
+//! expects. Run it with:
 //!
 //!   cargo run --manifest-path example/hello/Cargo.toml
-//!
-//! A real plugin can use the same shape with `ctx.files()`, `ctx.http()` and
-//! `ctx.tcp()` inside the permissions it declares in `manifest.json`.
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
+use std::io::Cursor;
 
-const HELLO_BASE64: &str = "aGVsbG8gZXhhbXBsZQo="; // "hello example\n"
+const HELLO: &[u8] = b"hello example\n";
 
-fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
-    let method = ctx.method();
+fn greeting(ctx: &sdk::RequestContext) -> String {
+    ctx.storage()
+        .scoped("global")
+        .get::<String>("greeting")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "你好".into())
+}
+
+struct HelloConnection;
+
+fn connection_open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
     let p = ctx.params();
-    match method {
-        // ------------------------------------------------------------------
-        // Connections
-        // ------------------------------------------------------------------
-        "connection.validate" => Ok(json!({"valid": true})),
-        "connection.open" | "connection.create" => {
-            let factory = p.get("factoryId").and_then(Value::as_str).unwrap_or("");
-            let mount = p.get("mountId").and_then(Value::as_str).unwrap_or("");
-            match factory {
-                // The account factory has no file tree: it returns a full-width
-                // pluginView that replaces the right content area.
-                "example-account" => Ok(json!({
-                    "kind": "pluginView",
-                    "view": {"source": "package", "entry": "ui/account.html"},
-                    "state": {
-                        "connectionId": p.get("connectionId").cloned().unwrap_or(Value::Null)
-                    },
-                    "tabTitle": "示例账号"
-                })),
-                // The files factory navigates to Core's native Explorer. Core
-                // validates that this plugin registered extensions.vfs and owns
-                // the mount before rendering it.
-                _ => Ok(json!({
-                    "kind": "vfs",
-                    "mountId": mount,
-                    "nodeRef": {"mountId": mount, "nodeId": "root"}
-                })),
-            }
-        }
-        // A read-only in-memory VFS. Core sends the stored connection settings
-        // in `connection`; this example intentionally ignores them.
-        "fs.list" => Ok(json!({
+    let factory = p.get("factoryId").and_then(Value::as_str).unwrap_or("");
+    let mount = p.get("mountId").and_then(Value::as_str).unwrap_or("");
+    match factory {
+        // The account factory has no file tree: it returns a full-width
+        // pluginView that replaces the right content area.
+        "example-account" => Ok(json!({
+            "kind": "pluginView",
+            "view": {"source": "package", "entry": "ui/account.html"},
+            "state": {
+                "connectionId": p.get("connectionId").cloned().unwrap_or(Value::Null)
+            },
+            "tabTitle": "示例账号"
+        })),
+        // The files factory navigates to Core's native Explorer. Core validates
+        // that this plugin registered extensions.vfs and owns the mount.
+        _ => Ok(json!({
+            "kind": "vfs",
+            "mountId": mount,
+            "nodeRef": {"mountId": mount, "nodeId": "root"}
+        })),
+    }
+}
+
+impl sdk::ConnectionProvider for HelloConnection {
+    fn validate(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({"valid": true}))
+    }
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        connection_open(ctx)
+    }
+    fn create(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        connection_open(ctx)
+    }
+    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({
             "entries": [
                 {
                     "name": "README.md",
                     "nodeId": "readme",
+                    "kind": "file",
                     "isDir": false,
-                    "size": 14,
+                    "size": HELLO.len(),
                     "modified": 0,
                     "revision": "1"
                 },
                 {
                     "name": "docs",
                     "nodeId": "docs",
+                    "kind": "directory",
                     "isDir": true,
                     "size": 0,
                     "modified": 0,
@@ -66,151 +80,220 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 }
             ],
             "nextCursor": null
-        })),
-        "fs.stat" => Ok(json!({"revision": "1", "size": 14})),
-        "fs.readSmall" => Ok(json!({"base64": HELLO_BASE64, "eof": true})),
-        "fs.openRead" => Ok(json!({"streamId": "example-read"})),
-        "fs.readStream" => Ok(json!({"base64": HELLO_BASE64, "eof": true})),
-        "fs.closeRead" => Ok(Value::Null),
-        // ------------------------------------------------------------------
-        // Decorations
-        // ------------------------------------------------------------------
-        // Core calls this when the manifest declares `extensions.decorations`
-        // and its `match` is satisfied. `entries` is the visible set; return
-        // direct child names, never absolute paths.
-        "decorations.resolve" => {
-            let mut decorations = Vec::new();
-            {
-                for target in ctx.targets() {
-                    let Some(metadata) = target.metadata.as_ref() else {
-                        continue;
-                    };
-                    let entry = serde_json::to_value(metadata)
-                        .map_err(|e| RpcError::internal(e.to_string()))?;
-                    let Some(name) = entry.get("name").and_then(Value::as_str) else {
-                        continue;
-                    };
-                    if name.ends_with(".md") {
-                        // Name-cell badge + color. The same `style` shape also
-                        // works for modified/size/kind through `fields`.
-                        decorations.push(json!({
-                            "name": name,
-                            "badge": {
-                                "text": "MD",
-                                "color": "blue",
-                                "tooltip": "示例：Markdown 文件"
-                            },
-                            "style": {"color": "#2f6f9f", "fontWeight": "600"}
-                        }));
+        }))
+    }
+    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({"revision": "1", "size": HELLO.len()}))
+    }
+    fn open_read(&self, _ctx: &sdk::RequestContext) -> Result<sdk::ConnectionReader, RpcError> {
+        Ok(sdk::ConnectionReader::new(
+            Cursor::new(HELLO.to_vec()),
+            Some(HELLO.len() as u64),
+        ))
+    }
+}
+
+struct HelloVfs;
+
+impl sdk::VfsProvider for HelloVfs {
+    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        Ok(vec![json!({
+            "name": "README.md",
+            "nodeId": "readme",
+            "kind": "file",
+            "isDir": false,
+            "size": HELLO.len(),
+            "modified": 0,
+            "extension": "md",
+            "mime": "text/markdown",
+            "readonly": true
+        })])
+    }
+    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({
+            "name": "README.md",
+            "nodeId": "readme",
+            "kind": "file",
+            "isDir": false,
+            "size": HELLO.len(),
+            "modified": 0,
+            "extension": "md",
+            "mime": "text/markdown",
+            "readonly": true
+        }))
+    }
+    fn read_small(&self, _ctx: &sdk::RequestContext) -> Result<Vec<u8>, RpcError> {
+        Ok(HELLO.to_vec())
+    }
+    fn search(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({"entries": [], "truncated": false}))
+    }
+}
+
+struct HelloInfo;
+
+impl sdk::InfoProvider for HelloInfo {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        let meta = ctx
+            .targets()
+            .first()
+            .and_then(|target| target.metadata.as_ref());
+        let name = meta.map(|value| value.name.as_str()).unwrap_or("unknown");
+        let extension = meta
+            .and_then(|value| value.extension.as_deref())
+            .unwrap_or("");
+        Ok(vec![sdk::InfoSection {
+            source: String::new(),
+            provider: String::new(),
+            plugin_id: None,
+            id: "example".into(),
+            title: "示例信息".into(),
+            rows: vec![
+                sdk::InfoRow {
+                    label: "文件".into(),
+                    value: name.into(),
+                    copyable: false,
+                },
+                sdk::InfoRow {
+                    label: "扩展名".into(),
+                    value: extension.into(),
+                    copyable: false,
+                },
+                sdk::InfoRow {
+                    label: "问候语".into(),
+                    value: greeting(ctx),
+                    copyable: false,
+                },
+                sdk::InfoRow {
+                    label: "可复制".into(),
+                    value: "这一行可以复制".into(),
+                    copyable: true,
+                },
+            ],
+        }])
+    }
+}
+
+struct HelloPreview;
+
+impl sdk::PreviewProvider for HelloPreview {
+    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+        Ok(sdk::PreviewView::html("ui/preview.html"))
+    }
+}
+
+struct HelloDecorations;
+
+impl sdk::DecorationProvider for HelloDecorations {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        let mut decorations = Vec::new();
+        for target in ctx.targets() {
+            let Some(metadata) = target.metadata.as_ref() else {
+                continue;
+            };
+            let name = &metadata.name;
+            if name.ends_with(".md") {
+                decorations.push(json!({
+                    "name": name,
+                    "badge": {
+                        "text": "MD",
+                        "color": "blue",
+                        "tooltip": "示例：Markdown 文件"
+                    },
+                    "style": {"color": "#2f6f9f", "fontWeight": "600"}
+                }));
+            }
+            if name.contains("todo") {
+                decorations.push(json!({
+                    "name": name,
+                    "fields": {
+                        "modified": {"style": {"color": "#b4443d"}},
+                        "size": {"badges": [{"text": "TODO", "color": "orange"}]}
                     }
-                    if name.contains("todo") {
-                        // Per-column fields: paint only the modified cell and
-                        // add a badge to the size cell. `row` paints the whole
-                        // row; leave it unselected-friendly.
-                        decorations.push(json!({
-                            "name": name,
-                            "fields": {
-                                "modified": {"style": {"color": "#b4443d"}},
-                                "size": {"badges": [{"text": "TODO", "color": "orange"}]}
-                            }
-                        }));
-                    }
-                }
+                }));
             }
-            Ok(json!({"decorations": decorations}))
         }
-        // ------------------------------------------------------------------
-        // Info / Preview
-        // ------------------------------------------------------------------
-        "info.resolve" => {
-            let meta = ctx
-                .targets()
-                .first()
-                .and_then(|target| target.metadata.as_ref());
-            let name = meta.map(|value| value.name.as_str()).unwrap_or("unknown");
-            let extension = meta
-                .and_then(|value| value.extension.as_deref())
-                .unwrap_or("");
-            let greeting = ctx
-                .storage()
-                .scoped("global")
-                .get::<String>("greeting")
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| "你好".into());
-            Ok(json!({
-                "sections": [{
-                    "id": "example",
-                    "title": "示例信息",
-                    "rows": [
-                        {"label": "文件", "value": name},
-                        {"label": "扩展名", "value": extension},
-                        {"label": "问候语", "value": greeting},
-                        {"label": "可复制", "value": "这一行可以复制", "copyable": true}
-                    ]
-                }]
-            }))
+        Ok(decorations)
+    }
+}
+
+struct HelloMenu;
+
+impl sdk::ContextMenuProvider for HelloMenu {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        if ctx.params().get("parentId").and_then(Value::as_str) == Some("example.more") {
+            return Ok(vec![json!({
+                "id": "example.copy-path",
+                "title": "示例：复制路径",
+                "kind": "action"
+            })]);
         }
-        "preview.open" => Ok(json!({
-            "kind": "html",
-            "view": {"source": "package", "entry": "ui/preview.html"}
-        })),
-        // ------------------------------------------------------------------
-        // Context menu
-        // ------------------------------------------------------------------
-        "contextMenu.resolve" => {
-            if p.get("parentId").and_then(Value::as_str) == Some("example.more") {
-                return Ok(json!({"items": [
-                    {"id": "example.copy-path", "title": "示例：复制路径", "kind": "action"}
-                ]}));
-            }
-            Ok(json!({"items": [
-                {"id": "example.inspect", "title": "示例：检查文件", "kind": "action"},
-                {"id": "example.more", "title": "示例", "kind": "submenu"}
-            ]}))
+        Ok(vec![
+            json!({"id": "example.inspect", "title": "示例：检查文件", "kind": "action"}),
+            json!({"id": "example.more", "title": "示例", "kind": "submenu"}),
+        ])
+    }
+    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        let item = ctx.params()["itemId"]
+            .as_str()
+            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        if !matches!(item, "example.inspect" | "example.copy-path") {
+            return Err(RpcError::invalid_params("unknown example menu item"));
         }
-        "contextMenu.execute" => {
-            let item = p.get("itemId").and_then(Value::as_str).unwrap_or("");
-            if !matches!(item, "example.inspect" | "example.copy-path") {
-                return Err(RpcError::invalid_params("unknown example menu item"));
-            }
-            Ok(json!({"ok": true, "itemId": item}))
-        }
-        // ------------------------------------------------------------------
-        // Search
-        // ------------------------------------------------------------------
-        "search.query" => Ok(json!({
-            "entries": [],
-            "truncated": false,
-            "warning": "示例搜索不返回真实文件；这里展示 SearchResponse 的外形"
-        })),
-        // ------------------------------------------------------------------
-        // Hooks (contract only in this example)
-        // ------------------------------------------------------------------
-        "hooks.invoke" => Ok(json!({"handled": false})),
-        // ------------------------------------------------------------------
-        // Toolbar / custom UI commands
-        // ------------------------------------------------------------------
-        "example.refresh" => Ok(json!({
+        Ok(json!({"ok": true, "itemId": item}))
+    }
+}
+
+struct HelloSearch;
+
+impl sdk::SearchProvider for HelloSearch {
+    fn query(&self, _ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+        Ok(sdk::SearchResults {
+            entries: Vec::new(),
+            truncated: false,
+        })
+    }
+}
+
+struct HelloHooks;
+
+impl sdk::HookProvider for HelloHooks {
+    fn invoke(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({"handled": false}))
+    }
+}
+
+struct HelloToolbar;
+
+impl sdk::ToolbarProvider for HelloToolbar {
+    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        Ok(json!({
             "refreshed": true,
-            "directory": p.get("root").cloned().unwrap_or(Value::Null)
-        })),
-        "example.greet" => {
-            let greeting = ctx
-                .storage()
-                .scoped("global")
-                .get::<String>("greeting")
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| "你好".into());
-            Ok(json!({"message": format!("{greeting}，Fiex！")}))
-        }
-        _ => Err(RpcError::method_not_found(method)),
+            "directory": ctx.params().get("root").cloned().unwrap_or(Value::Null)
+        }))
+    }
+}
+
+/// Custom RPC methods stay outside the typed provider registry.
+fn custom(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    match ctx.method() {
+        "example.greet" => Ok(json!({"message": "你好，Fiex！"})),
+        method => Err(RpcError::method_not_found(method)),
     }
 }
 
 fn main() {
-    if let Err(error) = sdk::serve("org.example.hello", run) {
+    let providers = sdk::Providers::new()
+        .connection(HelloConnection)
+        .vfs(HelloVfs)
+        .info(HelloInfo)
+        .preview(HelloPreview)
+        .decorations(HelloDecorations)
+        .context_menu(HelloMenu)
+        .search(HelloSearch)
+        .hooks(HelloHooks)
+        .toolbar(HelloToolbar);
+    if let Err(error) = providers.serve_with("org.example.hello", custom) {
         eprintln!("example plugin failed: {error}");
         std::process::exit(1);
     }

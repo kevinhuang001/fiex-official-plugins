@@ -284,7 +284,7 @@ jobs:
           cat .ci/webdav.log 2>/dev/null || true
           cat .ci/smb.log 2>/dev/null || true
   release:
-    if: startsWith(github.ref, 'refs/tags/plugins-v')
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/plugins-v'))
     needs: [build, core-integration, remote-integration]
     runs-on: ubuntu-latest
     permissions:
@@ -296,6 +296,15 @@ jobs:
           pattern: fiex-plugins-*
           path: dist/plugins
           merge-multiple: true
+      - name: Select release version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="plugins-v$(cat plugin-release-version.txt)"
+          fi
+          echo "FIEX_RELEASE_TAG=$tag" >> "$GITHUB_ENV"
       - name: Filter catalog to artifacts built by this release
         run: |
           python - <<'PY'
@@ -327,4 +336,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."
+          if gh release view "$FIEX_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$FIEX_RELEASE_TAG is already published; do not overwrite packages."
+            exit 0
+          fi
+          gh release create "$FIEX_RELEASE_TAG" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$FIEX_RELEASE_TAG" --notes "Protocol-5 official plugins for Fiex Core v0.7.4 and SDK v0.1.0. Typed Provider APIs, scoped resource refs, SDK Tokio SSH transport and real-host integration checks. Installation and permission approval are required."

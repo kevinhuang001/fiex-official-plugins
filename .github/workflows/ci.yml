@@ -117,7 +117,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: ec3cd9cd9592ae569870461fe6acaaf365ac63d2
+          ref: feat/connection-cache-pin-sync
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -185,7 +185,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: ec3cd9cd9592ae569870461fe6acaaf365ac63d2
+          ref: feat/connection-cache-pin-sync
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk

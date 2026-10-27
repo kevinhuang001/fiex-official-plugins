@@ -132,9 +132,11 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .and_then(|value| value.extension.as_deref())
                 .unwrap_or("");
             let greeting = ctx
-                .storage_get("global", "greeting")
+                .storage()
+                .scoped("global")
+                .get::<String>("greeting")
                 .ok()
-                .and_then(|value| value.as_str().map(str::to_owned))
+                .flatten()
                 .unwrap_or_else(|| "你好".into());
             Ok(json!({
                 "sections": [{
@@ -195,9 +197,11 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         })),
         "example.greet" => {
             let greeting = ctx
-                .storage_get("global", "greeting")
+                .storage()
+                .scoped("global")
+                .get::<String>("greeting")
                 .ok()
-                .and_then(|value| value.as_str().map(str::to_owned))
+                .flatten()
                 .unwrap_or_else(|| "你好".into());
             Ok(json!({"message": format!("{greeting}，Fiex！")}))
         }

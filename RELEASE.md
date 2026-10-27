@@ -75,7 +75,7 @@
 # Fiex plugins 0.2.0
 
 - All six plugins report version 0.2.0.
-- Git links libgit2 through `git2`; it never executes a local Git binary or uses `host.exec`. Remote pull is fast-forward only.
+- Git links libgit2 through `git2`; it never executes a local Git binary or uses the legacy `host.exec` entry. Remote pull is fast-forward only.
 - Git ships a React panel built to one static HTML file: status, staging, commit, history and worktree return.
 - Archive adds RAR extraction and creation via the pure-Rust `rars` codec, and ships a React advanced-compression panel.
 - Checksum ships a React multi-file checksum panel.

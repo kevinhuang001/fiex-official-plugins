@@ -27,7 +27,7 @@ class Fixture:
         self.readers = {}
         self.change_before_commit = False
         self.offline = False
-        self.call('plugin.initialize', {'protocolVersion':'3.0'})
+        self.call('plugin.initialize', {'protocolVersion':'4.0'})
 
     def call(self, method, params):
         self.sequence += 1

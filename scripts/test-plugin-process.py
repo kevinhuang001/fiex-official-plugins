@@ -32,7 +32,7 @@ def run(binary, plugin_id):
     with subprocess.Popen([str(binary.resolve())], stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
         for req, check in [
-            ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"3.0"}}, "init"),
+            ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"4.0"}}, "init"),
             ({"id":2,"method":"plugin.ping","params":{}}, "ping"),
             ({"id":3,"method":"test.unknown","params":{}}, "unknown"),
             ({"id":4,"method":"plugin.shutdown","params":{}}, "shutdown"),

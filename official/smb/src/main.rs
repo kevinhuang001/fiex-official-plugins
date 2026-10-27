@@ -1,19 +1,15 @@
 //! SMB protocol implementation. All socket operations are brokered by Core.
 mod sync;
 mod transport;
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    RpcError,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use smb::{GetLen, ReadAt};
-use std::{
-    collections::HashMap,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        mpsc, Arc, Mutex,
-    },
-    time::Duration,
-};
+use std::{io, str::FromStr};
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +24,7 @@ struct StoredConnection {
     password: String,
     port: Option<u16>,
 }
+
 /// A real remote file kept open for the lifetime of one `fs.openRead` stream.
 /// Reusing the connection, authenticated session, tree and file handle avoids
 /// reconnecting and re-authenticating for every read chunk.
@@ -39,24 +36,6 @@ struct OpenStream {
     total: u64,
 }
 
-enum StreamCommand {
-    Read {
-        offset: u64,
-        max: usize,
-        reply: mpsc::Sender<Result<Value, RpcError>>,
-    },
-    Close {
-        reply: mpsc::Sender<Result<Value, RpcError>>,
-    },
-}
-
-/// The stream is owned by a background task so its TCP connection, SMB
-/// session and remote file handle stay authorized after the opening request
-/// returns and are reclaimed when the stream is closed or cancelled.
-struct StreamHandle {
-    sender: mpsc::Sender<StreamCommand>,
-}
-
 impl Drop for OpenStream {
     fn drop(&mut self) {
         let _ = self.file.close();
@@ -64,6 +43,28 @@ impl Drop for OpenStream {
         let _ = self.session.logoff();
         let _ = self.connection.close();
     }
+}
+
+/// Standard `Read` over the open SMB handle; the SDK owns offsets and chunks.
+struct SmbReader {
+    stream: OpenStream,
+    offset: u64,
+}
+
+impl io::Read for SmbReader {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        let read = self
+            .stream
+            .file
+            .read_at(output, self.offset)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        self.offset += read as u64;
+        Ok(read)
+    }
+}
+
+fn fail(e: impl std::fmt::Display) -> RpcError {
+    RpcError::internal(e.to_string())
 }
 
 fn connect(
@@ -95,6 +96,12 @@ fn connect(
     Ok((connection, session, tree))
 }
 
+fn close(connection: smb::Connection, session: smb::Session, tree: smb::Tree) {
+    let _ = tree.disconnect();
+    let _ = session.logoff();
+    let _ = connection.close();
+}
+
 fn open_stream(
     tcp: &sdk::TcpClient,
     cfg: &StoredConnection,
@@ -123,21 +130,6 @@ fn open_stream(
     })
 }
 
-fn read_open_stream(stream: &OpenStream, offset: u64, max: usize) -> Result<Value, RpcError> {
-    let mut bytes = vec![0; max];
-    let read = stream
-        .file
-        .read_at(&mut bytes, offset)
-        .map_err(|error| RpcError::internal(error.to_string()))?;
-    bytes.truncate(read);
-    use base64::Engine;
-    Ok(json!({
-        "base64":base64::engine::general_purpose::STANDARD.encode(bytes),
-        "length":read,
-        "bytesRead":read,
-        "eof":offset.saturating_add(read as u64)>=stream.total
-    }))
-}
 fn safe_relative(path: &str) -> Result<(), RpcError> {
     if path.starts_with('/')
         || path.contains(['\\', '\0'])
@@ -147,6 +139,7 @@ fn safe_relative(path: &str) -> Result<(), RpcError> {
     }
     Ok(())
 }
+
 fn smb_path(cfg: &StoredConnection, path: &str) -> String {
     [cfg.base.trim_matches('/'), path.trim_matches('/')]
         .into_iter()
@@ -154,40 +147,152 @@ fn smb_path(cfg: &StoredConnection, path: &str) -> String {
         .collect::<Vec<_>>()
         .join("\\")
 }
-fn remote(
-    tcp: sdk::TcpClient,
-    cfg: StoredConnection,
-    path: String,
-    method: String,
-    params: Value,
-) -> Result<Value, RpcError> {
-    let logical = path.clone();
-    let run = || -> Result<Value, String> {
-        let port = cfg.port.unwrap_or(445);
-        let transport =
-            transport::HostTransport::open(&tcp, &cfg.host, port).map_err(|e| e.to_string())?;
-        let connection = smb::Connection::from_transport(
-            Box::new(transport),
-            &cfg.host,
-            smb::Guid::generate(),
-            smb::ConnectionConfig::default(),
-        )
-        .map_err(|e| e.to_string())?;
-        let identity = sspi::AuthIdentity {
-            username: sspi::Username::parse(&cfg.username).map_err(|e| e.to_string())?,
-            password: sspi::Secret::from(cfg.password.clone()),
-        };
-        let session = connection
-            .authenticate(identity)
-            .map_err(|e| e.to_string())?;
-        let unc = smb::UncPath::from_str(&format!("\\\\{}\\{}", cfg.host, cfg.share))
-            .map_err(|e| e.to_string())?;
-        let tree = session.tree_connect(&unc).map_err(|e| e.to_string())?;
-        let path = smb_path(&cfg, &path);
-        let result = if matches!(method.as_str(), "connection.validate" | "fs.list") {
-            let dir = tree
-                .create(
-                    &path,
+
+fn display_name(path: &str) -> String {
+    if path.is_empty() {
+        "root".into()
+    } else {
+        path.trim_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .to_string()
+    }
+}
+
+fn revision(file: &smb::File) -> Result<String, RpcError> {
+    let basic = file
+        .query_info::<smb::FileBasicInformation>()
+        .map_err(fail)?;
+    let size = file
+        .query_info::<smb::FileStandardInformation>()
+        .map_err(fail)?
+        .end_of_file;
+    Ok(format!(
+        "{:?}:{:?}:{size}",
+        basic.last_write_time, basic.change_time
+    ))
+}
+
+fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
+    serde_json::from_value(
+        request
+            .connection()
+            .cloned()
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+    )
+    .map_err(|e| RpcError::invalid_params(e.to_string()))
+}
+
+fn directory_entries(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+    path: &str,
+) -> Result<Vec<FsEntry>, RpcError> {
+    let (connection, session, tree) = connect(tcp, cfg).map_err(fail)?;
+    let result = (|| {
+        let dir = tree
+            .create(
+                &smb_path(cfg, path),
+                &smb::FileCreateArgs::make_open_existing(
+                    smb::DirAccessMask::new()
+                        .with_list_directory(true)
+                        .with_synchronize(true)
+                        .into(),
+                ),
+            )
+            .map_err(fail)?
+            .unwrap_dir();
+        let mut entries = Vec::new();
+        for item in dir
+            .query::<smb::FileFullDirectoryInformation>("*")
+            .map_err(fail)?
+        {
+            let item = item.map_err(fail)?;
+            let name = item.file_name.to_string();
+            if name == "." || name == ".." {
+                continue;
+            }
+            if entries.len() >= 100000 {
+                return Err(fail("remote directory too large"));
+            }
+            let directory = item.file_attributes.directory();
+            let node = if path.is_empty() {
+                name.clone()
+            } else {
+                format!("{path}/{name}")
+            };
+            let mut entry = if directory {
+                FsEntry::directory(node, name)
+            } else {
+                FsEntry::file(node, name)
+            };
+            entry.size = Some(item.end_of_file);
+            entry.modified = Some(0);
+            entry.revision = Some(format!(
+                "{:?}:{:?}:{}",
+                item.last_write_time, item.change_time, item.end_of_file
+            ));
+            entries.push(entry);
+        }
+        let _ = dir.close();
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(entries)
+    })();
+    close(connection, session, tree);
+    result
+}
+
+fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+    let cfg = connection(request)?;
+    let path = request.node_id().unwrap_or("").to_owned();
+    safe_relative(&path)?;
+    safe_relative(&cfg.base)?;
+    let entries = directory_entries(&request.ctx().tcp(), &cfg, &path)?;
+    let start = request
+        .params()
+        .get("cursor")
+        .and_then(Value::as_str)
+        .unwrap_or("0")
+        .parse::<usize>()
+        .map_err(|e| fail(e.to_string()))?;
+    if start > entries.len() {
+        return Err(fail("invalid pagination cursor"));
+    }
+    let limit = request
+        .params()
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(200)
+        .clamp(1, 500) as usize;
+    let end = start.saturating_add(limit).min(entries.len());
+    let next_cursor = (end < entries.len()).then(|| end.to_string());
+    Ok(FsListing {
+        entries: entries[start..end].to_vec(),
+        next_cursor,
+        warnings: Vec::new(),
+        truncated: false,
+    })
+}
+
+fn stat_path(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+    node: &str,
+) -> Result<FsEntry, RpcError> {
+    let (connection, session, tree) = connect(tcp, cfg).map_err(fail)?;
+    let result = (|| {
+        let target = smb_path(cfg, node);
+        let resource = tree
+            .create(
+                &target,
+                &smb::FileCreateArgs::make_open_existing(
+                    smb::FileAccessMask::new().with_generic_read(true),
+                ),
+            )
+            .or_else(|_| {
+                tree.create(
+                    &target,
                     &smb::FileCreateArgs::make_open_existing(
                         smb::DirAccessMask::new()
                             .with_list_directory(true)
@@ -195,215 +300,293 @@ fn remote(
                             .into(),
                     ),
                 )
-                .map_err(|e| e.to_string())?
-                .unwrap_dir();
-            let mut entries = Vec::new();
-            for item in dir
-                .query::<smb::FileFullDirectoryInformation>("*")
-                .map_err(|e| e.to_string())?
-            {
-                let item = item.map_err(|e| e.to_string())?;
-                let name = item.file_name.to_string();
-                if name == "." || name == ".." {
-                    continue;
-                }
-                if entries.len() >= 100000 {
-                    return Err("remote directory too large".into());
-                }
-                let node = if logical.is_empty() {
-                    name.clone()
-                } else {
-                    format!("{}/{}", logical, name)
-                };
-                entries.push(json!({"nodeId":node,"name":name,"kind":if item.file_attributes.directory(){"directory"}else{"file"},"size":item.end_of_file,"modified":0,"revision":format!("{:?}:{:?}:{}",item.last_write_time,item.change_time,item.end_of_file)}));
-            }
+            })
+            .map_err(fail)?;
+        if resource.is_dir() {
+            let dir = resource.unwrap_dir();
+            let revision = directory_revision(&dir)?;
             let _ = dir.close();
-            entries.sort_by_key(|v| v["name"].as_str().unwrap_or("").to_owned());
-            if method == "connection.validate" {
-                json!({"valid":true})
-            } else {
-                let start = params
-                    .get("cursor")
-                    .and_then(Value::as_str)
-                    .unwrap_or("0")
-                    .parse::<usize>()
-                    .map_err(|e| e.to_string())?;
-                if start > entries.len() {
-                    return Err("invalid pagination cursor".into());
-                }
-                let limit = params
-                    .get("limit")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(200)
-                    .clamp(1, 500) as usize;
-                let end = start.saturating_add(limit).min(entries.len());
-                json!({"entries":entries[start..end],"nextCursor":if end<entries.len(){Some(end.to_string())}else{None},"snapshotToken":null,"identityStability":"path"})
-            }
-        } else {
-            let file = tree
-                .create(
-                    &path,
-                    &smb::FileCreateArgs::make_open_existing(
-                        smb::FileAccessMask::new().with_generic_read(true),
-                    ),
-                )
-                .map_err(|e| e.to_string())?
-                .unwrap_file();
-            let total = file.get_len().map_err(|e| e.to_string())?;
-            let max = params
-                .get("maxBytes")
-                .and_then(Value::as_u64)
-                .unwrap_or(262144)
-                .clamp(1, 1048576) as usize;
-            let offset = params.get("offset").and_then(Value::as_u64).unwrap_or(0);
-            let mut bytes = vec![0; max];
-            let read = file
-                .read_at(&mut bytes, offset)
-                .map_err(|e| e.to_string())?;
-            bytes.truncate(read);
-            use base64::Engine;
-            let result = json!({"base64":base64::engine::general_purpose::STANDARD.encode(bytes),"length":read,"bytesRead":read,"eof":offset.saturating_add(read as u64)>=total});
-            let _ = file.close();
-            result
-        };
-        let _ = tree.disconnect();
-        let _ = session.logoff();
-        let _ = connection.close();
-        Ok(result)
-    };
-    run().map_err(RpcError::internal)
+            return Ok(FsEntry::directory(node.to_string(), display_name(node))
+                .with_size(0)
+                .with_revision(revision));
+        }
+        let file = resource.unwrap_file();
+        let size = file
+            .query_info::<smb::FileStandardInformation>()
+            .map_err(fail)?
+            .end_of_file;
+        let revision = revision(&file)?;
+        let _ = file.close();
+        Ok(FsEntry::file(node.to_string(), display_name(node))
+            .with_size(size)
+            .with_revision(revision))
+    })();
+    close(connection, session, tree);
+    result
 }
+
+fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let cfg = connection(request)?;
+    let node = request.node_id().unwrap_or("").to_owned();
+    safe_relative(&node)?;
+    safe_relative(&cfg.base)?;
+    // The mount root is the configured base directory.
+    if node.is_empty() {
+        return Ok(FsEntry::directory("", "root").with_size(0));
+    }
+    stat_path(&request.ctx().tcp(), &cfg, &node)
+}
+
+fn directory_revision(dir: &smb::Directory) -> Result<String, RpcError> {
+    let basic = dir
+        .query_info::<smb::FileBasicInformation>()
+        .map_err(fail)?;
+    let size = dir
+        .query_info::<smb::FileStandardInformation>()
+        .map_err(fail)?
+        .end_of_file;
+    Ok(format!(
+        "{:?}:{:?}:{size}",
+        basic.last_write_time, basic.change_time
+    ))
+}
+
+fn resource_revision(resource: &smb::Resource) -> Result<String, RpcError> {
+    if let Some(file) = resource.as_file() {
+        revision(file)
+    } else if let Some(dir) = resource.as_dir() {
+        directory_revision(dir)
+    } else {
+        Err(fail("unsupported SMB resource"))
+    }
+}
+
+fn mut_open(tree: &smb::Tree, target: &str) -> Result<smb::Resource, RpcError> {
+    tree.create(
+        target,
+        &smb::FileCreateArgs::make_open_existing(smb::FileAccessMask::new().with_generic_all(true)),
+    )
+    .map_err(fail)
+}
+
+fn mkdir(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let cfg = connection(request)?;
+    let parent = request.parent_id().unwrap_or("");
+    safe_relative(parent)?;
+    let name = request.name().ok_or_else(|| fail("missing name"))?;
+    valid_name(name)?;
+    let node = join_path(parent, name);
+    safe_relative(&node)?;
+    safe_relative(&cfg.base)?;
+    let (connection, session, tree) = connect(&request.ctx().tcp(), &cfg).map_err(fail)?;
+    let result = (|| {
+        let dir = tree
+            .create_directory(
+                &smb_path(&cfg, &node),
+                smb::CreateDisposition::Create,
+                smb::FileAccessMask::new().with_generic_all(true),
+            )
+            .map_err(fail)?
+            .unwrap_dir();
+        let revision = directory_revision(&dir)?;
+        let _ = dir.close();
+        Ok(FsEntry::directory(node.clone(), name.to_string())
+            .with_size(0)
+            .with_revision(revision))
+    })();
+    close(connection, session, tree);
+    result
+}
+
+fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let cfg = connection(request)?;
+    let node = request.node_id().ok_or_else(|| fail("missing nodeId"))?;
+    if node.is_empty() {
+        return Err(fail("cannot rename the mount root"));
+    }
+    safe_relative(node)?;
+    safe_relative(&cfg.base)?;
+    let (old_parent, old_name) = split_path(node);
+    let new_name = request.name().unwrap_or(old_name);
+    valid_name(new_name)?;
+    let new_parent = request.parent_id().unwrap_or(old_parent);
+    safe_relative(new_parent)?;
+    let new_node = join_path(new_parent, new_name);
+    safe_relative(&new_node)?;
+    let tcp = request.ctx().tcp();
+    if new_node == node {
+        return stat_path(&tcp, &cfg, &new_node);
+    }
+    let (connection, session, tree) = connect(&tcp, &cfg).map_err(fail)?;
+    let result = (|| {
+        let source = mut_open(&tree, &smb_path(&cfg, node))?;
+        if let Some(revision) = request.if_revision() {
+            if resource_revision(&source)? != revision {
+                return Err(fail("同步冲突：远端已修改"));
+            }
+        }
+        let info = smb::FileRenameInformation {
+            replace_if_exists: false.into(),
+            root_directory: 0,
+            file_name: smb_path(&cfg, &new_node).as_str().into(),
+        };
+        match source {
+            smb::Resource::File(file) => {
+                file.set_info(info).map_err(fail)?;
+                let _ = file.close();
+            }
+            smb::Resource::Directory(dir) => {
+                dir.set_info(info).map_err(fail)?;
+                let _ = dir.close();
+            }
+            _ => return Err(fail("unsupported SMB resource")),
+        }
+        Ok(())
+    })();
+    close(connection, session, tree);
+    result?;
+    stat_path(&tcp, &cfg, &new_node)
+}
+
+fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
+    let cfg = connection(request)?;
+    let node = request.node_id().ok_or_else(|| fail("missing nodeId"))?;
+    if node.is_empty() {
+        return Err(fail("cannot remove the mount root"));
+    }
+    safe_relative(node)?;
+    safe_relative(&cfg.base)?;
+    let (connection, session, tree) = connect(&request.ctx().tcp(), &cfg).map_err(fail)?;
+    let result = (|| {
+        let resource = mut_open(&tree, &smb_path(&cfg, node))?;
+        if let Some(revision) = request.if_revision() {
+            if resource_revision(&resource)? != revision {
+                return Err(fail("同步冲突：远端已修改"));
+            }
+        }
+        if resource.is_dir() {
+            let dir = resource.unwrap_dir();
+            let non_empty = dir
+                .query::<smb::FileFullDirectoryInformation>("*")
+                .map_err(fail)?
+                .filter_map(|item| item.ok())
+                .any(|item| {
+                    let name = item.file_name.to_string();
+                    name != "." && name != ".."
+                });
+            if non_empty {
+                let _ = dir.close();
+                return Err(fail("目录不为空，无法删除"));
+            }
+            dir.set_info(smb::FileDispositionInformation {
+                delete_pending: true.into(),
+            })
+            .map_err(fail)?;
+            let _ = dir.close();
+        } else {
+            let file = resource.unwrap_file();
+            file.set_info(smb::FileDispositionInformation {
+                delete_pending: true.into(),
+            })
+            .map_err(fail)?;
+            let _ = file.close();
+        }
+        Ok(())
+    })();
+    close(connection, session, tree);
+    result
+}
+
+fn valid_name(name: &str) -> Result<(), RpcError> {
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', ':', '\0']) {
+        return Err(RpcError::invalid_params("invalid name"));
+    }
+    Ok(())
+}
+
+fn join_path(parent: &str, name: &str) -> String {
+    if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}/{}", parent.trim_matches('/'), name)
+    }
+}
+
+fn split_path(node: &str) -> (&str, &str) {
+    node.rsplit_once('/').unwrap_or(("", node))
+}
+
+fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+    let cfg = connection(request)?;
+    let node = request
+        .node_id()
+        .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
+    safe_relative(node)?;
+    safe_relative(&cfg.base)?;
+    let stream = open_stream(&request.ctx().tcp(), &cfg, node)?;
+    let total = stream.total;
+    Ok(FsRead::new(SmbReader { stream, offset: 0 }, Some(total)))
+}
+
+fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let mount = ctx.params()["mountId"]
+        .as_str()
+        .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+    Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
+}
+
+fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let cfg: StoredConnection = serde_json::from_value(
+        ctx.params()
+            .get("connection")
+            .cloned()
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+    )
+    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    safe_relative(&cfg.base)?;
+    directory_entries(&ctx.tcp(), &cfg, "")?;
+    Ok(json!({"valid":true}))
+}
+
+struct Smb;
+
+#[sdk::filesystem]
+impl FileSystemProvider for Smb {
+    fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        list(request)
+    }
+
+    fn stat(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        stat(request)
+    }
+
+    fn read(&self, request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+        read(request)
+    }
+
+    fn write(&self, request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
+        sync::write(request)
+    }
+
+    fn mkdir(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        mkdir(request)
+    }
+
+    fn rename(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        rename(request)
+    }
+
+    fn remove(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
+        remove(request)
+    }
+}
+
 fn main() {
-    let streams: Mutex<HashMap<String, Arc<StreamHandle>>> = Mutex::new(HashMap::new());
-    let sequence = AtomicU64::new(0);
-    let result = sdk::serve("org.fiex.smb", move |ctx| {
-        let method = ctx.method();
-        if method == "connection.open" {
-            let mount = ctx.params()["mountId"]
-                .as_str()
-                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-            return Ok(
-                json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
-            );
-        }
-        if matches!(method, "fs.stat" | "fs.writeFile") {
-            return sync::dispatch(&ctx);
-        }
-        let p = ctx.params();
-        if !matches!(
-            method,
-            "connection.validate"
-                | "fs.list"
-                | "fs.readSmall"
-                | "fs.openRead"
-                | "fs.readStream"
-                | "fs.closeRead"
-        ) {
-            return Err(RpcError::method_not_found(method));
-        }
-        let stream_id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
-        if method == "fs.closeRead" {
-            let stream = streams
-                .lock()
-                .map_err(|_| RpcError::internal("stream registry unavailable"))?
-                .remove(stream_id);
-            if let Some(stream) = stream {
-                let (reply, response) = mpsc::channel();
-                let _ = stream.sender.send(StreamCommand::Close { reply });
-                let _ = response.recv_timeout(Duration::from_secs(30));
-            }
-            return Ok(Value::Null);
-        }
-        if method == "fs.readStream" {
-            let stream = streams
-                .lock()
-                .map_err(|_| RpcError::internal("stream registry unavailable"))?
-                .get(stream_id)
-                .cloned()
-                .ok_or_else(|| RpcError::invalid_params("unknown read stream"))?;
-            let max = p
-                .get("maxBytes")
-                .and_then(Value::as_u64)
-                .unwrap_or(262144)
-                .clamp(1, 1048576) as usize;
-            let offset = p.get("offset").and_then(Value::as_u64).unwrap_or(0);
-            let (reply, response) = mpsc::channel();
-            stream
-                .sender
-                .send(StreamCommand::Read { offset, max, reply })
-                .map_err(|_| RpcError::internal("SMB stream is closed"))?;
-            return response
-                .recv_timeout(Duration::from_secs(120))
-                .map_err(|_| RpcError::internal("SMB stream stopped responding"))?;
-        }
-        let cfg: StoredConnection = serde_json::from_value(
-            p.get("connection")
-                .cloned()
-                .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-        )
-        .map_err(|e| RpcError::invalid_params(e.to_string()))?;
-        let path = p
-            .get("directoryId")
-            .or_else(|| p.get("nodeId"))
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_owned();
-        safe_relative(&path)?;
-        safe_relative(&cfg.base)?;
-        if method == "fs.openRead" {
-            let (init_sender, init_receiver) = mpsc::channel();
-            let (sender, receiver) = mpsc::channel();
-            let task = ctx.spawn_internal_task("SMB 读取流", move |task| {
-                let tcp = task.tcp();
-                let stream = match open_stream(&tcp, &cfg, &path) {
-                    Ok(stream) => stream,
-                    Err(error) => {
-                        let _ = init_sender.send(Err(error.clone()));
-                        return Err(error);
-                    }
-                };
-                let _ = init_sender.send(Ok(stream.total));
-                loop {
-                    if task.is_cancelled() {
-                        break;
-                    }
-                    match receiver.recv_timeout(Duration::from_millis(200)) {
-                        Ok(StreamCommand::Read { offset, max, reply }) => {
-                            let _ = reply.send(read_open_stream(&stream, offset, max));
-                        }
-                        Ok(StreamCommand::Close { reply }) => {
-                            let _ = reply.send(Ok(Value::Null));
-                            break;
-                        }
-                        Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                    }
-                }
-                Ok(Value::Null)
-            })?;
-            let total = match init_receiver.recv_timeout(Duration::from_secs(30)) {
-                Ok(Ok(total)) => total,
-                Ok(Err(error)) => {
-                    task.cancel();
-                    return Err(error);
-                }
-                Err(_) => {
-                    task.cancel();
-                    return Err(RpcError::internal("SMB stream did not open"));
-                }
-            };
-            let mut streams = streams
-                .lock()
-                .map_err(|_| RpcError::internal("stream registry unavailable"))?;
-            if streams.len() >= 8 {
-                task.cancel();
-                return Err(RpcError::internal("too many read streams"));
-            }
-            let id = format!("smb-read-{}", sequence.fetch_add(1, Ordering::Relaxed) + 1);
-            streams.insert(id.clone(), Arc::new(StreamHandle { sender }));
-            return Ok(json!({"size": total, "streamId": id}));
-        }
-        remote(ctx.tcp(), cfg, path, method.to_owned(), p.clone())
+    let providers = sdk::Providers::new().filesystem(Smb);
+    let result = providers.serve_with("org.fiex.smb", |ctx| match ctx.method() {
+        "connection.open" => open(&ctx),
+        "connection.validate" => validate(&ctx),
+        method => Err(RpcError::method_not_found(method)),
     });
     if let Err(error) = result {
         eprintln!("SMB plugin IPC failed: {error}");

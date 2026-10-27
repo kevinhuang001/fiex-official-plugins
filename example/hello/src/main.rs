@@ -5,9 +5,12 @@
 //! expects. Run it with:
 //!
 //!   cargo run --manifest-path example/hello/Cargo.toml
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest},
+    RpcError,
+};
 use serde_json::{json, Value};
-use std::io::Cursor;
 
 const HELLO: &[u8] = b"hello example\n";
 
@@ -57,76 +60,50 @@ impl sdk::ConnectionProvider for HelloConnection {
     fn create(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
         connection_open(ctx)
     }
-    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({
-            "entries": [
-                {
-                    "name": "README.md",
-                    "nodeId": "readme",
-                    "kind": "file",
-                    "isDir": false,
-                    "size": HELLO.len(),
-                    "modified": 0,
-                    "revision": "1"
-                },
-                {
-                    "name": "docs",
-                    "nodeId": "docs",
-                    "kind": "directory",
-                    "isDir": true,
-                    "size": 0,
-                    "modified": 0,
-                    "revision": "1"
-                }
-            ],
-            "nextCursor": null
-        }))
-    }
-    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"revision": "1", "size": HELLO.len()}))
-    }
-    fn open_read(&self, _ctx: &sdk::RequestContext) -> Result<sdk::ConnectionReader, RpcError> {
-        Ok(sdk::ConnectionReader::new(
-            Cursor::new(HELLO.to_vec()),
-            Some(HELLO.len() as u64),
-        ))
-    }
 }
 
-struct HelloVfs;
+fn readme() -> FsEntry {
+    let mut entry = FsEntry::file("readme", "README.md")
+        .with_size(HELLO.len() as u64)
+        .with_revision("1")
+        .readonly();
+    entry.modified = Some(0);
+    entry.extension = Some("md".into());
+    entry.mime = Some("text/markdown".into());
+    entry
+}
 
-impl sdk::VfsProvider for HelloVfs {
-    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
-        Ok(vec![json!({
-            "name": "README.md",
-            "nodeId": "readme",
-            "kind": "file",
-            "isDir": false,
-            "size": HELLO.len(),
-            "modified": 0,
-            "extension": "md",
-            "mime": "text/markdown",
-            "readonly": true
-        })])
+fn docs() -> FsEntry {
+    let mut entry = FsEntry::directory("docs", "docs").readonly();
+    entry.modified = Some(0);
+    entry.size = Some(0);
+    entry
+}
+
+/// The typed file-system provider: `list`, `stat`, `read` and `search` are
+/// declared by the macro exactly as written here.
+struct HelloFiles;
+
+#[sdk::filesystem]
+impl FileSystemProvider for HelloFiles {
+    fn list(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        Ok(FsListing::new([readme(), docs()]))
     }
-    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({
-            "name": "README.md",
-            "nodeId": "readme",
-            "kind": "file",
-            "isDir": false,
-            "size": HELLO.len(),
-            "modified": 0,
-            "extension": "md",
-            "mime": "text/markdown",
-            "readonly": true
-        }))
+
+    fn stat(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        Ok(if request.node_id() == Some("docs") {
+            docs()
+        } else {
+            readme()
+        })
     }
-    fn read_small(&self, _ctx: &sdk::RequestContext) -> Result<Vec<u8>, RpcError> {
-        Ok(HELLO.to_vec())
+
+    fn read(&self, _request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+        Ok(FsRead::from_bytes(HELLO.to_vec()))
     }
-    fn search(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"entries": [], "truncated": false}))
+
+    fn search(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        Ok(FsListing::default())
     }
 }
 
@@ -285,7 +262,7 @@ fn custom(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 fn main() {
     let providers = sdk::Providers::new()
         .connection(HelloConnection)
-        .vfs(HelloVfs)
+        .filesystem(HelloFiles)
         .info(HelloInfo)
         .preview(HelloPreview)
         .decorations(HelloDecorations)

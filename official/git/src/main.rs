@@ -6,7 +6,11 @@ mod history_host;
 mod ignores;
 mod remote_host;
 
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest},
+    RpcError,
+};
 use serde_json::{json, Value};
 
 fn param<'a>(p: &'a Value, name: &str) -> Result<&'a str, RpcError> {
@@ -32,6 +36,111 @@ fn response<T: serde::Serialize>(result: Result<T, String>) -> Result<Value, Rpc
     serde_json::to_value(result.map_err(RpcError::internal)?)
         .map_err(|e| RpcError::internal(e.to_string()))
 }
+
+fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+    let host = request.ctx();
+    let path = request.node_id().unwrap_or("");
+    let result = history_host::list(path, request.hidden(), &request.ignores(), host)
+        .map_err(RpcError::internal)?;
+    let start = request
+        .params()
+        .get("cursor")
+        .and_then(Value::as_str)
+        .unwrap_or("0")
+        .parse::<usize>()
+        .map_err(|_| RpcError::invalid_params("invalid cursor"))?;
+    let limit = request
+        .params()
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(200)
+        .clamp(1, 500) as usize;
+    let total = result.entries.len();
+    if start > total {
+        return Err(RpcError::invalid_params("cursor out of range"));
+    }
+    let end = (start + limit).min(total);
+    Ok(FsListing {
+        entries: result.entries[start..end]
+            .iter()
+            .cloned()
+            .map(history_host::fs_entry)
+            .collect(),
+        next_cursor: (end < total).then(|| end.to_string()),
+        warnings: result.warnings,
+        truncated: false,
+    })
+}
+
+fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let path = request.node_id().unwrap_or("");
+    history_host::info(path, request.ctx())
+        .map(history_host::fs_entry)
+        .map_err(RpcError::internal)
+}
+
+fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+    let path = request
+        .node_id()
+        .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?;
+    let bytes = history_host::blob(path, request.ctx()).map_err(RpcError::internal)?;
+    Ok(FsRead::from_bytes(bytes))
+}
+
+fn search(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+    let path = request
+        .node_id()
+        .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?;
+    let query = request
+        .query()
+        .ok_or_else(|| RpcError::invalid_params("missing query"))?;
+    let limit = request
+        .params()
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(500)
+        .clamp(1, 2000) as usize;
+    let mut entries = history_host::search(
+        path,
+        query,
+        request.hidden(),
+        &request.ignores(),
+        request.ctx(),
+    )
+    .map_err(RpcError::internal)?;
+    let truncated = entries.len() > limit;
+    entries.truncate(limit);
+    Ok(FsListing {
+        entries: entries.into_iter().map(history_host::fs_entry).collect(),
+        next_cursor: None,
+        warnings: Vec::new(),
+        truncated,
+    })
+}
+
+/// Git history is a read-only standalone view: only list/stat/read/search are
+/// declared, so Core never offers write, rename or remove.
+struct GitView;
+
+#[sdk::filesystem]
+impl FileSystemProvider for GitView {
+    fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        list(request)
+    }
+
+    fn stat(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        stat(request)
+    }
+
+    fn read(&self, request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+        read(request)
+    }
+
+    fn search(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        search(request)
+    }
+}
+
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
@@ -90,106 +199,13 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             p.get("branch").and_then(Value::as_str),
             host,
         )),
-        // Core routes registered views (declared in extensions.vfs)
-        // through the same generic VFS methods for every plugin.
-        "vfs.list" => {
-            let path = param(p, "nodeId")?;
-            let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
-            let ignores = p
-                .get("ignores")
-                .and_then(Value::as_array)
-                .map(|values| {
-                    values
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let result =
-                history_host::list(path, hidden, &ignores, host).map_err(RpcError::internal)?;
-            let start = p
-                .get("cursor")
-                .and_then(Value::as_str)
-                .unwrap_or("0")
-                .parse::<usize>()
-                .map_err(|_| RpcError::invalid_params("invalid cursor"))?;
-            let limit = p
-                .get("limit")
-                .and_then(Value::as_u64)
-                .unwrap_or(200)
-                .clamp(1, 500) as usize;
-            if start > result.entries.len() {
-                return Err(RpcError::invalid_params("cursor out of range"));
-            }
-            let end = (start + limit).min(result.entries.len());
-            let entries = result.entries[start..end]
-                .iter()
-                .cloned()
-                .map(history_host::provider_entry)
-                .collect::<Vec<_>>();
-            Ok(json!({
-                "entries": entries,
-                "nextCursor": if end < result.entries.len() { Some(end.to_string()) } else { None },
-                "snapshotToken": serde_json::Value::Null,
-                "warnings": result.warnings
-            }))
-        }
-        "vfs.stat" => response(
-            history_host::info(param(p, "nodeId")?, host).map(history_host::provider_entry),
-        ),
-        "vfs.readSmall" => {
-            use base64::Engine;
-            let mut bytes =
-                history_host::blob(param(p, "nodeId")?, host).map_err(RpcError::internal)?;
-            let max = p
-                .get("maxBytes")
-                .and_then(Value::as_u64)
-                .unwrap_or(262144)
-                .clamp(1, 1024 * 1024) as usize;
-            bytes.truncate(max);
-            Ok(json!({
-                "base64": base64::engine::general_purpose::STANDARD.encode(&bytes),
-                "length": bytes.len()
-            }))
-        }
-        "vfs.search" => {
-            let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
-            let ignores = p
-                .get("ignores")
-                .and_then(Value::as_array)
-                .map(|values| {
-                    values
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let limit = p
-                .get("limit")
-                .and_then(Value::as_u64)
-                .unwrap_or(500)
-                .clamp(1, 2000) as usize;
-            let mut entries = history_host::search(
-                param(p, "nodeId")?,
-                param(p, "query")?,
-                hidden,
-                &ignores,
-                host,
-            )
-            .map_err(RpcError::internal)?;
-            let truncated = entries.len() > limit;
-            entries.truncate(limit);
-            Ok(
-                json!({"entries": entries.into_iter().map(history_host::provider_entry).collect::<Vec<_>>(), "truncated": truncated}),
-            )
-        }
         _ => Err(RpcError::method_not_found(method)),
     }
 }
+
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.git", dispatch) {
+    let providers = sdk::Providers::new().filesystem(GitView);
+    if let Err(e) = providers.serve_with("org.fiex.git", dispatch) {
         eprintln!("Git plugin IPC error: {e}");
         std::process::exit(1);
     }

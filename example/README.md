@@ -152,8 +152,8 @@ Provider 就不会注册该事件。
 | `SearchProvider` | `search.query` |
 | `HookProvider` | `hooks.invoke` |
 | `ToolbarProvider` | `toolbar.invoke` |
-| `ConnectionProvider` | `connection.validate/open/create`、`fs.list/stat/writeFile`、流式 `fs.openRead/readStream/closeRead`（`open_read` 返回 `ConnectionReader`，SDK 管理 stream ID、offset 和关闭） |
-| `VfsProvider` | `vfs.list/stat/readSmall/search` |
+| `ConnectionProvider` | `connection.validate/open/create`（生命周期） |
+| `FileSystemProvider` | `fs.list/stat/read/write/mkdir/rename/remove/search`；`#[fiex_sdk::filesystem]` 只把实际写进 impl 的方法计入能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
 
 `RequestContext` 常用方法（协议 4.0 只接受 `ResourceRef`）：
 
@@ -281,12 +281,12 @@ Connection 导航**不能**返回弹窗、侧面板、局部 iframe 或外部 UR
 声明了 `extensions.vfs` 后，Core 会把挂载点内的请求转给插件，常用方法：
 
 ```text
-fs.list      { connection, directoryId, limit?, cursor? } -> { entries[], nextCursor? }
-fs.stat      { connection, nodeId }                        -> { revision, size? }
-fs.openRead  { connection, nodeId }                        -> { streamId }
-fs.readStream{ streamId, offset, maxBytes }                -> { base64, eof }
-fs.closeRead { streamId }                                  -> null
-fs.writeFile { connection, nodeId, source, size, ifRevision } -> { revision }
+fs.list      { mountId, nodeId, cursor?, limit } -> { entries[], nextCursor?, warnings? }
+fs.stat      { mountId, nodeId }                 -> FsEntry
+fs.search    { mountId, nodeId, query, limit }   -> { entries[], truncated? }
+fs.beginWrite{ mountId, nodeId?, parentId?, name?, size?, ifRevision? } -> { streamId }
+fs.writeStream / fs.commit / fs.abort            （SDK 负责分块与提交）
+fs.openRead / fs.readStream / fs.closeRead       （SDK 负责读流）
 ```
 
 示例只实现了只读的内存树。真实实现要注意：

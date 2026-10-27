@@ -77,28 +77,34 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 json!({"connection":config,"nodeId":"hello.txt"}),
             )
             .unwrap();
-        let params = json!({"connection":config,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline["revision"]});
-        // The exact same call without a selection cannot read the snapshot.
-        assert!(plugin_host::global()
-            .invoke(id, "fs.writeFile", params.clone())
-            .is_err());
-        let committed = plugin_host::global()
-            .invoke_selected(
+        let begin = plugin_host::global()
+            .invoke(
                 id,
-                "fs.writeFile",
-                params.clone(),
-                source_dir.path().to_str().unwrap(),
-                std::slice::from_ref(&source),
+                "fs.beginWrite",
+                json!({"connection":config,"nodeId":"hello.txt","size":contents.len(),"ifRevision":baseline["revision"]}),
             )
+            .unwrap();
+        let stream = begin["streamId"].as_str().unwrap().to_string();
+        let mut offset = 0usize;
+        for chunk in contents.chunks(256 * 1024) {
+            plugin_host::global()
+                .invoke(
+                    id,
+                    "fs.writeStream",
+                    json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
+                )
+                .unwrap();
+            offset += chunk.len();
+        }
+        let committed = plugin_host::global()
+            .invoke(id, "fs.commit", json!({"streamId":stream}))
             .unwrap();
         assert_ne!(committed["revision"], baseline["revision"]);
         assert!(plugin_host::global()
-            .invoke_selected(
+            .invoke(
                 id,
-                "fs.writeFile",
-                params,
-                source_dir.path().to_str().unwrap(),
-                std::slice::from_ref(&source)
+                "fs.beginWrite",
+                json!({"connection":config,"nodeId":"hello.txt","size":1,"ifRevision":baseline["revision"]}),
             )
             .is_err());
         let opened = plugin_host::global()

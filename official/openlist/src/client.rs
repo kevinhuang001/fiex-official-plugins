@@ -1,8 +1,8 @@
 //! OpenList authentication and JSON-over-HTTP plumbing.
 //!
-//! The account comes from the plugin settings while the connection owns the
-//! server address. A single in-memory bearer token is cached per instance and
-//! transparently refreshed once when the server reports it as stale.
+//! Every credential travels with the connection that owns the server address,
+//! so one profile can reach several servers. Bearer tokens are cached per
+//! (server, account) and refreshed once when the server reports them stale.
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -17,73 +17,63 @@ pub(crate) struct Config {
     timeout: u64,
 }
 
-/// Cached login token for one plugin instance.
+/// Cached login token, keyed by server and account.
 #[derive(Default)]
 pub(crate) struct Session {
-    token: Mutex<Option<String>>,
+    token: Mutex<Option<(String, String)>>,
 }
 
-fn stored(host: &sdk::RequestContext, key: &str) -> Option<Value> {
-    host.storage().get::<Value>(key).ok().flatten()
-}
-
-fn text(value: Option<Value>) -> String {
+fn text(value: Option<&Value>) -> String {
     value
-        .as_ref()
         .and_then(Value::as_str)
         .unwrap_or("")
         .trim()
         .to_string()
 }
 
-pub(crate) fn config(
-    host: &sdk::RequestContext,
-    connection: Option<&Value>,
-) -> Result<Config, RpcError> {
-    // The connection owns the server address so Core can approve exactly that
-    // host; the account itself comes from the plugin settings.
-    let from_connection = connection
-        .and_then(|value| value.get("url"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    let url = if from_connection.trim().is_empty() {
-        text(stored(host, "url"))
-    } else {
-        from_connection.trim().to_string()
-    }
-    .trim_end_matches('/')
-    .to_string();
+fn number(value: Option<&Value>, fallback: u64) -> u64 {
+    value
+        .and_then(|value| {
+            value
+                .as_u64()
+                .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))
+        })
+        .unwrap_or(fallback)
+        .clamp(5, 120)
+}
+
+/// The connection owns the server address, the account and the timeout, so
+/// Core approves exactly the resources that connection was created for.
+pub(crate) fn config(connection: Option<&Value>) -> Result<Config, RpcError> {
+    let connection = connection.ok_or_else(|| RpcError::internal("缺少连接配置"))?;
+    let url = text(connection.get("url"))
+        .trim_end_matches('/')
+        .to_string();
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(RpcError::internal("请在插件设置中填写 http(s) 服务器地址"));
+        return Err(RpcError::internal(
+            "请在连接设置中填写 http(s) 服务器地址",
+        ));
     }
-    let timeout = stored(host, "timeout")
-        .as_ref()
-        .and_then(Value::as_u64)
-        .unwrap_or(30)
-        .clamp(5, 120);
     Ok(Config {
         url,
-        username: text(stored(host, "username")),
-        password: host
-            .secrets()
-            .get::<String>("password")
-            .map_err(|error| RpcError::internal(error.to_string()))?
-            .unwrap_or_default()
-            .trim()
-            .to_string(),
-        timeout,
+        username: text(connection.get("username")),
+        password: text(connection.get("password")),
+        timeout: number(connection.get("timeout"), 30),
     })
 }
 
-fn post(
-    host: &sdk::RequestContext,
+fn session_key(cfg: &Config) -> String {
+    format!("{}\n{}", cfg.url, cfg.username)
+}
+
+pub(crate) fn post_http(
+    http: &sdk::HttpClient,
     cfg: &Config,
     token: Option<&str>,
     endpoint: &str,
     body: &Value,
 ) -> Result<Value, RpcError> {
-    let client = host.http();
-    let mut request = client
+    let mut request = http
         .request("POST", &format!("{}{endpoint}", cfg.url))
         .timeout(Duration::from_secs(cfg.timeout))
         .header("Content-Type", "application/json");
@@ -116,6 +106,16 @@ fn post(
     Ok(parsed)
 }
 
+fn post(
+    host: &sdk::RequestContext,
+    cfg: &Config,
+    token: Option<&str>,
+    endpoint: &str,
+    body: &Value,
+) -> Result<Value, RpcError> {
+    post_http(&host.http(), cfg, token, endpoint, body)
+}
+
 fn login(host: &sdk::RequestContext, cfg: &Config) -> Result<String, RpcError> {
     let parsed = post(
         host,
@@ -137,19 +137,22 @@ pub(crate) fn token(
     cfg: &Config,
     session: &Session,
 ) -> Result<String, RpcError> {
-    if let Some(value) = session
+    let key = session_key(cfg);
+    if let Some((cached, value)) = session
         .token
         .lock()
         .map_err(|_| RpcError::internal("session cache unavailable"))?
-        .clone()
+        .as_ref()
     {
-        return Ok(value);
+        if *cached == key {
+            return Ok(value.clone());
+        }
     }
     let value = login(host, cfg)?;
     *session
         .token
         .lock()
-        .map_err(|_| RpcError::internal("session cache unavailable"))? = Some(value.clone());
+        .map_err(|_| RpcError::internal("session cache unavailable"))? = Some((key, value.clone()));
     Ok(value)
 }
 
@@ -181,9 +184,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stored_settings_are_typed() {
-        assert_eq!(text(Some(json!("  x  "))), "x");
-        assert_eq!(text(Some(json!(3))), "");
+    fn connection_fields_are_typed() {
+        assert_eq!(text(Some(&json!("  x  "))), "x");
+        assert_eq!(text(Some(&json!(3))), "");
         assert_eq!(text(None), "");
+        assert_eq!(number(Some(&json!(30)), 5), 30);
+        assert_eq!(number(Some(&json!("45")), 5), 45);
+        assert_eq!(number(Some(&json!("1")), 5), 5);
+        assert_eq!(number(None, 30), 30);
+    }
+
+    #[test]
+    fn session_key_separates_servers_and_accounts() {
+        let first = Config {
+            url: "https://a.example".into(),
+            username: "one".into(),
+            password: String::new(),
+            timeout: 30,
+        };
+        let mut second = first.clone();
+        assert_eq!(session_key(&first), session_key(&second));
+        second.username = "two".into();
+        assert_ne!(session_key(&first), session_key(&second));
     }
 }

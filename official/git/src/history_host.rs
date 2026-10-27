@@ -35,12 +35,31 @@ fn request_route(path: &str, host: &sdk::RequestContext) -> Result<Route, String
     route(path, &host.params()["viewContext"]).ok_or_else(|| "无效历史上下文".into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
-pub fn provider_entry(entry: Entry) -> Value {
+/// The blob path is stable for one commit, so it doubles as the node id.
+pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
+    use sdk::filesystem::{FsEntry, FsKind};
     let node = entry.path.clone();
-    let mut value = serde_json::to_value(entry).expect("entry serializes");
-    value["nodeId"] = json!(node);
-    value["relativePath"] = json!(node);
-    value
+    let kind = if entry.is_dir {
+        FsKind::Directory
+    } else if entry.is_symlink {
+        FsKind::Symlink
+    } else {
+        FsKind::File
+    };
+    FsEntry {
+        node_id: node.clone(),
+        name: entry.name,
+        kind,
+        size: Some(entry.size),
+        modified: Some(entry.modified as i64),
+        extension: (!entry.extension.is_empty()).then_some(entry.extension),
+        mime: Some(entry.mime),
+        revision: None,
+        readonly: Some(true),
+        link_target: entry.link_target,
+        allowed_ops: None,
+        relative_path: Some(node),
+    }
 }
 pub fn history(
     root: &sdk::ResourceRef,

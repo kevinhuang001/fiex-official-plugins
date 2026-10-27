@@ -9,13 +9,15 @@ VFS 是 Core 与插件之间的**节点协议**，不是真实挂载。Core 负�
 Explorer 切到 fiex://mount/<id>/
       │
       ▼
-Core 调 vfs.list / vfs.stat / vfs.readSmall / vfs.search
+Core 调 fs.list / fs.stat / fs.search / fs.read
       │
       ▼
 插件返回节点、revision、内容
 ```
 
-独立 VFS 用 `VfsProvider`；连接内的文件树用 `ConnectionProvider` 的 `fs.*`。
+协议 5 只有一套 `FileSystemProvider`：连接挂载和独立视图使用相同的方法、
+DTO 和流语义，差别只在请求携带的身份块（`connection` 或
+`contributionId`/`viewContext`）。
 
 ## Manifest
 
@@ -27,57 +29,67 @@ Core 调 vfs.list / vfs.stat / vfs.readSmall / vfs.search
 
 `vfs` 是单个对象。连接工厂还要声明 `extensions.connections`。
 
-## Rust 实现：独立 VFS
+## Rust 实现
 
 ```rust
-struct ExampleVfs;
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest},
+    RpcError,
+};
 
-impl sdk::VfsProvider for ExampleVfs {
-    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
-        Ok(vec![json!({
-            "name": "README.md", "nodeId": "readme", "kind": "file",
-            "isDir": false, "size": 14, "modified": 0,
-            "extension": "md", "mime": "text/markdown", "readonly": true
-        })])
+struct ExampleFs;
+
+#[sdk::filesystem]
+impl FileSystemProvider for ExampleFs {
+    fn list(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        Ok(FsListing::new([
+            FsEntry::file("readme", "README.md")
+                .with_size(14)
+                .with_revision("1")
+                .readonly(),
+        ]))
     }
-    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({
-            "name": "README.md", "nodeId": "readme", "kind": "file",
-            "isDir": false, "size": 14, "modified": 0,
-            "extension": "md", "mime": "text/markdown", "readonly": true
-        }))
+
+    fn stat(&self, _request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        Ok(FsEntry::file("readme", "README.md")
+            .with_size(14)
+            .with_revision("1")
+            .readonly())
     }
-    fn read_small(&self, _ctx: &sdk::RequestContext) -> Result<Vec<u8>, RpcError> {
-        Ok(b"hello example\n".to_vec())
+
+    fn read(&self, _request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+        Ok(FsRead::from_bytes(b"hello example\n".to_vec()))
     }
-    fn search(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"entries": [], "truncated": false}))
+
+    fn search(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        Ok(FsListing::default())
     }
 }
 ```
 
-## 连接内的文件树
+只写进 impl 的方法才会出现在能力声明里；只读插件不要实现 `write`、
+`mkdir`、`rename`、`remove`。
 
-连接文件树由 `ConnectionProvider` 提供：
+`#[fiex_sdk::filesystem]` 生成 `fs.*` 分发器，SDK 自动管理
+`fs.openRead/readStream/closeRead` 的 offset、分块和 `fs.closeRead`，以及
+`fs.beginWrite/writeStream/commit/abort` 的顺序写入。不要手写 stream ID 表。
+
+注册时把 provider 交给 `Providers`，自定义 RPC 仍走 fallback：
 
 ```rust
-impl sdk::ConnectionProvider for ExampleConnection {
-    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> { /* fs.list */ }
-    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> { /* fs.stat */ }
-    fn open_read(&self, _ctx: &sdk::RequestContext)
-        -> Result<sdk::ConnectionReader, RpcError> { /* fs.openRead + stream */ }
-}
+let providers = sdk::Providers::new()
+    .connection(ExampleConnection) // connection.validate/open/create
+    .filesystem(ExampleFs);
+providers.serve_with("org.example.plugin", custom)?;
 ```
-
-`open_read` 返回 `ConnectionReader`，SDK 自动管理 `fs.readStream` 的 offset、
-分块和 `fs.closeRead`。不要手写 stream ID 表。
 
 ## 规则
 
 - `nodeId` 是插件命名空间内稳定 ID，不是宿主路径；
 - 内容变化时 `revision` 必须变化；
-- 大文件用流式读取，不要整文件塞进一条 JSON；
-- `search` 返回 `relativePath`，Core 会绑定到自己的 mount；
+- 读取返回标准 `Read`，写入返回标准 `Write`，大文件不要整文件塞进一条 JSON；
+- `search` 返回的条目带 `relativePath`，Core 会绑定到自己的 mount；
 - 路径穿越（`../`、绝对路径、symlink）必须在插件侧拒绝。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs)。

@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "4.0",
+    "protocolVersion": "5.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-git.exe",
       "macos-aarch64": "fiex-plugin-git",

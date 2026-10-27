@@ -28,7 +28,7 @@ class Fixture:
         self.readers = {}
         self.change_before_commit = False
         self.offline = False
-        self.call('plugin.initialize', {'protocolVersion':'4.0'})
+        self.call('plugin.initialize', {'protocolVersion':'5.0'})
 
     def call(self, method, params):
         self.sequence += 1
@@ -82,12 +82,15 @@ class Fixture:
         elif '/files?q=' in url:
             body = json.dumps({'files':[{'id':'file1','name':'data.bin','mimeType':'application/octet-stream','size':str(len(self.content)),'version':self.version}]}).encode()
         elif 'alt=media' in url:
-            value = p['headers']['Range'].removeprefix('bytes=')
-            start, end = map(int,value.split('-'))
-            end = min(end,len(self.content)-1)
-            status = 206
-            headers['content-range'] = f'bytes {start}-{end}/{len(self.content)}'
-            body = self.content[start:end+1]
+            if 'Range' in p['headers']:
+                value = p['headers']['Range'].removeprefix('bytes=')
+                start, end = map(int,value.split('-'))
+                end = min(end,len(self.content)-1)
+                status = 206
+                headers['content-range'] = f'bytes {start}-{end}/{len(self.content)}'
+                body = self.content[start:end+1]
+            else:
+                body = self.content
         elif 'uploadType=media' in url:
             assert p['headers']['If-Match'] == f'"{self.version}"'
             assert not base64.b64decode(p['bodyBase64'])
@@ -137,8 +140,9 @@ def main():
     try:
         def call(method, **params):
             return f.call(method, {'connection':cfg,**params})
-        assert call('connection.validate')['result']['valid']
-        entries = call('fs.list',directoryId='',cursor='0')['result']['entries']
+        validated = call('connection.validate')
+        assert 'result' in validated, validated
+        entries = call('fs.list',nodeId='',cursor='0')['result']['entries']
         assert entries[0]['nodeId'] == 'file1' and entries[0]['revision'] == '1'
         stream = call('fs.openRead',nodeId='file1')['result']['streamId']
         parts = []
@@ -150,18 +154,30 @@ def main():
         f.offline = True
         assert 'error' in call('fs.stat',nodeId='file1')
         f.offline = False
+        def upload(data,if_revision,node='file1'):
+            opened=call('fs.beginWrite',nodeId=node,size=len(data),ifRevision=if_revision)
+            if 'error' in opened: return opened
+            stream=opened['result']['streamId']
+            offset=0
+            while offset<len(data):
+                chunk=data[offset:offset+262144]
+                pushed=call('fs.writeStream',streamId=stream,offset=offset,
+                            base64=base64.b64encode(chunk).decode())
+                if 'error' in pushed:
+                    call('fs.abort',streamId=stream)
+                    return pushed
+                offset+=len(chunk)
+            return call('fs.commit',streamId=stream)
         f.source = b'y' * (262144+17)
-        assert 'error' in call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=len(f.source),ifRevision='stale')
-        assert 'error' in call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=1,ifRevision='1')
-        assert call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=len(f.source),ifRevision='1')['result']['revision'] == '2'
+        assert 'error' in upload(f.source,'stale')
+        assert upload(f.source,'1')['result']['revision'] == '2'
         assert f.content == f.source
         f.change_before_commit = True
-        f.source = b'z'
-        assert 'error' in call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=1,ifRevision='2')
+        assert 'error' in upload(b'z','2')
         assert f.content == b'y' * (262144+17)
         f.change_before_commit = False
         f.source = b''
-        assert call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=0,ifRevision='3')['result']['revision'] == '4'
+        assert upload(f.source,'3')['result']['revision'] == '4'
         assert f.content == b''
         assert not f.readers
         assert not f.streams

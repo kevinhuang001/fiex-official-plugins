@@ -55,11 +55,12 @@ panels/commands.
 
 Standard events (`info.resolve`, `preview.open`, `decorations.resolve`,
 `contextMenu.resolve/execute`, `search.query`, `hooks.invoke`, `toolbar.invoke`,
-`connection.*`, `fs.*`, `vfs.*`) can be registered with the optional
-`sdk::Providers` API instead of a hand-written `match ctx.method()`. Connection
-streaming is covered too: `ConnectionProvider::open_read` returns a
-`ConnectionReader` and the SDK owns `fs.openRead/readStream/closeRead` stream
-IDs, offsets and cleanup. Custom RPC remains in the `serve_with` fallback.
+`connection.*`) can be registered with the optional `sdk::Providers` API
+instead of a hand-written `match ctx.method()`. File access is one typed
+`FileSystemProvider`: annotate the impl with `#[fiex_sdk::filesystem]` and the
+macro declares exactly the implemented operations and generates the `fs.*`
+dispatcher. The SDK owns read/write stream IDs, offsets, `commit`/`abort` and
+cleanup. Custom RPC remains in the `serve_with` fallback.
 
 ```rust
 sdk::Providers::new()
@@ -67,6 +68,7 @@ sdk::Providers::new()
     .preview(MyPreview)
     .context_menu(MyMenu)
     .connection(MyConnection)
+    .filesystem(MyDrive)
     .serve_with("org.example.plugin", |ctx| custom(ctx))
 ```
 
@@ -142,8 +144,8 @@ Core's own CI uses the standalone SDK mock process.
 
 Standalone virtual trees declare `extensions.vfs`; connection factories declare `extensions.connections` and also register `extensions.vfs` when they expose files. No provider declares a URI scheme or a `capabilities` block. Core generates all `fiex://mount/<id>/` navigation URIs and enforces provider ownership and selected-resource scope.
 
-Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `vfs.*` through the supplied `viewContext` and opaque `nodeId`. It does not snapshot repositories or participate in connection sync.
+Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `fs.list/stat/read/search` through the supplied `viewContext` and opaque `nodeId` (the blob path). It does not snapshot repositories or participate in connection sync.
 
-All connection uploads use `fs.writeFile` with an exact Core snapshot grant. Google Drive implements resumable chunking internally. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
+All uploads use `fs.beginWrite` / `fs.writeStream` / `fs.commit`, with `fs.abort` discarding an uncommitted stream. Google Drive implements resumable chunking in its writer and finishes in the commit callback. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
 
 `test-git-vfs.py`, `test-gdrive.py` and `test-connection-sync.py` exercise real provider processes against deterministic brokers. The separate Core-host and live WebDAV/SMB CI jobs retain actual sandbox/network integration coverage.

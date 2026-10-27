@@ -30,7 +30,7 @@ class Git:
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.watchdog = threading.Timer(120, self.child.kill)
         self.watchdog.start()
-        self.call('plugin.initialize', {'protocolVersion': '4.0'})
+        self.call('plugin.initialize', {'protocolVersion': '5.0'})
 
     def call(self, method, params):
         self.sequence += 1
@@ -62,7 +62,9 @@ class Git:
             ipc.send(self.child.stdin, {'jsonrpc': '2.0', 'id': message['id'], 'result': value})
 
     def request(self, uri, method, **params):
-        return self.call(method, {'contributionId': 'history', 'viewContext': self.views[uri], 'nodeId': '', **params})
+        mount = uri.split('/')[3]
+        return self.call(method, {'mountId': mount, 'contributionId': 'history',
+                                  'viewContext': self.views[uri], 'nodeId': '', **params})
 
     def close(self):
         try:
@@ -100,19 +102,31 @@ def main():
             b = plugin.call('git.browse', {'root': REF, 'reference': commit_b})['result']
             assert a != b
             assert plugin.views[a]['commitId'] == commit_a and plugin.views[b]['commitId'] == commit_b
-            listing = plugin.request(a, 'vfs.list', hidden=True, limit=200)['result']
+            listing = plugin.request(a, 'fs.list', hidden=True, limit=200)['result']
             entry = listing['entries'][0]
             assert entry['name'] == name and entry['nodeId'] == name
-            info = plugin.request(a, 'vfs.stat', nodeId=name)['result']
+            info = plugin.request(a, 'fs.stat', nodeId=name)['result']
             assert info['readonly'] and info['size'] == len(payload)
             for uri, expected in [(a, payload), (b, b'changed'), (a, payload)]:
-                response = plugin.request(uri, 'vfs.readSmall', nodeId=name, maxBytes=1024)['result']
-                assert base64.b64decode(response['base64']) == expected
-            found = plugin.request(a, 'vfs.search', query='中文', hidden=True, limit=10)['result']['entries']
+                opened = plugin.request(uri, 'fs.openRead', nodeId=name)['result']
+                stream = opened['streamId']
+                parts = []
+                offset = 0
+                while offset < len(expected):
+                    part = plugin.request(uri, 'fs.readStream', streamId=stream,
+                                          offset=offset, maxBytes=min(1024, len(expected) - offset))['result']
+                    parts.append(base64.b64decode(part['base64']))
+                    offset += len(base64.b64decode(part['base64']))
+                    assert not part['eof'] or offset >= len(expected)
+                plugin.request(uri, 'fs.closeRead', streamId=stream)
+                assert b''.join(parts) == expected
+            searched = plugin.request(a, 'fs.search', query='中文', hidden=True, limit=10)
+            assert 'result' in searched, searched
+            found = searched['result']['entries']
             assert found[0]['relativePath'] == name
-            assert 'error' in plugin.request(a, 'vfs.list', nodeId='../escape')
+            assert 'error' in plugin.request(a, 'fs.list', nodeId='../escape')
             assert 'error' in plugin.call('git.browse', {'root': REF, 'reference': 'missing-object'})
-            assert 'error' in plugin.call('fs.writeFile', {'connection': {}, 'nodeId': name})
+            assert 'error' in plugin.request(a, 'fs.beginWrite', nodeId=name, size=1)
             assert not Path(root, '.fiex').exists()
             print('PASS Git: immutable views, binary previews, opaque nodes, Unicode names and invalid contexts')
         finally:

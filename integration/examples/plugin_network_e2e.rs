@@ -155,8 +155,10 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         fiex_lib::remote::remove_connection(&connection.id).unwrap();
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();
+    // The revoked grant must block the next network operation. A no-op ping
+    // would still succeed, so probe the actual restricted surface.
     assert!(plugin_host::global()
-        .invoke(id, "plugin.ping", json!({}))
+        .invoke(id, "connection.validate", json!({"connection": config}))
         .is_err());
 }
 

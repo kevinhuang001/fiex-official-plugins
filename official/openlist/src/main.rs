@@ -1,7 +1,6 @@
 //! OpenList (AList-compatible) native API adapter.
 //!
-//! Credentials live in the plugin's settings, not in the connection: one
-//! account per plugin instance.
+//! The connection owns the server address, account and credentials.
 mod client;
 mod commands;
 mod fs;

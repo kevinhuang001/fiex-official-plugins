@@ -1,8 +1,8 @@
 //! OpenList authentication and JSON-over-HTTP plumbing.
 //!
-//! The account comes from the plugin settings while the connection owns the
-//! server address. A single in-memory bearer token is cached per instance and
-//! transparently refreshed once when the server reports it as stale.
+//! The connection owns the server address, account, secret and timeout. A
+//! single in-memory bearer token is cached per instance and transparently
+//! refreshed once when the server reports it as stale.
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -23,13 +23,8 @@ pub(crate) struct Session {
     token: Mutex<Option<String>>,
 }
 
-fn stored(host: &sdk::RequestContext, key: &str) -> Option<Value> {
-    host.storage_get("global", key).ok()
-}
-
-fn text(value: Option<Value>) -> String {
+fn text(value: Option<&Value>) -> String {
     value
-        .as_ref()
         .and_then(Value::as_str)
         .unwrap_or("")
         .trim()
@@ -40,34 +35,29 @@ pub(crate) fn config(
     host: &sdk::RequestContext,
     connection: Option<&Value>,
 ) -> Result<Config, RpcError> {
-    // The connection owns the server address so Core can approve exactly that
-    // host; the account itself comes from the plugin settings.
-    let from_connection = connection
-        .and_then(|value| value.get("url"))
+    let connection = connection.cloned().unwrap_or(Value::Null);
+    let url = connection
+        .get("url")
         .and_then(Value::as_str)
-        .unwrap_or("");
-    let url = if from_connection.trim().is_empty() {
-        text(stored(host, "url"))
-    } else {
-        from_connection.trim().to_string()
-    }
-    .trim_end_matches('/')
-    .to_string();
+        .unwrap_or("")
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(RpcError::internal("请在插件设置中填写 http(s) 服务器地址"));
+        return Err(RpcError::internal("请在连接设置中填写 http(s) 服务器地址"));
     }
-    let timeout = stored(host, "timeout")
-        .as_ref()
+    let timeout = connection
+        .get("timeout")
         .and_then(Value::as_u64)
         .unwrap_or(30)
         .clamp(5, 120);
     Ok(Config {
         url,
-        username: text(stored(host, "username")),
-        password: host
-            .secret_get("global", "password")
-            .unwrap_or_default()
-            .trim()
+        username: text(connection.get("username")),
+        password: connection
+            .get("password")
+            .and_then(Value::as_str)
+            .unwrap_or("")
             .to_string(),
         timeout,
     })
@@ -179,9 +169,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stored_settings_are_typed() {
-        assert_eq!(text(Some(json!("  x  "))), "x");
-        assert_eq!(text(Some(json!(3))), "");
+    fn connection_fields_are_typed() {
+        assert_eq!(text(Some(&json!("  x  "))), "x");
+        assert_eq!(text(Some(&json!(3))), "");
         assert_eq!(text(None), "");
     }
 }

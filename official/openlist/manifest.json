@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.openlist",
   "name": "OpenList",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。",
   "icon": "cloud",
   "author": {
@@ -72,27 +72,27 @@
           "type": "url",
           "required": true,
           "placeholder": "https://openlist.example.com"
+        },
+        {
+          "id": "username",
+          "label": "用户名",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "password",
+          "label": "密码",
+          "type": "secret",
+          "required": true
+        },
+        {
+          "id": "timeout",
+          "label": "连接超时（秒）",
+          "type": "number",
+          "defaultValue": 30
         }
       ]
     },
-    "settings": [
-      {
-        "id": "username",
-        "label": "用户名",
-        "type": "text"
-      },
-      {
-        "id": "password",
-        "label": "密码",
-        "type": "secret"
-      },
-      {
-        "id": "timeout",
-        "label": "连接超时（秒）",
-        "type": "number",
-        "defaultValue": "30"
-      }
-    ],
     "vfs": {
       "title": "OpenList"
     }

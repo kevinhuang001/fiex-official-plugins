@@ -11,6 +11,7 @@ spec = importlib.util.spec_from_file_location("ipc", Path(__file__).with_name("t
 ipc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ipc)
 send, receive = ipc.send, ipc.receive
+SOURCE_REF = {'mountId':'local','nodeId':'source'}
 
 class Fixture:
     def __init__(self, binary):
@@ -47,7 +48,7 @@ class Fixture:
 
     def host(self, method, p):
         if method == 'host.fs.openRead':
-            assert p['path'] == 'source.dat'
+            assert p['ref'] == SOURCE_REF
             self.readers['source-reader'] = self.source
             return {'handle':'source-reader','size':len(self.source)}
         if method == 'host.fs.readOpen':
@@ -150,17 +151,17 @@ def main():
         assert 'error' in call('fs.stat',nodeId='file1')
         f.offline = False
         f.source = b'y' * (262144+17)
-        assert 'error' in call('fs.writeFile',nodeId='file1',source='source.dat',size=len(f.source),ifRevision='stale')
-        assert 'error' in call('fs.writeFile',nodeId='file1',source='source.dat',size=1,ifRevision='1')
-        assert call('fs.writeFile',nodeId='file1',source='source.dat',size=len(f.source),ifRevision='1')['result']['revision'] == '2'
+        assert 'error' in call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=len(f.source),ifRevision='stale')
+        assert 'error' in call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=1,ifRevision='1')
+        assert call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=len(f.source),ifRevision='1')['result']['revision'] == '2'
         assert f.content == f.source
         f.change_before_commit = True
         f.source = b'z'
-        assert 'error' in call('fs.writeFile',nodeId='file1',source='source.dat',size=1,ifRevision='2')
+        assert 'error' in call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=1,ifRevision='2')
         assert f.content == b'y' * (262144+17)
         f.change_before_commit = False
         f.source = b''
-        assert call('fs.writeFile',nodeId='file1',source='source.dat',size=0,ifRevision='3')['result']['revision'] == '4'
+        assert call('fs.writeFile',nodeId='file1',source=SOURCE_REF,size=0,ifRevision='3')['result']['revision'] == '4'
         assert f.content == b''
         assert not f.readers
         assert not f.streams

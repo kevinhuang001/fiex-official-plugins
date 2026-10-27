@@ -16,11 +16,12 @@ class Connection(module.Fixture):
         super().__init__(binary)
     def host(self,method,p):
         if method=='host.storage.get':
-            return {'username':'user','timeout':30}.get(p['key'],'')
+            value={'username':'user','timeout':30}.get(p['key'])
+            return {'found':value is not None,'value':value}
         if method=='host.secret.get':
-            return 'password'
+            return {'status':'present','value':'password'}
         if method=='host.fs.openRead':
-            assert p['path']=='source.dat'
+            assert p['ref']==module.SOURCE_REF
             self.files['selected-snapshot']=self.source
             return {'handle':'selected-snapshot','size':len(self.source)}
         if method=='host.fs.closeRead':
@@ -60,13 +61,13 @@ def main():
         def call(method,**p):
             return f.call(method,{'connection':{'url':'https://fixture.invalid'},'nodeId':'hello.txt',**p})
         before=call('fs.stat')['result']['revision']
-        assert 'error' in call('fs.writeFile',source='source.dat',ifRevision='stale')
+        assert 'error' in call('fs.writeFile',source=module.SOURCE_REF,ifRevision='stale')
         f.offline=True
-        assert 'error' in call('fs.writeFile',source='source.dat',ifRevision=before)
+        assert 'error' in call('fs.writeFile',source=module.SOURCE_REF,ifRevision=before)
         f.offline=False
-        after=call('fs.writeFile',source='source.dat',ifRevision=before)['result']['revision']
+        after=call('fs.writeFile',source=module.SOURCE_REF,ifRevision=before)['result']['revision']
         assert after!=before and f.content==f.source
-        assert 'error' in call('fs.writeFile',source='source.dat',ifRevision=before)
+        assert 'error' in call('fs.writeFile',source=module.SOURCE_REF,ifRevision=before)
         assert not f.files and not f.streams
         print('PASS',args.kind,'offline retry, version checks and handle-streamed upload')
     finally:f.close()

@@ -18,6 +18,9 @@ ipc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ipc)
 
 
+REF = {"mountId": "local", "nodeId": "repo"}
+
+
 class Git:
     def __init__(self, binary, root):
         self.root = root
@@ -41,15 +44,16 @@ class Git:
             p = message.get('params', {})
             if message['method'] == 'host.process.run':
                 assert p['command'] == 'git'
-                assert p['args'][0] == '-C' and Path(p['args'][1]).resolve() == Path(self.root)
-                result = subprocess.run(['git', *p['args']], input=(p.get('stdin') or '').encode(),
+                assert p.get('cwd') == REF
+                result = subprocess.run(['git', '-C', self.root, *p['args']],
+                                        input=(p.get('stdin') or '').encode(),
                                         capture_output=True, timeout=30)
                 value = {'code': result.returncode, 'stdoutBase64': base64.b64encode(result.stdout).decode(),
                          'stderrBase64': base64.b64encode(result.stderr).decode(), 'truncated': False}
             elif message['method'] == 'host.vfs.openView':
                 assert p['contributionId'] == 'history'
-                assert Path(p['resourceRoot']).resolve() == Path(self.root)
-                assert Path(p['viewContext']['repoRoot']).resolve() == Path(self.root)
+                assert p['resourceRoot'] == REF
+                assert p['viewContext']['repoRoot'] == REF
                 assert len(p['viewContext']['commitId']) == 40
                 value = f'fiex://mount/{uuid.uuid4().hex}/'
                 self.views[value] = p['viewContext']
@@ -92,8 +96,8 @@ def main():
         commit_b = git('rev-parse', 'HEAD')
         plugin = Git(args.binary, root)
         try:
-            a = plugin.call('git.browse', {'root': root, 'reference': commit_a})['result']
-            b = plugin.call('git.browse', {'root': root, 'reference': commit_b})['result']
+            a = plugin.call('git.browse', {'root': REF, 'reference': commit_a})['result']
+            b = plugin.call('git.browse', {'root': REF, 'reference': commit_b})['result']
             assert a != b
             assert plugin.views[a]['commitId'] == commit_a and plugin.views[b]['commitId'] == commit_b
             listing = plugin.request(a, 'vfs.list', hidden=True, limit=200)['result']
@@ -107,7 +111,7 @@ def main():
             found = plugin.request(a, 'vfs.search', query='中文', hidden=True, limit=10)['result']['entries']
             assert found[0]['relativePath'] == name
             assert 'error' in plugin.request(a, 'vfs.list', nodeId='../escape')
-            assert 'error' in plugin.call('git.browse', {'root': root, 'reference': 'missing-object'})
+            assert 'error' in plugin.call('git.browse', {'root': REF, 'reference': 'missing-object'})
             assert 'error' in plugin.call('fs.writeFile', {'connection': {}, 'nodeId': name})
             assert not Path(root, '.fiex').exists()
             print('PASS Git: immutable views, binary previews, opaque nodes, Unicode names and invalid contexts')

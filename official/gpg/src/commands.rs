@@ -10,6 +10,15 @@ fn text<'a>(p: &'a Value, key: &str) -> Result<&'a str, RpcError> {
         .filter(|s| !s.is_empty() && !s.contains('\0'))
         .ok_or_else(|| RpcError::invalid_params(format!("missing {key}")))
 }
+fn resource_arg(p: &Value, key: &str) -> Result<String, RpcError> {
+    let value = p
+        .get(key)
+        .ok_or_else(|| RpcError::invalid_params(format!("missing {key}")))?;
+    let reference: sdk::ResourceRef =
+        serde_json::from_value(value.get("ref").unwrap_or(value).clone())
+            .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+    Ok(reference.command_arg())
+}
 fn flag(p: &Value, key: &str) -> bool {
     p.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
@@ -59,6 +68,21 @@ fn key_passphrase(p: &Value) -> Result<String, RpcError> {
 
 fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
     let mut args = vec!["--batch".into(), "--no-tty".into(), "--status-fd=2".into()];
+    let input_arg = if p.get("input").is_some() {
+        resource_arg(p, "input")?
+    } else {
+        String::new()
+    };
+    let signature_arg = if p.get("signature").is_some() {
+        resource_arg(p, "signature")?
+    } else {
+        String::new()
+    };
+    let output_arg = if p.get("output").is_some() {
+        resource_arg(p, "output")?
+    } else {
+        String::new()
+    };
     match method {
         "gpg.info" => args.push("--version".into()),
         "gpg.keys" => {
@@ -85,7 +109,7 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
                 .map(String::from),
             );
         }
-        "gpg.import" => args.extend(["--import", "--", text(p, "input")?].map(String::from)),
+        "gpg.import" => args.extend(["--import", "--", input_arg.as_str()].map(String::from)),
         "gpg.deleteKey" => {
             let command = if flag(p, "secret") {
                 "--delete-secret-and-public-keys"
@@ -94,11 +118,12 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
             };
             args.extend(["--yes", command, "--", fingerprint(p)?].map(String::from));
         }
-        "gpg.verify" => args
-            .extend(["--verify", "--", text(p, "signature")?, text(p, "input")?].map(String::from)),
+        "gpg.verify" => args.extend(
+            ["--verify", "--", signature_arg.as_str(), input_arg.as_str()].map(String::from),
+        ),
         "gpg.encrypt" | "gpg.decrypt" | "gpg.sign" | "gpg.export" => {
-            let output = text(p, "output")?;
-            if p.get("input").and_then(Value::as_str) == Some(output) {
+            let output = output_arg.as_str();
+            if p.get("input").is_some() && p.get("input") == p.get("output") {
                 return Err(RpcError::invalid_params("input and output must differ"));
             }
             args.extend(["--output", output].map(String::from));
@@ -121,13 +146,13 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
                             fingerprint(p)?,
                             "--encrypt",
                             "--",
-                            text(p, "input")?,
+                            input_arg.as_str(),
                         ]
                         .map(String::from),
                     )
                 }
                 "gpg.decrypt" => {
-                    args.extend(["--decrypt", "--", text(p, "input")?].map(String::from))
+                    args.extend(["--decrypt", "--", input_arg.as_str()].map(String::from))
                 }
                 "gpg.sign" => args.extend(
                     [
@@ -135,7 +160,7 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
                         fingerprint(p)?,
                         "--detach-sign",
                         "--",
-                        text(p, "input")?,
+                        input_arg.as_str(),
                     ]
                     .map(String::from),
                 ),
@@ -157,52 +182,6 @@ fn args(method: &str, p: &Value) -> Result<Vec<String>, RpcError> {
 pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
-    if method == "contextMenu.resolve" {
-        let count = p["targets"]
-            .as_array()
-            .map(Vec::len)
-            .filter(|count| *count > 0)
-            .or_else(|| p["selectionCount"].as_u64().map(|count| count as usize))
-            .unwrap_or(1);
-        if count == 0 {
-            return Ok(json!({"items":[]}));
-        }
-        let mut items = vec![json!({"id":"gpg.menu","title":"GPG","kind":"submenu"})];
-        for (id, title) in [
-            ("gpg.encrypt", "加密…"),
-            ("gpg.decrypt", "解密…"),
-            ("gpg.sign", "签名…"),
-        ] {
-            items.push(json!({"id":id,"title":title,"kind":"action","parentId":"gpg.menu"}));
-        }
-        if count == 1 {
-            items.push(json!({"id":"gpg.verify","title":"验证签名…","kind":"action","parentId":"gpg.menu"}));
-        }
-        return Ok(json!({"items":items}));
-    }
-    if method == "contextMenu.execute" {
-        let item = p["itemId"]
-            .as_str()
-            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
-        let (title, width, height) = match item {
-            "gpg.encrypt" => ("GPG 加密", 560, 520),
-            "gpg.decrypt" => ("GPG 解密", 520, 400),
-            "gpg.sign" => ("GPG 签名", 540, 470),
-            "gpg.verify" if p["paths"].as_array().is_some_and(|paths| paths.len() == 1) => {
-                ("验证签名", 520, 420)
-            }
-            _ => {
-                return Err(RpcError::invalid_params(
-                    "unknown or invalid GPG menu action",
-                ))
-            }
-        };
-        return Ok(json!({
-            "kind":"panel", "entry":"ui/dist/index.html",
-            "panelId":item, "title":title,
-            "size":{"width":width,"height":height}
-        }));
-    }
     if method == "gpg.keys" {
         let public = gpg::invoke(&args("gpg.keys", p)?, &ctx)?;
         if public.code != Some(0) {
@@ -254,13 +233,13 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             if result.code != Some(0) {
                 let reason =
                     if gpg::status_lines(&result.stderr).any(|line| line.starts_with("BADSIG")) {
-                        "签名无效"
+                        crate::i18n::t("签名无效")
                     } else if gpg::status_lines(&result.stderr)
                         .any(|line| line.starts_with("NO_PUBKEY") || line.starts_with("ERRSIG"))
                     {
-                        "缺少对应的公钥，或签名无法校验"
+                        crate::i18n::t("缺少对应的公钥，或签名无法校验")
                     } else {
-                        "签名校验失败"
+                        crate::i18n::t("签名校验失败")
                     };
                 return Err(RpcError::internal(format!(
                     "{reason}：{}",
@@ -295,3 +274,53 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 #[cfg(test)]
 mod tests;
+
+pub struct GpgMenu;
+impl sdk::ContextMenuProvider for GpgMenu {
+    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+        let count = ctx.targets().len();
+        if count == 0 {
+            return Ok(Vec::new());
+        }
+        match ctx.params()["parentId"].as_str() {
+            None => Ok(vec![
+                json!({"id":"gpg.menu","title":"GPG","kind":"submenu"}),
+            ]),
+            Some("gpg.menu") => {
+                let mut items = vec![
+                    json!({"id":"gpg.encrypt","title":crate::i18n::t("加密…"),"kind":"action"}),
+                    json!({"id":"gpg.decrypt","title":crate::i18n::t("解密…"),"kind":"action"}),
+                    json!({"id":"gpg.sign","title":crate::i18n::t("签名…"),"kind":"action"}),
+                ];
+                if count == 1 {
+                    items.push(json!({"id":"gpg.verify","title":crate::i18n::t("验证签名…"),"kind":"action"}));
+                }
+                Ok(items)
+            }
+            Some(_) => Err(RpcError::invalid_params("unknown GPG submenu")),
+        }
+    }
+    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        let p = ctx.params();
+
+        let item = p["itemId"]
+            .as_str()
+            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        let (title, width, height) = match item {
+            "gpg.encrypt" => (crate::i18n::t("GPG 加密"), 560, 520),
+            "gpg.decrypt" => (crate::i18n::t("GPG 解密"), 520, 400),
+            "gpg.sign" => (crate::i18n::t("GPG 签名"), 540, 470),
+            "gpg.verify" if ctx.targets().len() == 1 => (crate::i18n::t("验证签名"), 520, 420),
+            _ => {
+                return Err(RpcError::invalid_params(
+                    "unknown or invalid GPG menu action",
+                ))
+            }
+        };
+        Ok(json!({
+            "kind":"panel", "entry":"ui/dist/index.html",
+            "panelId":item, "title":title,
+            "size":{"width":width,"height":height}
+        }))
+    }
+}

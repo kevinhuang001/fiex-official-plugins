@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import {
   Check,
   Cloud,
@@ -45,17 +46,21 @@ export function RemoteDialog({
   onClose: () => void;
 }) {
   return (
-    <div className="git-sheet git-remote-sheet" role="dialog" aria-label="远程仓库">
+    <div
+      className="git-sheet git-remote-sheet"
+      role="dialog"
+      aria-label={t("远程仓库")}
+    >
       <div className="git-sheet-card git-remote-card">
         <header>
           <strong>
             {editing
               ? editing.mode === "new"
-                ? "添加远程仓库"
-                : "编辑远程仓库"
-              : "远程仓库"}
+                ? t("添加远程仓库")
+                : t("编辑远程仓库")
+              : t("远程仓库")}
           </strong>
-          <button type="button" aria-label="关闭" onClick={onClose}>
+          <button type="button" aria-label={t("关闭")} onClick={onClose}>
             <X size={16} />
           </button>
         </header>
@@ -68,9 +73,9 @@ export function RemoteDialog({
             }}
           >
             <label>
-              名称
+              {t("名称")}{" "}
               <input
-                aria-label="远程名称"
+                aria-label={t("远程名称")}
                 value={editing.name}
                 required
                 placeholder="origin"
@@ -80,9 +85,9 @@ export function RemoteDialog({
               />
             </label>
             <label>
-              仓库地址
+              {t("仓库地址")}{" "}
               <input
-                aria-label="仓库地址"
+                aria-label={t("仓库地址")}
                 value={editing.url}
                 required
                 placeholder="https://… / git@…"
@@ -97,16 +102,14 @@ export function RemoteDialog({
                 disabled={busy}
                 onClick={() => onEditingChange(null)}
               >
-                返回
+                {t("返回")}{" "}
               </button>
               <button
                 className="primary"
                 type="submit"
-                disabled={
-                  busy || !editing.name.trim() || !editing.url.trim()
-                }
+                disabled={busy || !editing.name.trim() || !editing.url.trim()}
               >
-                保存
+                {t("保存")}{" "}
               </button>
             </div>
           </form>
@@ -114,7 +117,7 @@ export function RemoteDialog({
           <>
             <section className="git-remote-section">
               <div className="git-remote-section-title">
-                <span>已配置</span>
+                <span>{t("已配置")}</span>
                 <span className="git-remote-badge">
                   {remote?.remotes.length || 0}
                 </span>
@@ -126,7 +129,7 @@ export function RemoteDialog({
                 <ul
                   className="git-remote-list"
                   role="listbox"
-                  aria-label="远程仓库"
+                  aria-label={t("远程仓库")}
                 >
                   {remote.remotes.map((item) => (
                     <li
@@ -135,16 +138,16 @@ export function RemoteDialog({
                     >
                       {pendingRemove === item.name ? (
                         <div className="git-remote-confirm">
-                          <span>移除 {item.name}？</span>
+                          <span>{t("移除 {0}？", item.name)}</span>
                           <button onClick={() => onPendingRemoveChange(null)}>
-                            取消
+                            {t("取消")}{" "}
                           </button>
                           <button
                             className="git-danger"
                             disabled={busy}
                             onClick={() => onRemoveRemote(item.name)}
                           >
-                            移除
+                            {t("移除")}{" "}
                           </button>
                         </div>
                       ) : (
@@ -158,9 +161,7 @@ export function RemoteDialog({
                             }}
                           >
                             <Cloud size={14} />
-                            <span className="git-remote-name">
-                              {item.name}
-                            </span>
+                            <span className="git-remote-name">{item.name}</span>
                             <span className="git-remote-url" title={item.url}>
                               {item.url}
                             </span>
@@ -170,8 +171,8 @@ export function RemoteDialog({
                           </button>
                           <button
                             className="icon-button"
-                            title={`编辑 ${item.name}`}
-                            aria-label={`编辑 ${item.name}`}
+                            title={t("编辑 {0}", item.name)}
+                            aria-label={t("编辑 {0}", item.name)}
                             disabled={busy}
                             onClick={() =>
                               onEditingChange({
@@ -185,8 +186,8 @@ export function RemoteDialog({
                           </button>
                           <button
                             className="icon-button"
-                            title={`移除 ${item.name}`}
-                            aria-label={`移除 ${item.name}`}
+                            title={t("移除 {0}", item.name)}
+                            aria-label={t("移除 {0}", item.name)}
                             disabled={busy}
                             onClick={() => onPendingRemoveChange(item.name)}
                           >
@@ -198,7 +199,7 @@ export function RemoteDialog({
                   ))}
                 </ul>
               ) : (
-                <p className="git-remote-empty">无远程仓库</p>
+                <p className="git-remote-empty">{t("无远程仓库")}</p>
               )}
               <button
                 className="git-remote-add"
@@ -207,12 +208,12 @@ export function RemoteDialog({
                   onEditingChange({ mode: "new", name: "", url: "" })
                 }
               >
-                <Plus size={13} /> 添加远程仓库
+                <Plus size={13} /> {t("添加远程仓库")}{" "}
               </button>
             </section>
             <section className="git-remote-sync">
               <label className="git-remote-branch">
-                分支
+                {t("分支")}{" "}
                 <BranchSelect
                   value={syncBranch || refs?.current || ""}
                   options={
@@ -229,20 +230,20 @@ export function RemoteDialog({
                 disabled={busy || !remoteName}
                 onClick={() => onSync(false)}
               >
-                <CloudDownload size={14} /> 拉取
+                <CloudDownload size={14} /> {t("拉取")}{" "}
               </button>
               <button
                 disabled={busy || !remoteName}
                 onClick={() => onSync(true)}
               >
-                <CloudUpload size={14} /> 推送
+                <CloudUpload size={14} /> {t("推送")}{" "}
               </button>
             </section>
             {remote?.upstream && (
               <small className="git-remote-upstream">
                 {remote.upstream}
-                {remote.ahead ? ` · 领先 ${remote.ahead}` : ""}
-                {remote.behind ? ` · 落后 ${remote.behind}` : ""}
+                {remote.ahead ? t(" · 领先 {0}", remote.ahead) : ""}
+                {remote.behind ? t(" · 落后 {0}", remote.behind) : ""}
               </small>
             )}
           </>

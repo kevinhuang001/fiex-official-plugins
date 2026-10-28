@@ -1,3 +1,7 @@
+import { useSyncExternalStore } from "react";
+import { i18n } from "../../../../support/ui/i18n";
+import { client } from "../../../../support/ui/i18n";
+import { t } from "../../../../support/ui/i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   Archive,
@@ -6,11 +10,11 @@ import {
   FolderOpen,
   LoaderCircle,
 } from "lucide-react";
-import { FiexUiClient } from "../../../../sdk/ui/src/index";
+import { type ResourceContext } from "../../../../sdk/ui/src/index";
 
 interface Context {
-  selectionPaths?: string[];
-  directoryPath?: string;
+  targets?: ResourceContext[];
+  directory?: ResourceContext;
   /** Manifest-negotiated budget from extensions.ui.timeoutMs. */
   uiTimeoutMs?: number;
 }
@@ -31,15 +35,14 @@ interface Format {
   note: string;
 }
 
-const client = new FiexUiClient();
-const formats: Format[] = [
+const getFormats = (): Format[] => [
   {
     id: "zip",
     label: "ZIP",
     ext: "zip",
     levelMax: 9,
     password: true,
-    note: "Deflate · 支持 AES-256 密码",
+    note: t("Deflate · 支持 AES-256 密码"),
   },
   {
     id: "rar",
@@ -47,7 +50,7 @@ const formats: Format[] = [
     ext: "rar",
     levelMax: 5,
     password: true,
-    note: "RAR5 · 支持密码",
+    note: t("RAR5 · 支持密码"),
   },
   {
     id: "7z",
@@ -55,7 +58,7 @@ const formats: Format[] = [
     ext: "7z",
     levelMax: 9,
     password: false,
-    note: "LZMA2 · 高压缩比",
+    note: t("LZMA2 · 高压缩比"),
   },
   {
     id: "tar",
@@ -63,7 +66,7 @@ const formats: Format[] = [
     ext: "tar",
     levelMax: 0,
     password: false,
-    note: "仅打包，不压缩",
+    note: t("仅打包，不压缩"),
   },
   {
     id: "tar.gz",
@@ -71,7 +74,7 @@ const formats: Format[] = [
     ext: "tar.gz",
     levelMax: 9,
     password: false,
-    note: "Gzip 压缩",
+    note: t("Gzip 压缩"),
   },
   {
     id: "tar.bz2",
@@ -79,7 +82,7 @@ const formats: Format[] = [
     ext: "tar.bz2",
     levelMax: 9,
     password: false,
-    note: "Bzip2 压缩",
+    note: t("Bzip2 压缩"),
   },
   {
     id: "tar.xz",
@@ -87,12 +90,12 @@ const formats: Format[] = [
     ext: "tar.xz",
     levelMax: 9,
     password: false,
-    note: "XZ 压缩",
+    note: t("XZ 压缩"),
   },
 ];
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const lastSegment = (value: string) => value.split(/[/\\]/).pop() || value;
-const trimSlash = (value: string) => value.replace(/[\\/]+$/, "");
+const lastSegment = (value: ResourceContext) =>
+  value.metadata?.name || t("文件");
 
 function FormatSelect({
   value,
@@ -113,6 +116,7 @@ function FormatSelect({
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
+  const formats = getFormats();
   const current = formats.find((entry) => entry.id === value) || formats[0];
   return (
     <div className="format-select" ref={root}>
@@ -121,7 +125,7 @@ function FormatSelect({
         className={`format-trigger${hero ? " hero" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="压缩格式"
+        aria-label={t("压缩格式")}
         onClick={() => setOpen(!open)}
       >
         {hero && (
@@ -135,7 +139,7 @@ function FormatSelect({
         <ChevronDown size={14} className={open ? "open" : ""} />
       </button>
       {open && (
-        <div className="format-menu" role="listbox" aria-label="压缩格式">
+        <div className="format-menu" role="listbox" aria-label={t("压缩格式")}>
           {formats.map((entry) => (
             <button
               type="button"
@@ -161,20 +165,23 @@ function FormatSelect({
 }
 
 export function App() {
+  useSyncExternalStore(i18n.subscribe, i18n.getLocale, i18n.getLocale);
   const appRef = useRef<HTMLDivElement>(null);
-  const [paths, setPaths] = useState<string[]>([]);
-  const [directory, setDirectory] = useState("");
+  const [paths, setPaths] = useState<ResourceContext[]>([]);
+  const [directory, setDirectory] = useState<ResourceContext>();
   const [ready, setReady] = useState(false);
   const [format, setFormat] = useState("zip");
   const [level, setLevel] = useState(6);
   const [password, setPassword] = useState("");
   const [compressAll, setCompressAll] = useState(false);
   const [destination, setDestination] = useState("");
+  const [destinationRef, setDestinationRef] = useState<ResourceContext>();
   const [editedDestination, setEditedDestination] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [timeoutMs, setTimeoutMs] = useState(15000);
+  const formats = getFormats();
   const selected = formats.find((entry) => entry.id === format) || formats[0];
   const base =
     paths.length === 1
@@ -185,8 +192,8 @@ export function App() {
     void client
       .invoke<Context>("context.get")
       .then((context) => {
-        setPaths(context.selectionPaths || []);
-        setDirectory(context.directoryPath || "");
+        setPaths(context.targets || []);
+        setDirectory(context.directory);
         if (typeof context.uiTimeoutMs === "number" && context.uiTimeoutMs > 0)
           setTimeoutMs(context.uiTimeoutMs);
       })
@@ -195,8 +202,7 @@ export function App() {
   }, []);
   useEffect(() => {
     if (editedDestination) return;
-    const folder = trimSlash(directory);
-    setDestination(folder ? `${folder}/${base}.${selected.ext}` : "");
+    setDestination(`${base}.${selected.ext}`);
   }, [directory, base, selected.ext, editedDestination]);
   useEffect(() => {
     setLevel((current) => Math.min(current, selected.levelMax));
@@ -226,10 +232,11 @@ export function App() {
       const picked = await client.dialog.saveFile({
         suggestedName: `${base}.${selected.ext}`,
         extensions: [selected.ext.split(".").pop() || "zip"],
-        directory: directory || undefined,
+        directory: directory?.ref,
       });
       if (picked) {
-        setDestination(picked);
+        setDestinationRef(picked);
+        setDestination(picked.metadata?.name || `${base}.${selected.ext}`);
         setEditedDestination(true);
       }
     } catch (cause) {
@@ -239,7 +246,7 @@ export function App() {
   const compress = async () => {
     if (!paths.length) return;
     if (!destination.trim()) {
-      setError("请选择压缩到的位置");
+      setError(t("请选择压缩到的位置"));
       return;
     }
     setBusy(true);
@@ -251,11 +258,12 @@ export function App() {
         {
           method: "archive.compress",
           params: {
-            paths,
+            paths: paths.map((resource) => resource.ref),
             // Name the folder explicitly so Core can grant the panel this
             // operation's output root; naming it does not broaden any other call.
-            root: directory || undefined,
-            destination: destination.trim(),
+            root: directory?.ref,
+            destination: destinationRef?.ref,
+            destinationName: destination.trim(),
             format: selected.id,
             level: password ? null : level,
             password: password || null,
@@ -264,7 +272,7 @@ export function App() {
         },
         { timeoutMs },
       );
-      if (!started?.taskId) throw new Error("插件没有返回任务 ID");
+      if (!started?.taskId) throw new Error(t("插件没有返回任务 ID"));
       const deadline = Date.now() + 24 * 60 * 60 * 1000;
       while (Date.now() < deadline) {
         const status = await client.invoke<PluginTask | null>(
@@ -272,17 +280,17 @@ export function App() {
           { taskId: started.taskId },
           { timeoutMs },
         );
-        if (!status) throw new Error("状态中心没有找到该任务");
+        if (!status) throw new Error(t("状态中心没有找到该任务"));
         if (status.status === "completed") {
-          setDone(String(status.result ?? ""));
+          setDone(destination);
           return;
         }
         if (status.status === "failed")
-          throw new Error(status.error || "压缩失败");
-        if (status.status === "cancelled") throw new Error("已取消");
+          throw new Error(status.error || t("压缩失败"));
+        if (status.status === "cancelled") throw new Error(t("已取消"));
         await sleep(300);
       }
-      throw new Error("压缩任务超时");
+      throw new Error(t("压缩任务超时"));
     } catch (cause) {
       setError(String(cause));
     } finally {
@@ -302,7 +310,9 @@ export function App() {
   if (!paths.length) {
     return (
       <div className="app">
-        <div className="archive-loading">请选择要压缩的文件或文件夹。</div>
+        <div className="archive-loading">
+          {t("请选择要压缩的文件或文件夹。")}
+        </div>
       </div>
     );
   }
@@ -320,28 +330,28 @@ export function App() {
         />
 
         <div className="archive-field">
-          <span className="archive-label">压缩到</span>
+          <span className="archive-label">{t("压缩到")}</span>
           <div className="archive-path-row">
-            <span className="archive-path" title={destination || "未选择"}>
-              {destination || "未选择"}
+            <span className="archive-path" title={destination || t("未选择")}>
+              {destination || t("未选择")}
             </span>
             <button
               type="button"
               className="archive-pick"
               onClick={() => void pickDestination()}
             >
-              <FolderOpen size={14} /> 选择…
+              <FolderOpen size={14} /> {t("选择…")}{" "}
             </button>
           </div>
         </div>
 
         {selected.levelMax > 0 && (
           <div className="archive-field">
-            <span className="archive-label">压缩级别</span>
+            <span className="archive-label">{t("压缩级别")}</span>
             <div
               className="archive-levels"
               role="radiogroup"
-              aria-label="压缩级别"
+              aria-label={t("压缩级别")}
             >
               {Array.from({ length: selected.levelMax + 1 }, (_, value) => (
                 <button
@@ -361,13 +371,13 @@ export function App() {
 
         {selected.password && (
           <label className="archive-field">
-            <span className="archive-label">密码（可选）</span>
+            <span className="archive-label">{t("密码（可选）")}</span>
             <input
               type="password"
               className="archive-input"
               value={password}
               autoComplete="off"
-              placeholder="留空则不加密"
+              placeholder={t("留空则不加密")}
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
@@ -383,13 +393,15 @@ export function App() {
           <span className="archive-check-box">
             {compressAll && <Check size={12} />}
           </span>
-          全部压缩
+          {t("全部压缩")}{" "}
         </button>
         {error && <div className="error">{error}</div>}
-        {done && <div className="done">已创建 {done}</div>}
+        {done && <div className="done">{t("已创建 {0}", done)}</div>}
       </div>
       <footer>
-        <button onClick={() => void client.invoke("panel.close")}>取消</button>
+        <button onClick={() => void client.invoke("panel.close")}>
+          {t("取消")}
+        </button>
         <button
           className="primary"
           disabled={busy}
@@ -400,7 +412,7 @@ export function App() {
           ) : (
             <Archive size={14} />
           )}
-          开始压缩
+          {t("开始压缩")}{" "}
         </button>
       </footer>
     </div>

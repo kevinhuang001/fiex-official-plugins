@@ -7,26 +7,13 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  SCCACHE_GHA_ENABLED: 'true'
+  SCCACHE_CACHE_SIZE: '10G'
+  CARGO_INCREMENTAL: '0'
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
 jobs:
-  version-check:
-    name: Only changed plugins bump versions
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check plugin version policy
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin "${{ github.base_ref }}"
-          python scripts/plugin-versions.py check --base FETCH_HEAD
   ui:
     name: Standalone plugin panels
     runs-on: ubuntu-latest
@@ -37,13 +24,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r scripts/requirements-i18n.txt
+      - run: npm ci
+      - run: npm run check:i18n
+      - run: npm run test:i18n
       - name: Typecheck and rebuild self-contained panels
         run: |
           set -euo pipefail
-          for slug in git archive gpg; do
+          for slug in git archive gpg email ssh; do
             npm --prefix "official/$slug/ui" ci
             npm --prefix "official/$slug/ui" run build
           done
+          npm run build:static
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-panels
@@ -80,15 +75,14 @@ jobs:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: Configure sccache
+        id: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
-      - name: Enable sccache
+      - name: Enable compiler cache
         shell: bash
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            official/git -> ../../target
-            sdk/rust -> ../../target
+          workspaces: official/git -> ../../target
           key: official-${{ matrix.target }}
           cache-on-failure: true
       - uses: actions/setup-python@v5
@@ -98,36 +92,34 @@ jobs:
         shell: bash
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-          SCCACHE_GHA_ENABLED: "true"
-          SCCACHE_CACHE_SIZE: "10G"
         run: |
           set -euo pipefail
-          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py
-          cargo fmt --all --check
-          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
-            cargo test --workspace --locked --target "${{ matrix.target }}"
-            cargo clippy --workspace --locked --all-targets --target "${{ matrix.target }}" -- -D warnings
-          fi
-          cargo build --release --workspace --locked --target "${{ matrix.target }}"
-          # SSH and SMB pin conflicting curve25519-dalek versions, so they keep
-          # their own locks and are built once outside the shared workspace.
-          for slug in ssh smb; do
-            cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
-            if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
-              cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
-              cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
-            fi
-            cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
-          done
+          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py
           for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
+            cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
+            cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
+            cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
+            cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
             python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"
           done
           for slug in vista win11; do python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"; done
+          python scripts/test-catalog.py
           python scripts/generate-catalog.py
+          # The beginner example is kept buildable on every platform.
+          cargo fmt --manifest-path example/hello/Cargo.toml --check
+          cargo clippy --manifest-path example/hello/Cargo.toml --target "${{ matrix.target }}" -- -D warnings
+          cargo build --manifest-path example/hello/Cargo.toml --target "${{ matrix.target }}"
       - name: Real process handshake, ping, errors and shutdown
         shell: bash
         run: |
           python scripts/test-plugin-process.py --target "${{ matrix.platform }}" --binary-root "target/${{ matrix.target }}/release"
+          python scripts/test-git-vfs.py --binary "target/${{ matrix.target }}/release/fiex-plugin-git${{ runner.os == 'Windows' && '.exe' || '' }}"
+          python -m pip install --quiet paramiko==4.0.0
+          python scripts/test-ssh-regression.py --binary "target/${{ matrix.target }}/release/fiex-plugin-ssh${{ runner.os == 'Windows' && '.exe' || '' }}"
+          python scripts/test-gdrive.py --binary "target/${{ matrix.target }}/release/fiex-plugin-gdrive${{ runner.os == 'Windows' && '.exe' || '' }}"
+          for slug in webdav openlist; do
+            python scripts/test-connection-sync.py --kind "$slug" --binary "target/${{ matrix.target }}/release/fiex-plugin-$slug${{ runner.os == 'Windows' && '.exe' || '' }}"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: fiex-plugins-${{ matrix.target }}
@@ -136,6 +128,18 @@ jobs:
             dist/plugins/*.fiexplugin
             dist/plugins/fiex-catalog.json
             dist/plugins/plugin-descriptions.json
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: |
+          sccache --show-stats
+          {
+            echo '### sccache'
+            echo '```'
+            sccache --show-stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   core-integration:
     name: Installed official plugins ↔ real Core host (Linux)
     needs: build
@@ -148,7 +152,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 2ff53397b8f5bdf03e3037d187af4636bc656598
+          ref: 599f8fa93708ff61367a9f1c4a3bc18533b878d4
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -157,6 +161,12 @@ jobs:
           name: fiex-plugins-x86_64-unknown-linux-gnu
           path: packages
       - uses: dtolnay/rust-toolchain@stable
+      - name: Configure sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable compiler cache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core/src-tauri -> target
@@ -169,17 +179,54 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
-          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=sorted(pathlib.Path("packages").glob("*.fiexplugin")); assert len(packages)>=11; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
-          for id in org.fiex.git org.fiex.webdav org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg org.fiex.email; do
+          python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64
+          for id in org.fiex.ssh org.fiex.git org.fiex.webdav org.fiex.gdrive org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg org.fiex.email; do
             cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
           done
           # Every declared panel must resolve through the real host, including
           # the advanced-compression panel nested in a context submenu.
           cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
+          cargo run --manifest-path integration/Cargo.toml --example plugin_connection_view_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_info_e2e
+          cargo run --manifest-path integration/Cargo.toml --example plugin_preview_e2e
+          cargo run --manifest-path integration/Cargo.toml --example plugin_decorations_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_gpg_e2e
+      - name: SSH plugin against a real local sshd
+        shell: bash
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/fiex-official-plugin-tests/user-data
+          FIEX_PLUGIN_DIR: ${{ runner.temp }}/fiex-official-plugin-tests/plugins
+        run: |
+          set -euo pipefail
+          sudo ssh-keygen -A
+          sudo mkdir -p /run/sshd /root/.ssh
+          key="$RUNNER_TEMP/fiex-ssh-test-key"
+          ssh-keygen -t ed25519 -N "" -f "$key" >/dev/null
+          sudo cp "$key.pub" /root/.ssh/authorized_keys
+          sudo chmod 600 /root/.ssh/authorized_keys
+          sudo /usr/sbin/sshd -p 2222 -o ListenAddress=127.0.0.1 \
+            -o PermitRootLogin=prohibit-password -o PasswordAuthentication=no \
+            -o UsePAM=no -o PidFile=/tmp/fiex-sshd.pid
+          trap 'sudo kill "$(sudo cat /tmp/fiex-sshd.pid)" 2>/dev/null || true' EXIT
+          mkdir -p "$RUNNER_TEMP/fiex-ssh-home"
+          binary="$(find "$FIEX_PLUGIN_DIR" -type f -name fiex-plugin-ssh | head -1)"
+          HOME="$RUNNER_TEMP/fiex-ssh-home" python3 scripts/test-ssh-plugin.py \
+            --binary "$binary" --host 127.0.0.1 --port 2222 --user root --identity "$key"
+
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: |
+          sccache --show-stats
+          {
+            echo '### sccache'
+            echo '```'
+            sccache --show-stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
     needs: build
@@ -192,11 +239,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 2ff53397b8f5bdf03e3037d187af4636bc656598
+          ref: 599f8fa93708ff61367a9f1c4a3bc18533b878d4
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk
       - uses: dtolnay/rust-toolchain@stable
+      - name: Configure sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable compiler cache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: integration -> target
@@ -282,7 +335,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
-          python -c 'import pathlib,zipfile,os; root=pathlib.Path(os.environ["FIEX_PLUGIN_DIR"]); packages=[p for p in pathlib.Path("packages").glob("*.fiexplugin") if p.name.startswith(("webdav-", "smb-"))]; assert len(packages)==2; [(zipfile.ZipFile(p).extractall(root/p.stem)) for p in packages]; [(f.chmod(0o755)) for f in root.rglob("fiex-plugin-*") if f.is_file()]'
+          python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64 --slugs webdav smb
           cargo run --manifest-path integration/Cargo.toml --example plugin_network_e2e
 
       - name: Remote fixture diagnostics
@@ -290,8 +343,20 @@ jobs:
         run: |
           cat .ci/webdav.log 2>/dev/null || true
           cat .ci/smb.log 2>/dev/null || true
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: |
+          sccache --show-stats
+          {
+            echo '### sccache'
+            echo '```'
+            sccache --show-stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release:
-    if: startsWith(github.ref, 'refs/tags/plugins-v')
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/plugins-v'))
     needs: [build, core-integration, remote-integration]
     runs-on: ubuntu-latest
     permissions:
@@ -303,6 +368,15 @@ jobs:
           pattern: fiex-plugins-*
           path: dist/plugins
           merge-multiple: true
+      - name: Select release version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="plugins-v$(cat plugin-release-version.txt)"
+          fi
+          echo "FIEX_RELEASE_TAG=$tag" >> "$GITHUB_ENV"
       - name: Filter catalog to artifacts built by this release
         run: |
           python - <<'PY'
@@ -334,4 +408,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "Optional Fiex plugins; installation and permission approval are required."
+          if gh release view "$FIEX_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$FIEX_RELEASE_TAG is already published; do not overwrite packages."
+            exit 0
+          fi
+          gh release create "$FIEX_RELEASE_TAG" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$FIEX_RELEASE_TAG" --notes "Protocol-5 official plugins for Fiex Core v0.7.5 and SDK v0.1.1. Typed Provider APIs, scoped resource refs, plugin-owned SSH PluginView, SDK Tokio transport and real-host integration checks. Installation and permission approval are required."

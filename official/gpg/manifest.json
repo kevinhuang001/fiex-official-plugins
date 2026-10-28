@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.gpg",
   "name": "GPG",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。",
   "icon": "key-round",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "5.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-gpg.exe",
       "macos-aarch64": "fiex-plugin-gpg",
@@ -39,6 +39,18 @@
           "height": 520
         }
       }
+    }
+  },
+  "locales": {
+    "en": {
+      "GPG 钥匙串": "GPG Keyring",
+      "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。": "Encrypt, decrypt, sign, verify and manage public keys using local GnuPG.",
+      "钥匙串": "Keyring"
+    },
+    "zh-TW": {
+      "GPG 钥匙串": "GPG 鑰匙圈",
+      "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。": "使用本機 GnuPG 加密、解密、簽章、驗章及管理公開金鑰。",
+      "钥匙串": "鑰匙圈"
     }
   }
 }

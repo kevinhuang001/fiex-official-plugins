@@ -1,3 +1,7 @@
+# Fiex plugins 0.5.5
+
+SSH owns its terminal UI and sessions in a self-contained PluginView. Every native plugin uses the typed Providers API with protocol 5 and SDK 0.1.1. CI uses sccache on all Rust jobs and tests actual process protocols, encrypted SSH and installed plugins against Core.
+
 # Fiex plugins 0.5.0
 
 - Plugin manifests now use schema 2, scoped event providers, and per-plugin versioning. Unchanged plugins keep their existing versions.
@@ -107,7 +111,7 @@ release catalog and release page read those manifest versions.
 # Fiex plugins 0.2.0
 
 - All six plugins report version 0.2.0.
-- Git links libgit2 through `git2`; it never executes a local Git binary or uses `host.exec`. Remote pull is fast-forward only.
+- Git links libgit2 through `git2`; it never executes a local Git binary or uses the legacy `host.exec` entry. Remote pull is fast-forward only.
 - Git ships a React panel built to one static HTML file: status, staging, commit, history and worktree return.
 - Archive adds RAR extraction and creation via the pure-Rust `rars` codec, and ships a React advanced-compression panel.
 - Checksum ships a React multi-file checksum panel.

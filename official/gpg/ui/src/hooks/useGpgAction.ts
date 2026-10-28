@@ -1,13 +1,16 @@
+import { t } from "../../../../../support/ui/i18n";
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { useState } from "react";
 import { client } from "../client";
-import { baseName, directoryName, join, outputName } from "../paths";
+import { baseName, outputName } from "../paths";
 import type { Action, Status } from "../types";
 
 type Options = {
   action: Action;
-  files: string[];
-  data: string;
-  signature: string;
+  directory: ResourceContext | undefined;
+  files: ResourceContext[];
+  data: ResourceContext | undefined;
+  signature: ResourceContext | undefined;
   fingerprint: string;
   armor: boolean;
   trust: boolean;
@@ -16,6 +19,7 @@ type Options = {
 
 export function useGpgAction({
   action,
+  directory,
   files,
   data,
   signature,
@@ -27,17 +31,19 @@ export function useGpgAction({
   const [progress, setProgress] = useState(0);
 
   const run = async () => {
-    const inputs = (action === "verify" ? [data] : files).filter(Boolean);
+    const inputs = (action === "verify" ? [data] : files).filter(
+      (resource): resource is ResourceContext => Boolean(resource),
+    );
     if (!inputs.length) {
-      setStatus({ kind: "error", text: "请选择要处理的文件" });
+      setStatus({ kind: "error", text: t("请选择要处理的文件") });
       return;
     }
     if (action === "verify" && !signature) {
-      setStatus({ kind: "error", text: "请选择签名文件" });
+      setStatus({ kind: "error", text: t("请选择签名文件") });
       return;
     }
     if ((action === "encrypt" || action === "sign") && !fingerprint) {
-      setStatus({ kind: "error", text: "请选择密钥" });
+      setStatus({ kind: "error", text: t("请选择密钥") });
       return;
     }
     setStatus({ kind: "busy", text: "" });
@@ -45,27 +51,34 @@ export function useGpgAction({
     let done = 0;
     const failures: string[] = [];
     for (const input of inputs) {
-      setStatus({ kind: "busy", text: `正在处理 ${baseName(input)}` });
+      setStatus({ kind: "busy", text: t("正在处理 {0}", baseName(input)) });
       try {
         if (action === "verify") {
           const result = await client.plugin.invoke<{
             signer: string;
             fingerprint: string;
-          }>("gpg.verify", { signature, input });
+          }>("gpg.verify", { signature: signature!.ref, input: input.ref });
           setStatus({
             kind: "ok",
-            text: `签名有效${result.signer ? ` · 签名者 ${result.signer}` : ""}`,
+            text: t(
+              "签名有效{0}",
+              result.signer ? ` · 签名者 ${result.signer}` : "",
+            ),
           });
           done += 1;
           continue;
         }
-        const output = join(
-          directoryName(input),
-          outputName(input, action, armor),
-        );
+        const output = await client.dialog.saveFile({
+          directory: directory?.ref,
+          suggestedName: outputName(input, action, armor),
+        });
+        if (!output) {
+          setStatus({ kind: "idle", text: "" });
+          return;
+        }
         await client.plugin.invoke(`gpg.${action}`, {
-          input,
-          output,
+          input: input.ref,
+          output: output.ref,
           fingerprint,
           armor,
           trustUnverified: trust,
@@ -79,7 +92,7 @@ export function useGpgAction({
     if (failures.length) {
       setStatus({ kind: "error", text: failures[0] });
     } else if (action !== "verify") {
-      setStatus({ kind: "ok", text: `已完成 ${done} 个文件` });
+      setStatus({ kind: "ok", text: t("已完成 {0} 个文件", done) });
     }
   };
 

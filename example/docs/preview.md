@@ -1,23 +1,6 @@
 # Preview：预览
 
-## 原理
-
-Preview 也只在用户点击“快速查看”时调用。每个插件最多注册**一个** preview 对象。
-
-```
-用户点“快速查看”
-      │
-      ▼
-Core 构造 EventContext（targets 数组）
-      │  match 命中？
-      ▼
-preview.open
-      │
-      ▼
-PreviewView: html | text | unsupported
-```
-
-`html` 文档被 Core 放进沙箱 iframe；标题栏、关闭、左右切换由 Core 提供，插件页面只画内容。
+Preview 在用户点击“快速查看”时调用，固定事件为 `preview.open`。
 
 ## Manifest
 
@@ -28,67 +11,42 @@ PreviewView: html | text | unsupported
 },
 "extensions": {
   "preview": {
-    "match": {
-      "extensions": ["txt", "md"],
-      "mimeTypes": ["text/*"],
-      "kinds": ["file"]
-    },
+    "match": { "extensions": ["txt", "md"], "kinds": ["file"] },
     "priority": 60,
     "maxBytes": 1048576
   }
 }
 ```
 
-- 不写 `panel`，页面入口由 `preview.open` 返回值决定；
-- 不写 `method`，标准方法固定为 `preview.open`；
-- manifest 的 preview 对象没有 `title`；来源选择器显示插件名或“Fiex 内置”。
+`preview` 是单个对象。页面入口由返回值决定，manifest 不写 `panel`/`method`。
 
 ## Rust 实现
 
 ```rust
-"preview.open" => Ok(json!({
-    "kind": "html",
-    "view": {
-        "source": "package",
-        "entry": "ui/preview.html"
+struct ExamplePreview;
+
+impl sdk::PreviewProvider for ExamplePreview {
+    fn open(&self, _ctx: &sdk::RequestContext)
+        -> Result<sdk::PreviewView, RpcError>
+    {
+        Ok(sdk::PreviewView::html("ui/preview.html"))
     }
-})),
+}
 ```
 
-文本型预览：
+文本预览：
 
 ```rust
-"preview.open" => Ok(json!({
-    "kind": "text",
-    "text": "第一行\n第二行"
-})),
+Ok(sdk::PreviewView {
+    kind: "text".into(),
+    view: None,
+    text: Some("预览内容".into()),
+    message: None,
+    state: Value::Null,
+})
 ```
 
-无法处理：
+需要读取文件时用 `ctx.targets()` 的 ref 和 `ctx.files()`；不要把路径塞进
+PreviewView。预览页面调用 `fiex.preview.ready()` 通知 Core 首屏完成。
 
-```rust
-"preview.open" => Ok(json!({
-    "kind": "unsupported",
-    "message": "这个格式需要安装 XX 插件"
-})),
-```
-
-## 页面
-
-`ui/preview.html` 通过 UI Bridge 读取 `context.get`：
-
-```js
-const context = await invoke("context.get");
-const name = context.targets?.[0]?.metadata?.name;
-```
-
-- 不要自己画标题栏、关闭按钮；
-- 可用 tabs/toolbar，但不要重复 Core 的文件头；
-- 需要读文件时用 `context.targets?.[0]?.read?.resourceId` 与会话绑定的读取接口，或 `ctx.targets()` 的已投影文件名在 operation scope 内读；
-- HTML 不能引用包外资源，Core 会校验入口并注入 CSP。
-
-## 权限与坑
-
-- `metadata` 决定 Context 里是否有属性；`files.read` 决定是否有 scoped read；
-- 大文件不要塞进 `text`（上限 256 KiB）；
-- 同一个插件只注册一个 preview，避免来源列表出现多个无法区分的选项。
+完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloPreview`。

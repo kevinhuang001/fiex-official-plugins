@@ -47,7 +47,7 @@ impl Settings {
             .get("connectionId")
             .and_then(Value::as_str)
             .filter(|id| !id.is_empty())
-            .ok_or("请从连接中打开邮箱")?
+            .ok_or(crate::i18n::t("请从连接中打开邮箱"))?
             .to_string();
         let mut fields = params.clone();
         let provided = fields
@@ -56,8 +56,11 @@ impl Settings {
             .is_some_and(|password| !password.is_empty());
         if !provided {
             let password = ctx
-                .secret_get(&format!("connection-{id}"), "password")
-                .map_err(|error| error.to_string())?;
+                .secrets()
+                .scoped(&format!("connection-{id}"))
+                .get::<String>("password")
+                .map_err(|error| error.to_string())?
+                .ok_or(crate::i18n::t("邮箱密码未设置"))?;
             if let Some(object) = fields.as_object_mut() {
                 object.insert("password".into(), Value::String(password));
             }
@@ -95,13 +98,13 @@ impl Settings {
         smtp_host: String,
     ) -> Result<Self, String> {
         if !valid_address(&email) {
-            return Err("请填写有效的邮箱地址".into());
+            return Err(crate::i18n::t("请填写有效的邮箱地址").into());
         }
         if password.is_empty() {
-            return Err("请填写 IMAP/SMTP 授权码或密码".into());
+            return Err(crate::i18n::t("请填写 IMAP/SMTP 授权码或密码").into());
         }
         if !valid_host(&imap_host) || !valid_host(&smtp_host) {
-            return Err("IMAP/SMTP 服务器地址无效".into());
+            return Err(crate::i18n::t("IMAP/SMTP 服务器地址无效").into());
         }
         Ok(Self {
             connection_id,

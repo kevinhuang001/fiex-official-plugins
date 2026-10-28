@@ -1,8 +1,21 @@
 //! Real GnuPG behind Core's authorized command broker, with an isolated keyring.
-use fiex_lib::plugin_host;
+#[path = "../support/fixtures.rs"]
+mod fixtures;
+use fiex_lib::plugins::host as plugin_host;
 use serde_json::json;
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugins::host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
+    }
+}
+
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let root = std::env::temp_dir().join(format!("fiex-gpg-e2e-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
     let home = root.join("keyring");
@@ -33,50 +46,77 @@ fn main() {
         .into_iter()
         .find(|(m, _)| m.id == "org.fiex.gpg")
         .unwrap();
+    ensure_approved(&manifest.id);
     plugin_host::activate(
         &manifest.id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
     )
     .unwrap();
-    let invoke = |method, params| {
-        plugin_host::global().invoke_at("org.fiex.gpg", method, params, root.to_str().unwrap())
-    };
-    let keys = invoke("gpg.keys", json!({})).unwrap();
-    let fingerprint = keys[0]["fingerprint"].as_str().unwrap();
     let input = root.join("plain.bin");
     let encrypted = root.join("encrypted.gpg");
     let output = root.join("decrypted.bin");
     let signature = root.join("signature.asc");
+    let selected = [
+        input.clone(),
+        encrypted.clone(),
+        output.clone(),
+        signature.clone(),
+    ];
+    let reference = |path: &std::path::Path| serde_json::json!(fixtures::reference(path));
+    let invoke = |method, params| {
+        fixtures::invoke_selected(
+            "org.fiex.gpg",
+            method,
+            params,
+            root.to_str().unwrap(),
+            &selected,
+        )
+    };
+    let keys = invoke("gpg.keys", json!({})).unwrap();
+    let fingerprint = keys[0]["fingerprint"].as_str().unwrap();
     let data = vec![0, 255, 128, 10, 42];
     std::fs::write(&input, &data).unwrap();
     invoke(
         "gpg.encrypt",
-        json!({"input":input,"output":encrypted,"fingerprint":fingerprint}),
+        json!({"input":reference(&input),"output":reference(&encrypted),"fingerprint":fingerprint}),
     )
     .unwrap();
-    invoke("gpg.decrypt", json!({"input":encrypted,"output":output})).unwrap();
+    invoke(
+        "gpg.decrypt",
+        json!({"input":reference(&encrypted),"output":reference(&output)}),
+    )
+    .unwrap();
     assert_eq!(std::fs::read(&output).unwrap(), data);
     assert!(
-        invoke("gpg.decrypt", json!({"input":encrypted,"output":output})).is_err(),
+        invoke(
+            "gpg.decrypt",
+            json!({"input":reference(&encrypted),"output":reference(&output)})
+        )
+        .is_err(),
         "must not overwrite existing file"
     );
     invoke(
         "gpg.sign",
-        json!({"input":input,"output":signature,"fingerprint":fingerprint}),
+        json!({"input":reference(&input),"output":reference(&signature),"fingerprint":fingerprint}),
     )
     .unwrap();
-    invoke("gpg.verify", json!({"input":input,"signature":signature})).unwrap();
+    invoke(
+        "gpg.verify",
+        json!({"input":reference(&input),"signature":reference(&signature)}),
+    )
+    .unwrap();
     std::fs::write(&input, b"tampered").unwrap();
-    assert!(invoke("gpg.verify", json!({"input":input,"signature":signature})).is_err());
+    assert!(invoke(
+        "gpg.verify",
+        json!({"input":reference(&input),"signature":reference(&signature)})
+    )
+    .is_err());
     for id in ["org.fiex.theme.vista", "org.fiex.theme.win11"] {
         let (manifest, _) = plugin_host::installed_manifests()
             .into_iter()
             .find(|(m, _)| m.id == id)
             .unwrap();
-        if let Err(error) = plugin_host::approve_install(id) {
-            // A previous example in the same run may already have approved it.
-            assert!(error.contains("already"), "{error}");
-        }
+        ensure_approved(id);
         plugin_host::activate(
             id,
             &plugin_host::activation_requirements(&manifest).unwrap(),

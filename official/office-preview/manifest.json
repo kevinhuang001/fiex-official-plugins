@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.office-preview",
   "name": "Office 预览",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "description": "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。",
   "icon": "file-text",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "5.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-office-preview.exe",
       "macos-aarch64": "fiex-plugin-office-preview",
@@ -96,5 +96,17 @@
         "placeholder": "6"
       }
     ]
+  },
+  "locales": {
+    "en": {
+      "Office 预览": "Office Preview",
+      "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": "Read-only Word, Excel and PowerPoint preview. Complex layouts are simplified.",
+      "预览页数": "Preview page limit"
+    },
+    "zh-TW": {
+      "Office 预览": "Office 預覽",
+      "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": "Word、Excel、PowerPoint 的唯讀預覽。文字層級渲染，複雜版面會簡化。",
+      "预览页数": "預覽頁數"
+    }
   }
 }

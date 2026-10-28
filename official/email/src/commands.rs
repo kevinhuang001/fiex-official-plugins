@@ -34,50 +34,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     match method {
-        "connection.validate" | "email.test" => {
-            let connection = p.get("connection").unwrap_or(p);
-            let settings = if method == "connection.validate" {
-                Settings::from_connection(connection).map_err(RpcError::invalid_params)?
-            } else {
-                settings(&ctx, p)?
-            };
-            let mut session = imap_session(&ctx, &settings).map_err(RpcError::internal)?;
-            let _ = session
-                .select("INBOX")
-                .map_err(|error| RpcError::internal(error.to_string()))?;
-            drop(session);
-            let stream = ctx
-                .tcp()
-                .connect(&settings.smtp_host, 465)
-                .map_err(|error| RpcError::internal(error.to_string()))?;
-            smtp::check(
-                stream,
-                &settings.smtp_host,
-                &settings.email,
-                &settings.password,
-            )
-            .map_err(RpcError::internal)?;
-            Ok(json!({"imap": true, "smtp": true}))
-        }
-        "connection.open" => {
-            let settings = Settings::from_connection(
-                p.get("connection")
-                    .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-            )
-            .map_err(RpcError::invalid_params)?;
-            let connection_id = text(p, "connectionId")?;
-            Ok(json!({
-                "kind": "pluginView",
-                "view": {"source": "package", "entry": "ui/dist/index.html"},
-                "tabTitle": format!("邮箱 · {}", settings.email),
-                "state": {
-                    "connectionId": connection_id,
-                    "email": settings.email,
-                    "imapHost": settings.imap_host,
-                    "smtpHost": settings.smtp_host
-                }
-            }))
-        }
+        "email.test" => test_mailbox(&ctx, false),
         "email.list" => {
             let settings = settings(&ctx, p)?;
             let limit = p
@@ -105,7 +62,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             let settings = settings(&ctx, p)?;
             let to = text(p, "to")?.trim();
             if !crate::config::valid_address(to) {
-                return Err(RpcError::invalid_params("无效的收件人地址"));
+                return Err(RpcError::invalid_params(crate::i18n::t("无效的收件人地址")));
             }
             let subject = p.get("subject").and_then(Value::as_str).unwrap_or("");
             let body = text(p, "body")?;
@@ -126,5 +83,60 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             Ok(json!({"ok": true}))
         }
         _ => Err(RpcError::method_not_found(method)),
+    }
+}
+
+fn test_mailbox(ctx: &sdk::RequestContext, from_connection: bool) -> Result<Value, RpcError> {
+    let p = ctx.params();
+
+    let connection = p.get("connection").unwrap_or(p);
+    let settings = if from_connection {
+        Settings::from_connection(connection).map_err(RpcError::invalid_params)?
+    } else {
+        settings(ctx, p)?
+    };
+    let mut session = imap_session(ctx, &settings).map_err(RpcError::internal)?;
+    let _ = session
+        .select("INBOX")
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    drop(session);
+    let stream = ctx
+        .tcp()
+        .connect(&settings.smtp_host, 465)
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    smtp::check(
+        stream,
+        &settings.smtp_host,
+        &settings.email,
+        &settings.password,
+    )
+    .map_err(RpcError::internal)?;
+    Ok(json!({"imap": true, "smtp": true}))
+}
+pub struct EmailConnection;
+impl sdk::ConnectionProvider for EmailConnection {
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        test_mailbox(ctx, true)
+    }
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+        let p = ctx.params();
+
+        let settings = Settings::from_connection(
+            p.get("connection")
+                .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+        )
+        .map_err(RpcError::invalid_params)?;
+        let connection_id = text(p, "connectionId")?;
+        Ok(json!({
+            "kind": "pluginView",
+            "view": {"source": "package", "entry": "ui/dist/index.html"},
+            "tabTitle": fiex_plugin_sdk::i18n::format(crate::i18n::t("邮箱 · {0}"), &[("0", settings.email.clone())]),
+            "state": {
+                "connectionId": connection_id,
+                "email": settings.email,
+                "imapHost": settings.imap_host,
+                "smtpHost": settings.smtp_host
+            }
+        }))
     }
 }

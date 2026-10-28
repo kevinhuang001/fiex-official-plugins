@@ -17,6 +17,8 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
+SOURCE_REF = {"mountId": "local", "nodeId": "source"}
+
 
 def write_frame(stream, value):
     body = json.dumps(value, separators=(",", ":")).encode("utf-8")
@@ -52,7 +54,7 @@ class Plugin:
         self.serial = 0
         self.resources = {}
         self.next_resource = 0
-        info = self.rpc("plugin.initialize", {"protocolVersion": "3.0"})
+        info = self.rpc("plugin.initialize", {"protocolVersion": "5.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
     def rpc(self, method, params):
@@ -83,7 +85,7 @@ class Plugin:
         if method in {"host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
             return None
         if method == "host.fs.openRead":
-            assert params["path"] == "source.dat"
+            assert params["ref"] == SOURCE_REF
             return {"handle":"snapshot", "size":len(self.upload_source)}
         if method == "host.fs.readOpen":
             assert params["handle"] == "snapshot"
@@ -130,7 +132,7 @@ class Plugin:
                                         "method": method, "params": params})
         response = self.response()
         assert response["id"] == self.serial, response
-        assert response["error"]["code"] == -32602, response
+        assert response.get("error", {}).get("code") == -32602, response
 
     def close(self):
         try:
@@ -165,18 +167,49 @@ def unpack(packages, slug, dest):
 
 def check_list(plugin, connection, description):
     assert plugin.rpc("connection.validate", {"connection": connection})["valid"] is True
-    first = plugin.rpc("fs.list", {"connection": connection, "directoryId": "",
+    first = plugin.rpc("vfs.list", {"connection": connection, "nodeId": "",
                                     "limit": 1})
     assert len(first["entries"]) == 1, first
     cursor = first["nextCursor"]
     assert cursor is not None, f"{description}: pagination not exercised"
-    second = plugin.rpc("fs.list", {"connection": connection, "directoryId": "",
+    second = plugin.rpc("vfs.list", {"connection": connection, "nodeId": "",
                                      "limit": 100, "cursor": cursor})
     combined = first["entries"] + second["entries"]
     names = [entry["name"] for entry in combined]
     assert "hello.txt" in names and "another.txt" in names, f"{description}: {combined}"
     assert len(names) == len(set(names)), "pagination yielded duplicated entries"
-    plugin.invalid("fs.list", {"connection": connection, "directoryId": "../escape"})
+    plugin.invalid("vfs.list", {"connection": connection, "nodeId": "../escape"})
+
+
+
+def read_all(plugin, cfg, node):
+    opened = plugin.rpc("vfs.openRead", {"connection": cfg, "nodeId": node})
+    stream = opened["streamId"]
+    parts = []
+    offset = 0
+    while True:
+        reply = plugin.rpc("vfs.readStream", {"streamId": stream, "offset": offset,
+                                             "maxBytes": 262144})
+        data = base64.b64decode(reply["base64"])
+        parts.append(data)
+        offset += len(data)
+        if reply["eof"] or not data:
+            break
+    plugin.rpc("vfs.closeRead", {"streamId": stream})
+    return b"".join(parts)
+
+
+def write_all(plugin, cfg, node, data, revision):
+    opened = plugin.rpc("vfs.beginWrite", {"connection": cfg, "nodeId": node,
+                                          "size": len(data), "ifRevision": revision})
+    stream = opened["streamId"]
+    offset = 0
+    while offset < len(data):
+        chunk = data[offset:offset + 262144]
+        plugin.rpc("vfs.writeStream", {"streamId": stream, "offset": offset,
+                                      "base64": base64.b64encode(chunk).decode()})
+        offset += len(chunk)
+    return plugin.rpc("vfs.commit", {"streamId": stream})
 
 
 def main():
@@ -191,26 +224,26 @@ def main():
         plugin = Plugin(exe, plugin_id)
         try:
             check_list(plugin, cfg, "WebDAV")
-            result = plugin.rpc("fs.readSmall", {"connection": cfg, "nodeId": "hello.txt", "maxBytes": 1024})
-            assert base64.b64decode(result["base64"]) == b"hello webdav\n", result
-            opened = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
+            result = read_all(plugin, cfg, "hello.txt")
+            assert result == b"hello webdav\n", result
+            opened = plugin.rpc("vfs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
             stream_id = opened["streamId"]
-            reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
+            reply = plugin.rpc("vfs.readStream", {"streamId": stream_id, "offset": 0,
                                                  "maxBytes": 262144})
             assert base64.b64decode(reply["base64"]) == b"hello webdav\n"
             assert reply["eof"] is True
-            plugin.rpc("fs.closeRead", {"streamId": stream_id})
-            baseline=plugin.rpc("fs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
-            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline})
+            plugin.rpc("vfs.closeRead", {"streamId": stream_id})
+            baseline=plugin.rpc("vfs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
+            uploaded=write_all(plugin, cfg, "hello.txt", plugin.upload_source, baseline)
             assert uploaded["revision"] != baseline
-            verified=plugin.rpc("fs.readSmall", {"connection":cfg,"nodeId":"hello.txt","maxBytes":1024})
-            assert base64.b64decode(verified["base64"]) == plugin.upload_source
-            plugin.upload_source=base64.b64decode(result["base64"])
-            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":uploaded["revision"]})
-            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
-            plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
+            verified=read_all(plugin, cfg, "hello.txt")
+            assert verified == plugin.upload_source
+            plugin.upload_source=result
+            write_all(plugin, cfg, "hello.txt", plugin.upload_source, uploaded["revision"])
+            plugin.invalid("vfs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("vfs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})
-            plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
+            plugin.invalid("vfs.readStream", {"streamId": stream_id, "offset": 0,
                                              "maxBytes": 262145})
         finally:
             plugin.close()
@@ -226,29 +259,28 @@ def main():
         plugin = Plugin(exe, plugin_id)
         try:
             check_list(plugin, cfg, "SMB")
-            result = plugin.rpc("fs.readSmall", {"connection": cfg,
-                                                  "nodeId": "hello.txt", "maxBytes": 1024})
-            assert base64.b64decode(result["base64"]) == b"hello smb\n", result
-            opened = plugin.rpc("fs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
+            result = read_all(plugin, cfg, "hello.txt")
+            assert result == b"hello smb\n", result
+            opened = plugin.rpc("vfs.openRead", {"connection": cfg, "nodeId": "hello.txt"})
             stream_id = opened["streamId"]
-            reply = plugin.rpc("fs.readStream", {"streamId": stream_id, "offset": 0,
+            reply = plugin.rpc("vfs.readStream", {"streamId": stream_id, "offset": 0,
                                                  "maxBytes": 262144})
             assert base64.b64decode(reply["base64"]) == b"hello smb\n"
             assert reply["eof"] is True
-            plugin.rpc("fs.closeRead", {"streamId": stream_id})
-            baseline=plugin.rpc("fs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
-            uploaded=plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline})
+            plugin.rpc("vfs.closeRead", {"streamId": stream_id})
+            baseline=plugin.rpc("vfs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
+            uploaded=write_all(plugin, cfg, "hello.txt", plugin.upload_source, baseline)
             assert uploaded["revision"] != baseline
-            verified=plugin.rpc("fs.readSmall", {"connection":cfg,"nodeId":"hello.txt","maxBytes":1024})
-            assert base64.b64decode(verified["base64"]) == plugin.upload_source
-            plugin.upload_source=base64.b64decode(result["base64"])
-            plugin.rpc("fs.writeFile", {"connection":cfg,"nodeId":"hello.txt","source":"source.dat","ifRevision":uploaded["revision"]})
-            plugin.invalid("fs.openRead", {"connection": cfg, "nodeId": "../escape"})
-            plugin.invalid("fs.readStream", {"streamId": "missing", "offset": 0,
+            verified=read_all(plugin, cfg, "hello.txt")
+            assert verified == plugin.upload_source
+            plugin.upload_source=result
+            write_all(plugin, cfg, "hello.txt", plugin.upload_source, uploaded["revision"])
+            plugin.invalid("vfs.openRead", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("vfs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})
-            plugin.invalid("fs.readStream", {"streamId": stream_id, "offset": 0,
+            plugin.invalid("vfs.readStream", {"streamId": stream_id, "offset": 0,
                                              "maxBytes": 262145})
-            plugin.invalid("fs.readSmall", {"connection": cfg, "nodeId": "../escape"})
+            plugin.invalid("vfs.remove", {"connection": cfg, "nodeId": "../escape"})
         finally:
             plugin.close()
         print("PASS SMB: validate, list, pagination, path guards, preview and bounded byte streaming", flush=True)

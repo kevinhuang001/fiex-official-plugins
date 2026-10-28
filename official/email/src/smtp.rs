@@ -71,14 +71,22 @@ fn expect<S: Read + Write>(reader: &mut BufReader<S>, code: u16) -> Result<(), S
             .read_line(&mut line)
             .map_err(|error| error.to_string())?;
         if line.is_empty() {
-            return Err("SMTP 连接已关闭".into());
+            return Err(crate::i18n::t("SMTP 连接已关闭").into());
         }
         let status = line
             .get(..3)
             .and_then(|value| value.parse::<u16>().ok())
-            .ok_or_else(|| format!("SMTP 响应无效：{}", line.trim()))?;
+            .ok_or_else(|| {
+                fiex_plugin_sdk::i18n::format(
+                    crate::i18n::t("SMTP 响应无效：{0}"),
+                    &[("0", line.trim().to_string())],
+                )
+            })?;
         if status != code {
-            return Err(format!("SMTP 错误 {}：{}", status, line.trim()));
+            return Err(fiex_plugin_sdk::i18n::format(
+                crate::i18n::t("SMTP 错误 {0}：{1}"),
+                &[("0", format!("{}", status)), ("1", line.trim().to_string())],
+            ));
         }
         // 250-... continues; 250 ... is the last line.
         if line.as_bytes().get(3) == Some(&b'-') {

@@ -1,21 +1,32 @@
 //! Google Drive v3 adapter. All HTTP goes through Core's authorized network
 //! transport; the plugin has no filesystem, subprocess or socket permission.
+mod auth;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
+mod mutate;
 mod reads;
 mod writes;
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use auth::token;
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    RpcError,
+};
 use serde_json::{json, Value};
-use std::sync::Mutex;
 
 const API: &str = "https://www.googleapis.com/drive/v3";
+
 fn error(e: impl std::fmt::Display) -> RpcError {
     RpcError::internal(e.to_string())
 }
+
 fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str, RpcError> {
     v[key]
         .as_str()
         .filter(|s| !s.is_empty())
         .ok_or_else(|| RpcError::invalid_params(format!("missing {key}")))
 }
+
 fn node(v: &str) -> Result<&str, RpcError> {
     if v.is_empty()
         || v.len() > 256
@@ -27,58 +38,18 @@ fn node(v: &str) -> Result<&str, RpcError> {
     }
     Ok(v)
 }
-fn token(ctx: &sdk::RequestContext, cfg: &Value) -> Result<String, RpcError> {
-    use std::{
-        collections::HashMap,
-        sync::OnceLock,
-        time::{Duration, Instant},
-    };
-    type Tokens = HashMap<String, (String, Instant)>;
-    static CACHE: OnceLock<Mutex<Tokens>> = OnceLock::new();
-    let cache = CACHE.get_or_init(Default::default);
-    let key = serde_json::to_string(cfg).map_err(error)?;
-    if let Some((token, until)) = cache.lock().map_err(error)?.get(&key) {
-        if *until > Instant::now() {
-            return Ok(token.clone());
-        }
-    }
 
-    let body = format!(
-        "client_id={}&client_secret={}&refresh_token={}&grant_type=refresh_token",
-        urlencoding::encode(text(cfg, "clientId")?),
-        urlencoding::encode(text(cfg, "clientSecret")?),
-        urlencoding::encode(text(cfg, "refreshToken")?)
-    );
-    let value: Value = ctx
-        .http()
-        .post("https://oauth2.googleapis.com/token")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .and_then(|r| r.error_for_status())
-        .and_then(|r| r.json())
-        .map_err(error)?;
-    let token = text(&value, "access_token")?.to_string();
-    let ttl = value["expires_in"]
-        .as_u64()
-        .unwrap_or(3600)
-        .min(3600)
-        .saturating_sub(60);
-    let mut cached = cache.lock().map_err(error)?;
-    if cached.len() >= 32 {
-        cached.clear();
-    }
-    cached.insert(
-        key,
-        (token.clone(), Instant::now() + Duration::from_secs(ttl)),
-    );
-    Ok(token)
+fn http_request(
+    http: &sdk::HttpClient,
+    token: &str,
+    method: &str,
+    url: &str,
+) -> sdk::http::Request {
+    http.request(method, url).bearer_auth(token)
 }
-fn request(ctx: &sdk::RequestContext, token: &str, method: &str, url: &str) -> sdk::http::Request {
-    ctx.http().request(method, url).bearer_auth(token)
-}
-fn metadata(ctx: &sdk::RequestContext, token: &str, id: &str) -> Result<(Value, String), RpcError> {
-    let response = request(ctx, token, "GET", &format!("{API}/files/{}?fields=id,name,mimeType,size,version,trashed,capabilities(canEdit)&supportsAllDrives=true", node(id)?))
+
+fn metadata(http: &sdk::HttpClient, token: &str, id: &str) -> Result<(Value, String), RpcError> {
+    let response = http_request(http, token, "GET", &format!("{API}/files/{}?fields=id,name,mimeType,size,version,trashed,capabilities(canEdit)&supportsAllDrives=true", node(id)?))
         .send().and_then(|r| r.error_for_status()).map_err(error)?;
     let etag = response.headers.get("etag").cloned().unwrap_or_default();
     let value: Value = response.json().map_err(error)?;
@@ -87,29 +58,97 @@ fn metadata(ctx: &sdk::RequestContext, token: &str, id: &str) -> Result<(Value, 
     }
     Ok((value, etag))
 }
+
+/// One `FsEntry` from a Drive file resource. Drive IDs are stable per mount, so
+/// they are the opaque `nodeId`; no host or Drive path is ever returned.
+fn entry(file: &Value) -> FsEntry {
+    let id = file["id"].as_str().unwrap_or("");
+    let directory = file["mimeType"] == "application/vnd.google-apps.folder";
+    let name = reads::safe_name(file["name"].as_str().unwrap_or("file"), id);
+    let size = file["size"]
+        .as_str()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    let mut entry = if directory {
+        FsEntry::directory(id, name.clone())
+    } else {
+        FsEntry::file(id, name.clone())
+    };
+    entry.size = Some(size);
+    entry.modified = Some(0);
+    entry.revision = file["version"].as_str().map(str::to_owned);
+    entry.mime = file["mimeType"].as_str().map(str::to_owned);
+    if !directory {
+        entry.extension = name
+            .rsplit_once('.')
+            .map(|(_, extension)| extension.to_string());
+    }
+    entry
+}
+
+struct Drive;
+
+impl FSProvider for Drive {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+        &[
+            sdk::filesystem::FsOp::List,
+            sdk::filesystem::FsOp::Stat,
+            sdk::filesystem::FsOp::Read,
+            sdk::filesystem::FsOp::Write,
+            sdk::filesystem::FsOp::Mkdir,
+            sdk::filesystem::FsOp::Rename,
+            sdk::filesystem::FsOp::Remove,
+        ]
+    }
+
+    fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        reads::list(request)
+    }
+
+    fn stat(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        reads::stat(request)
+    }
+
+    fn read(&self, request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+        reads::read(request)
+    }
+
+    fn write(&self, request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
+        writes::write(request)
+    }
+
+    fn mkdir(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        mutate::mkdir(request)
+    }
+
+    fn rename(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        mutate::rename(request)
+    }
+
+    fn remove(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
+        mutate::remove(request)
+    }
+}
+
+fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let mount = ctx.params()["mountId"]
+        .as_str()
+        .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+    Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
+}
+
+impl sdk::ConnectionProvider for Drive {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        open(ctx)
+    }
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        auth::validate(ctx)
+    }
+}
+
 fn main() {
-    let state = Mutex::new(writes::State::default());
-    if let Err(e) = sdk::serve("org.fiex.gdrive", move |ctx| {
-        let method = ctx.method();
-        if method == "connection.open" {
-            let mount = ctx.params()["mountId"]
-                .as_str()
-                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-            return Ok(
-                json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
-            );
-        }
-        match method {
-            "connection.validate"
-            | "fs.list"
-            | "fs.stat"
-            | "fs.openRead"
-            | "fs.readStream"
-            | "fs.closeRead" => reads::dispatch(&ctx, &state),
-            "fs.writeFile" => writes::write_file(&ctx),
-            _ => Err(RpcError::method_not_found(method)),
-        }
-    }) {
+    let providers = sdk::Providers::new().filesystem(Drive).connection(Drive);
+    if let Err(e) = providers.serve("org.fiex.gdrive") {
         eprintln!("Drive IPC failed: {e}");
         std::process::exit(1);
     }

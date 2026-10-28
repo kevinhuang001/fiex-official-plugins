@@ -64,7 +64,7 @@ fn decode_href(href: &str) -> String {
         .unwrap_or_else(|_| href.into())
 }
 
-pub(crate) fn parse_dav(url: &str, rel: &str, xml: &str) -> Result<Vec<RemoteFile>, String> {
+pub(crate) fn parse_dav(url: &str, _rel: &str, xml: &str) -> Result<Vec<RemoteFile>, String> {
     let base = url::Url::parse(url).map_err(|e| e.to_string())?;
     let base_path = decode_href(base.path());
     let mut reader = quick_xml::Reader::from_str(xml);
@@ -147,18 +147,22 @@ pub(crate) fn parse_dav(url: &str, rel: &str, xml: &str) -> Result<Vec<RemoteFil
                 text.clear();
                 if event.local_name().as_ref() == b"response" {
                     if let Some(mut item) = current.take() {
-                        let requested = rel.trim_matches('/');
-                        if !item.path.is_empty() && item.path.trim_matches('/') != requested {
-                            if item.is_dir {
-                                item.size = 0;
-                            }
-                            out.push(item);
+                        // Keep the requested resource itself: `list` filters it
+                        // out and `stat` needs its metadata.
+                        if item.is_dir {
+                            item.size = 0;
                         }
+                        out.push(item);
                     }
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(format!("WebDAV 响应解析失败：{e}")),
+            Err(e) => {
+                return Err(fiex_plugin_sdk::i18n::format(
+                    crate::i18n::t("WebDAV 响应解析失败：{e}"),
+                    &[("e", format!("{}", e))],
+                ))
+            }
             _ => {}
         }
     }

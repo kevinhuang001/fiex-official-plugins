@@ -1,3 +1,4 @@
+import { t } from "../../../../support/ui/i18n";
 import {
   FileSignature,
   KeyRound,
@@ -36,39 +37,39 @@ export type ActionMeta = {
 
 export const DEFAULT_ACTION: Action = "keys";
 
-export const ACTIONS: Record<Action, ActionMeta> = {
+export const getActions = (): Record<Action, ActionMeta> => ({
   encrypt: {
-    label: "加密",
-    heading: "用公钥加密所选文件",
+    label: t("加密"),
+    heading: t("用公钥加密所选文件"),
     icon: Lock,
     width: 540,
   },
   decrypt: {
-    label: "解密",
-    heading: "用私钥解密所选文件",
+    label: t("解密"),
+    heading: t("用私钥解密所选文件"),
     icon: LockOpen,
     width: 500,
   },
   sign: {
-    label: "签名",
-    heading: "生成分离签名",
+    label: t("签名"),
+    heading: t("生成分离签名"),
     icon: FileSignature,
     width: 520,
   },
   verify: {
-    label: "验证",
-    heading: "核验分离签名",
+    label: t("验证"),
+    heading: t("核验分离签名"),
     icon: ShieldCheck,
     width: 500,
   },
   keys: {
-    label: "GPG 钥匙串",
-    heading: "本机公钥环 · 导入、导出与查看密钥",
+    label: t("GPG 钥匙串"),
+    heading: t("本机公钥环 · 导入、导出与查看密钥"),
     icon: KeyRound,
     width: 620,
   },
-};
+});
 
 export function isAction(value: string | undefined): value is Action {
-  return value !== undefined && value in ACTIONS;
+  return value !== undefined && value in getActions();
 }

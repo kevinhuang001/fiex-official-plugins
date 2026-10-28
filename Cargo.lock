@@ -903,7 +903,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fiex-plugin-archive"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "bzip2",
  "fiex-plugin-sdk",
@@ -920,7 +920,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-checksum"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "crc32fast",
  "fiex-plugin-sdk",
@@ -934,7 +934,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-data-preview"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "apache-avro",
  "arrow",
@@ -950,7 +950,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-email"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -964,7 +964,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-everything"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "fiex-plugin-sdk",
  "mime_guess",
@@ -975,7 +975,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gdrive"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-git"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gpg"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "fiex-plugin-sdk",
  "serde_json",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-office-preview"
-version = "0.2.12"
+version = "0.2.13"
 dependencies = [
  "fiex-plugin-sdk",
  "office_oxide",
@@ -1015,7 +1015,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-openlist"
-version = "0.2.10"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1026,17 +1026,18 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "serde",
  "serde_json",
  "shared_memory",
+ "tokio",
 ]
 
 [[package]]
 name = "fiex-plugin-webdav"
-version = "0.2.9"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -2563,6 +2564,16 @@ checksum = "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a"
 dependencies = [
  "displaydoc",
  "zerovec",
+]
+
+[[package]]
+name = "tokio"
+version = "1.54.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
+dependencies = [
+ "bytes",
+ "pin-project-lite",
 ]
 
 [[package]]

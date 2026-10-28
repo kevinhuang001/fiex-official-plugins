@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.everything",
   "name": "Everything 搜索",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。",
   "icon": "magnifying-glass",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "5.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-everything.exe"
     }
@@ -65,6 +65,16 @@
     "search": {
       "icon": "magnifying-glass",
       "scope": "global"
+    }
+  },
+  "locales": {
+    "en": {
+      "Everything 搜索": "Everything Search",
+      "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。": "Search the Everything index through the ES executable on the host PATH; Everything and ES must be installed and running."
+    },
+    "zh-TW": {
+      "Everything 搜索": "Everything 搜尋",
+      "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。": "透過主程式呼叫 PATH 中的 ES 指令查詢 Everything 索引；須安裝並執行 Everything 和 ES。"
     }
   }
 }

@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { LoaderCircle, Send, X } from "lucide-react";
 import { useState } from "react";
 
@@ -21,13 +22,13 @@ export function Composer({
     <div className="mail-composer-backdrop">
       <div className="mail-composer">
         <header>
-          <span>新邮件</span>
-          <button type="button" onClick={onClose} aria-label="关闭">
+          <span>{t("新邮件")}</span>
+          <button type="button" onClick={onClose} aria-label={t("关闭")}>
             <X size={16} />
           </button>
         </header>
         <label>
-          <span>收件人</span>
+          <span>{t("收件人")}</span>
           <input
             type="email"
             value={to}
@@ -37,22 +38,22 @@ export function Composer({
           />
         </label>
         <label>
-          <span>主题</span>
+          <span>{t("主题")}</span>
           <input
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
-            placeholder="邮件主题"
+            placeholder={t("邮件主题")}
           />
         </label>
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          placeholder="写点什么…"
+          placeholder={t("写点什么…")}
           required
         />
         <footer>
           <button type="button" className="mail-secondary" onClick={onClose}>
-            取消
+            {t("取消")}{" "}
           </button>
           <button
             type="button"
@@ -60,8 +61,12 @@ export function Composer({
             disabled={busy || !to.trim() || !body.trim()}
             onClick={() => void submit()}
           >
-            {busy ? <LoaderCircle size={14} className="is-spinning" /> : <Send size={14} />}
-            {busy ? "发送中…" : "发送"}
+            {busy ? (
+              <LoaderCircle size={14} className="is-spinning" />
+            ) : (
+              <Send size={14} />
+            )}
+            {busy ? t("发送中…") : t("发送")}
           </button>
         </footer>
       </div>

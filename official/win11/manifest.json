@@ -14,5 +14,13 @@
     "themes": {
       "path": "theme.json"
     }
+  },
+  "locales": {
+    "en": {
+      "Windows 11 视觉主题": "Windows 11 visual theme"
+    },
+    "zh-TW": {
+      "Windows 11 视觉主题": "Windows 11 視覺主題"
+    }
   }
 }

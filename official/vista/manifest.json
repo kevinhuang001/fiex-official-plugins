@@ -14,5 +14,13 @@
     "themes": {
       "path": "theme.json"
     }
+  },
+  "locales": {
+    "en": {
+      "Vista Aero 视觉主题": "Vista Aero visual theme"
+    },
+    "zh-TW": {
+      "Vista Aero 视觉主题": "Vista Aero 視覺主題"
+    }
   }
 }

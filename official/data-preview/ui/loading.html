@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>正在准备预览</title>
+    <title data-i18n="正在准备预览">正在准备预览</title>
     <style>
       :root { color-scheme: light dark; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
       * { box-sizing: border-box; }
@@ -29,9 +29,14 @@
       <span class="mark" aria-hidden="true">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/></svg>
       </span>
-      <span class="spinner" role="status" aria-label="正在准备预览"></span>
-      <strong>正在准备数据表预览</strong>
-      <p>正在读取表格结构与首页数据，大文件会分页加载。</p>
+      <span class="spinner" role="status" aria-label="正在准备预览" data-i18n-aria-label="正在准备预览"></span>
+      <strong><span data-i18n="正在准备数据表预览">正在准备数据表预览</span></strong>
+      <p><span data-i18n="正在读取表格结构与首页数据，大文件会分页加载。">正在读取表格结构与首页数据，大文件会分页加载。</span></p>
     </div>
-  </body>
+  <script type="module">
+import { ready, i18n } from "../../../support/ui/i18n";
+import { localizeDocument } from "../../../support/ui/dom";
+void ready.then(() => { localizeDocument(); i18n.subscribe(localizeDocument); });
+</script>
+</body>
 </html>

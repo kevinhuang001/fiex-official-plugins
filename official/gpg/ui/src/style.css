@@ -850,3 +850,16 @@ button:disabled {
     display: none;
   }
 }
+
+.gpg-keychain-pending {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 12px 0;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent, #387ca8) 24%, var(--line, #dee5eb));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent, #387ca8) 8%, transparent);
+  color: var(--muted, #85929e);
+  font-size: 12px;
+}

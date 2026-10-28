@@ -1,6 +1,19 @@
 //! Cross-repository smoke test for the optional Archive and Checksum plugins.
-use fiex_lib::plugin_host;
+#[path = "../support/fixtures.rs"]
+mod fixtures;
+use fiex_lib::plugins::host as plugin_host;
 use serde_json::json;
+
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugins::host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
+    }
+}
 
 fn approve(id: &str) {
     let entry = plugin_host::catalog()
@@ -12,6 +25,7 @@ fn approve(id: &str) {
         .into_iter()
         .find(|(m, _)| m.id == id)
         .unwrap();
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -40,7 +54,7 @@ fn wait_task(task_id: &str) -> serde_json::Value {
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let root = std::env::temp_dir().join(format!("fiex-optional-e2e-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
@@ -48,15 +62,14 @@ fn main() {
     std::fs::write(&file, b"abc").unwrap();
 
     approve("org.fiex.checksum");
-    let hashes = plugin_host::global()
-        .invoke_selected(
-            "org.fiex.checksum",
-            "checksum.calculate",
-            json!({"path": file}),
-            root.to_str().unwrap(),
-            std::slice::from_ref(&file),
-        )
-        .expect("checksum failed");
+    let hashes = fixtures::invoke_selected(
+        "org.fiex.checksum",
+        "checksum.calculate",
+        json!({"path": fixtures::reference(std::path::Path::new(&file))}),
+        root.to_str().unwrap(),
+        std::slice::from_ref(&file),
+    )
+    .expect("checksum failed");
     assert_eq!(
         hashes["sha256"],
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
@@ -66,40 +79,50 @@ fn main() {
     approve("org.fiex.archive");
     for format in ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "rar"] {
         let archive = root.join(format!("bundle.{format}"));
-        let created = plugin_host::global()
-            .invoke_selected(
-                "org.fiex.archive",
-                "archive.compress",
-                json!({
-                    "paths": [file],
-                    "destination": archive,
-                    "format": format,
-                    "ignores": []
-                }),
-                root.to_str().unwrap(),
-                &[file.clone(), archive.clone()],
-            )
-            .expect("compress failed");
+        let created = fixtures::invoke_selected(
+            "org.fiex.archive",
+            "archive.compress",
+            json!({
+                "paths": [fixtures::reference(std::path::Path::new(&file))],
+                "destination": fixtures::reference(std::path::Path::new(&archive)),
+                "format": format,
+                "ignores": []
+            }),
+            root.to_str().unwrap(),
+            &[file.clone(), archive.clone()],
+        )
+        .expect("compress failed");
         let task_id = created["taskId"].as_str().expect("compress task id");
         let created = wait_task(task_id);
-        assert_eq!(created.as_str(), Some(archive.to_string_lossy().as_ref()));
+        assert!(
+            created["mountId"].is_string() && created["nodeId"].is_string(),
+            "{format} task result should be an archive ref: {created}"
+        );
         assert!(archive.is_file(), "{format} archive was not created");
         let output = root.join(format!("out-{format}"));
         std::fs::create_dir_all(&output).unwrap();
-        let extracted = plugin_host::global()
-            .invoke_selected(
+        let extracted = fixtures::invoke_selected(
                 "org.fiex.archive",
                 "archive.extract",
-                json!({"path": archive, "destination": output}),
+                json!({"path": fixtures::reference(std::path::Path::new(&archive)), "destination": fixtures::reference(std::path::Path::new(&output))}),
                 root.to_str().unwrap(),
                 &[archive.clone(), output.clone()],
             )
             .expect("extract failed");
         let task_id = extracted["taskId"].as_str().expect("extract task id");
         let extracted = wait_task(task_id);
-        let extracted = extracted.as_str().expect("extract path").to_string();
+        assert!(
+            extracted["mountId"].is_string() && extracted["nodeId"].is_string(),
+            "{format} task result should be a folder ref: {extracted}"
+        );
+        let folder = std::fs::read_dir(&output)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| path.is_dir())
+            .expect("extract output folder");
         assert_eq!(
-            std::fs::read(std::path::Path::new(&extracted).join("hello.txt")).unwrap(),
+            std::fs::read(folder.join("hello.txt")).unwrap(),
             b"abc",
             "{format} roundtrip"
         );

@@ -1,6 +1,9 @@
+import { t } from "../../../../support/ui/i18n";
+import type { ResourceContext } from "../../../../sdk/ui/src/index";
 import type { Action } from "./types";
 
-export function baseName(path: string) {
+export function baseName(path: string | ResourceContext) {
+  if (typeof path !== "string") return path.metadata?.name || t("文件");
   return path.split(/[\\/]/).pop() || path;
 }
 
@@ -14,7 +17,8 @@ export function join(directory: string, name: string) {
   return `${directory.replace(/[\\/]+$/, "")}${separator}${name}`;
 }
 
-export function withoutSignature(path: string) {
+export function withoutSignature(value: string | ResourceContext) {
+  const path = baseName(value);
   const lower = path.toLowerCase();
   for (const suffix of [".sig.asc", ".sig", ".asc"]) {
     if (lower.endsWith(suffix)) return path.slice(0, -suffix.length);
@@ -22,12 +26,17 @@ export function withoutSignature(path: string) {
   return path;
 }
 
-export function isSignature(path: string) {
+export function isSignature(value: string | ResourceContext) {
+  const path = baseName(value);
   const lower = path.toLowerCase();
   return lower.endsWith(".sig") || lower.endsWith(".asc");
 }
 
-export function outputName(input: string, action: Action, armor: boolean) {
+export function outputName(
+  input: string | ResourceContext,
+  action: Action,
+  armor: boolean,
+) {
   const name = baseName(input);
   const lower = name.toLowerCase();
   if (action === "encrypt") {

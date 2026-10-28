@@ -1,24 +1,25 @@
 //! Real HTTP and TCP SDK calls through Core, including explicit host consent.
 use base64::{engine::general_purpose::STANDARD, Engine};
-use fiex_lib::plugin_host;
+use fiex_lib::plugins::host as plugin_host;
 use serde_json::{json, Value};
+
+/// Integration tests install packages directly; record the same install
+/// approval a user gives in the marketplace before activating permissions.
+fn ensure_approved(id: &str) {
+    if !fiex_lib::plugins::host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
+    }
+}
 
 fn check(id: &str, config: Value, expected: &[u8]) {
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == id)
         .expect("network plugin must be installed");
-    // CI unpacks the packages directly instead of going through the installer
-    // UI, so record the installation approval the real flow would have stored.
-    plugin_host::approve_install(id)
-        .or_else(|error| {
-            if error.contains("already authorized") {
-                Ok(())
-            } else {
-                Err(error)
-            }
-        })
-        .unwrap();
+    ensure_approved(id);
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -32,7 +33,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     let listing = plugin_host::global()
         .invoke(
             id,
-            "fs.list",
+            "vfs.list",
             json!({"connection": config, "directoryId": "", "limit": 200}),
         )
         .expect("network listing through Core failed");
@@ -41,21 +42,10 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .unwrap()
         .iter()
         .any(|entry| entry["name"] == "hello.txt"));
-    let result = plugin_host::global()
-        .invoke(
-            id,
-            "fs.readSmall",
-            json!({"connection": config, "nodeId": "hello.txt", "maxBytes": 1024}),
-        )
-        .expect("network preview through Core failed");
-    assert_eq!(
-        STANDARD.decode(result["base64"].as_str().unwrap()).unwrap(),
-        expected
-    );
     let opened = plugin_host::global()
         .invoke(
             id,
-            "fs.openRead",
+            "vfs.openRead",
             json!({"connection": config, "nodeId": "hello.txt"}),
         )
         .unwrap();
@@ -63,7 +53,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     let result = plugin_host::global()
         .invoke(
             id,
-            "fs.readStream",
+            "vfs.readStream",
             json!({"streamId": stream, "offset": 0, "maxBytes": 262144}),
         )
         .unwrap();
@@ -73,7 +63,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     );
     assert_eq!(result["eof"], true);
     plugin_host::global()
-        .invoke(id, "fs.closeRead", json!({"streamId": stream}))
+        .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
         .unwrap();
     let source_dir = tempfile::tempdir().unwrap();
     let source = source_dir.path().join("source.dat");
@@ -83,39 +73,53 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         let baseline = plugin_host::global()
             .invoke(
                 id,
-                "fs.stat",
+                "vfs.stat",
                 json!({"connection":config,"nodeId":"hello.txt"}),
             )
             .unwrap();
-        let params = json!({"connection":config,"nodeId":"hello.txt","source":"source.dat","ifRevision":baseline["revision"]});
-        // The exact same call without a selection cannot read the snapshot.
-        assert!(plugin_host::global()
-            .invoke(id, "fs.writeFile", params.clone())
-            .is_err());
-        let committed = plugin_host::global()
-            .invoke_selected(
+        let begin = plugin_host::global()
+            .invoke(
                 id,
-                "fs.writeFile",
-                params.clone(),
-                source_dir.path().to_str().unwrap(),
-                std::slice::from_ref(&source),
+                "vfs.beginWrite",
+                json!({"connection":config,"nodeId":"hello.txt","size":contents.len(),"ifRevision":baseline["revision"]}),
             )
+            .unwrap();
+        let stream = begin["streamId"].as_str().unwrap().to_string();
+        let mut offset = 0usize;
+        for chunk in contents.chunks(256 * 1024) {
+            plugin_host::global()
+                .invoke(
+                    id,
+                    "vfs.writeStream",
+                    json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
+                )
+                .unwrap();
+            offset += chunk.len();
+        }
+        let committed = plugin_host::global()
+            .invoke(id, "vfs.commit", json!({"streamId":stream}))
             .unwrap();
         assert_ne!(committed["revision"], baseline["revision"]);
         assert!(plugin_host::global()
-            .invoke_selected(
+            .invoke(
                 id,
-                "fs.writeFile",
-                params,
-                source_dir.path().to_str().unwrap(),
-                std::slice::from_ref(&source)
+                "vfs.beginWrite",
+                json!({"connection":config,"nodeId":"hello.txt","size":1,"ifRevision":baseline["revision"]}),
             )
             .is_err());
+        let opened = plugin_host::global()
+            .invoke(
+                id,
+                "vfs.openRead",
+                json!({"connection":config,"nodeId":"hello.txt"}),
+            )
+            .unwrap();
+        let stream = opened["streamId"].as_str().unwrap();
         let readback = plugin_host::global()
             .invoke(
                 id,
-                "fs.readSmall",
-                json!({"connection":config,"nodeId":"hello.txt","maxBytes":1048576}),
+                "vfs.readStream",
+                json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
             )
             .unwrap();
         assert_eq!(
@@ -124,6 +128,9 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 .unwrap(),
             contents
         );
+        plugin_host::global()
+            .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
+            .unwrap();
     }
     if id == "org.fiex.webdav" {
         let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {
@@ -155,15 +162,13 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         fiex_lib::remote::remove_connection(&connection.id).unwrap();
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();
-    // The revoked grant must block the next network operation. A no-op ping
-    // would still succeed, so probe the actual restricted surface.
     assert!(plugin_host::global()
-        .invoke(id, "connection.validate", json!({"connection": config}))
+        .invoke(id, "connection.validate", json!({"connection":config}))
         .is_err());
 }
 
 fn main() {
-    fiex_lib::plugin_sandbox::run_wrapper_if_requested();
+    fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     check(
         "org.fiex.webdav",
         json!({"url": "http://127.0.0.1:8080/"}),

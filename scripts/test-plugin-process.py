@@ -32,7 +32,7 @@ def run(binary, plugin_id):
     with subprocess.Popen([str(binary.resolve())], stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
         for req, check in [
-            ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"3.0"}}, "init"),
+            ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"5.0"}}, "init"),
             ({"id":2,"method":"plugin.ping","params":{}}, "ping"),
             ({"id":3,"method":"test.unknown","params":{}}, "unknown"),
             ({"id":4,"method":"plugin.shutdown","params":{}}, "shutdown"),
@@ -56,7 +56,7 @@ def main():
     parser.add_argument("--target", required=True)
     parser.add_argument("--binary-root", required=True)
     args = parser.parse_args()
-    for slug in ("ssh","git","webdav","gdrive","smb","openlist","office-preview","data-preview","archive","checksum","everything","gpg"):
+    for slug in ("ssh","git","webdav","gdrive","smb","openlist","office-preview","data-preview","archive","checksum","everything","gpg","email"):
         manifest = json.loads((Path("official") / slug / "manifest.json").read_text(encoding="utf-8"))
         entry = manifest.get("runtime", {}).get("entrypoints", {}).get(args.target)
         if not entry:

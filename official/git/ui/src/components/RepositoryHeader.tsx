@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import {
   ChevronDown,
   Cloud,
@@ -6,11 +7,10 @@ import {
   GitCommitHorizontal,
   RefreshCw,
 } from "lucide-react";
-import { baseName } from "../lib/changes";
 import type { Refs, Status } from "../types";
 
 export function RepositoryHeader({
-  root,
+  name,
   status,
   refs,
   busy,
@@ -20,7 +20,7 @@ export function RepositoryHeader({
   onOpenRemote,
   onRefresh,
 }: {
-  root: string;
+  name: string;
   status: Status;
   refs: Refs | null;
   busy: boolean;
@@ -37,32 +37,32 @@ export function RepositoryHeader({
           <FolderGit2 size={20} />
         </span>
         <span className="git-repo-name">
-          <strong>{baseName(root)}</strong>
+          <strong>{name}</strong>
         </span>
         <button
           className="git-branch-trigger"
-          aria-label="选择 commit"
+          aria-label={t("选择 commit")}
           disabled={busy}
           onClick={onOpenPicker}
         >
           <GitBranch size={13} />
           <span>
-            {refs?.current || status.branch} · {refs?.head || "尚无 commit"}
+            {refs?.current || status.branch} · {refs?.head || t("尚无 commit")}
           </span>
           <ChevronDown size={12} />
         </button>
         <button
           className="icon-button"
-          title="远程仓库"
-          aria-label="远程仓库"
+          title={t("远程仓库")}
+          aria-label={t("远程仓库")}
           onClick={onOpenRemote}
         >
           <Cloud size={15} />
         </button>
         <button
           className="icon-button"
-          title="刷新"
-          aria-label="刷新源代码管理"
+          title={t("刷新")}
+          aria-label={t("刷新源代码管理")}
           disabled={busy}
           onClick={onRefresh}
         >
@@ -77,7 +77,7 @@ export function RepositoryHeader({
           onClick={onOpenCommit}
         >
           <GitCommitHorizontal size={15} />
-          {stagedCount ? `提交修改 · ${stagedCount}` : "提交修改"}
+          {stagedCount ? t("提交修改 · {0}", stagedCount) : t("提交修改")}
         </button>
       </div>
     </>

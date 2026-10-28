@@ -8,12 +8,12 @@ fn valid(name: &str) -> Result<(), String> {
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"._-/".contains(&c))
     {
-        Err("无效的远程名称或分支".into())
+        Err(crate::i18n::t("无效的远程名称或分支").into())
     } else {
         Ok(())
     }
 }
-pub fn status(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn status(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {
     let names = run(host, root, &["remote"])?;
     let mut remotes = Vec::new();
     for name in names.lines() {
@@ -44,14 +44,14 @@ pub fn status(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     )
 }
 pub fn save(
-    root: &str,
+    root: &sdk::ResourceRef,
     name: &str,
     url: &str,
     host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     valid(name)?;
     if url.is_empty() || url.starts_with('-') || url.contains(['\n', '\r', '\0']) {
-        return Err("无效的仓库地址".into());
+        return Err(crate::i18n::t("无效的仓库地址").into());
     }
     let exists = run(host, root, &["remote", "get-url", name]).is_ok();
     run(
@@ -61,13 +61,17 @@ pub fn save(
     )?;
     Ok(Value::Null)
 }
-pub fn remove(root: &str, name: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn remove(
+    root: &sdk::ResourceRef,
+    name: &str,
+    host: &sdk::RequestContext,
+) -> Result<Value, String> {
     valid(name)?;
     run(host, root, &["remote", "remove", name])?;
     Ok(Value::Null)
 }
 pub fn sync(
-    root: &str,
+    root: &sdk::ResourceRef,
     name: &str,
     push: bool,
     branch: Option<&str>,

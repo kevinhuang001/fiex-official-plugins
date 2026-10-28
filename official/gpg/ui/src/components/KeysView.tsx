@@ -1,5 +1,13 @@
+import { t } from "../../../../../support/ui/i18n";
 import { useState } from "react";
-import { KeyRound, LoaderCircle, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import {
+  KeyRound,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Search,
+  Upload,
+} from "lucide-react";
 import type { CreateKeyInput, Key } from "../types";
 import { CreateKeyForm } from "./CreateKeyForm";
 import { DeleteKeyDialog } from "./DeleteKeyDialog";
@@ -10,7 +18,7 @@ function displayName(key: Key) {
 }
 
 function expiry(value: string) {
-  if (!value || value === "0") return "永不过期";
+  if (!value || value === "0") return t("永不过期");
   const date = new Date(Number(value) * 1000);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
 }
@@ -73,7 +81,7 @@ export function KeysView({
           <input
             value={query}
             onChange={(event) => onQuery(event.target.value)}
-            placeholder="搜索名称、邮箱或指纹"
+            placeholder={t("搜索名称、邮箱或指纹")}
             disabled={busy}
           />
         </label>
@@ -84,37 +92,43 @@ export function KeysView({
             disabled={busy || loading}
           >
             <Plus size={13} />
-            新建
+            {t("新建")}{" "}
           </button>
           <button type="button" onClick={onImport} disabled={busy || loading}>
             <Upload size={13} />
-            导入
+            {t("导入")}{" "}
           </button>
           <button
             type="button"
             onClick={onRefresh}
             disabled={busy || loading}
-            aria-label="刷新密钥"
+            aria-label={t("刷新密钥")}
           >
             <RefreshCw size={13} className={loading ? "gpg-spin" : ""} />
           </button>
         </div>
       </div>
+      {busy && (
+        <div className="gpg-keychain-pending" role="status" aria-live="polite">
+          <LoaderCircle className="gpg-spin" size={14} />
+          <span>{t("正在执行命令…")}</span>
+        </div>
+      )}
       <div className="gpg-keychain-columns" aria-hidden>
-        <span>类型</span>
-        <span>名称</span>
-        <span>指纹</span>
-        <span>密钥 ID</span>
-        <span>有效期</span>
+        <span>{t("类型")}</span>
+        <span>{t("名称")}</span>
+        <span>{t("指纹")}</span>
+        <span>{t("密钥 ID")}</span>
+        <span>{t("有效期")}</span>
       </div>
-      <ul className="gpg-keychain-rows" role="listbox" aria-label="密钥">
+      <ul className="gpg-keychain-rows" role="listbox" aria-label={t("密钥")}>
         {keys.map((key) => (
           <li key={key.fingerprint}>
             <button
               type="button"
               role="option"
               aria-selected={false}
-              title="右键导出或删除"
+              title={t("右键导出或删除")}
               onContextMenu={(event) => {
                 event.preventDefault();
                 setMenu({ key, x: event.clientX, y: event.clientY });
@@ -128,7 +142,7 @@ export function KeysView({
               </span>
               <span className="gpg-keychain-identity">
                 <strong>{displayName(key)}</strong>
-                <small>{key.email || "未提供邮箱"}</small>
+                <small>{key.email || t("未提供邮箱")}</small>
               </span>
               <code
                 className="gpg-keychain-fingerprint"
@@ -144,19 +158,13 @@ export function KeysView({
         {loading && !keys.length ? (
           <li className="gpg-keychain-empty" aria-busy="true">
             <LoaderCircle className="gpg-spin" size={18} />
-            <span>正在加载系统密钥…</span>
+            <span>{t("正在加载系统密钥…")}</span>
           </li>
         ) : (
           keys.length === 0 && (
             <li className="gpg-keychain-empty">
               <KeyRound size={18} />
-              <span>{total ? "没有匹配的密钥" : "本机钥匙串为空"}</span>
-              {!total && (
-                <button type="button" onClick={onImport} disabled={busy || loading}>
-                  <Upload size={13} />
-                  导入密钥
-                </button>
-              )}
+              <span>{total ? t("没有匹配的密钥") : t("本机钥匙串为空")}</span>
             </li>
           )
         )}

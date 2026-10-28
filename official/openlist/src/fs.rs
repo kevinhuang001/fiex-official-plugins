@@ -1,27 +1,16 @@
-//! OpenList filesystem handlers: listing, small reads and read streams.
+//! OpenList filesystem handlers: listing, metadata and reads.
 //!
-//! Files are read through `/api/fs/get`, which returns a storage URL; reads are
-//! capped because the whole payload is kept in memory for the duration of one
-//! read stream.
+//! Files are read through `/api/fs/get`, which returns a storage URL. The SDK
+//! owns chunk offsets and stream ids, so a plain HTTP response is the reader.
 use super::client::{self, Config, Session};
-use fiex_plugin_sdk::{self as sdk, RpcError};
-use serde_json::{json, Value};
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Mutex,
-    },
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest},
+    RpcError,
 };
+use serde_json::{json, Value};
 
-/// Buffered payloads backing `fs.openRead` streams.
-#[derive(Default)]
-pub(crate) struct Reads {
-    data: Mutex<HashMap<String, String>>,
-    next: AtomicU64,
-}
-
-fn api_path(relative: &str) -> String {
+pub(crate) fn api_path(relative: &str) -> String {
     if relative.is_empty() {
         "/".to_string()
     } else {
@@ -48,6 +37,21 @@ fn join(relative: &str, name: &str) -> String {
     }
 }
 
+pub(crate) fn join_path(parent: &str, name: &str) -> String {
+    join(parent, name)
+}
+
+pub(crate) fn split_path(node: &str) -> (&str, &str) {
+    node.rsplit_once('/').unwrap_or(("", node))
+}
+
+pub(crate) fn valid_name(name: &str) -> Result<(), RpcError> {
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', '\0']) {
+        return Err(RpcError::invalid_params("invalid name"));
+    }
+    Ok(())
+}
+
 fn raw_url(
     host: &sdk::RequestContext,
     cfg: &Config,
@@ -66,7 +70,203 @@ fn raw_url(
         .and_then(Value::as_str)
         .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
         .map(str::to_string)
-        .ok_or_else(|| RpcError::internal("服务器未返回下载地址"))
+        .ok_or_else(|| RpcError::internal(crate::i18n::t("服务器未返回下载地址")))
+}
+
+/// Revision string used for `ifRevision`; changes with content or metadata.
+fn revision(data: &Value) -> String {
+    json!([
+        data["modified"],
+        data["size"],
+        data["hashinfo"],
+        data["hash_info"]
+    ])
+    .to_string()
+}
+
+/// One `FsEntry` from the `data` object of `/api/fs/get`.
+fn entry_from_data(data: &Value, node: &str) -> FsEntry {
+    let is_dir = data["is_dir"].as_bool().unwrap_or(false);
+    let name = data["name"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            if node.is_empty() {
+                "root".into()
+            } else {
+                node.rsplit('/').next().unwrap_or(node).into()
+            }
+        });
+    let mut entry = if is_dir {
+        FsEntry::directory(node, name)
+    } else {
+        FsEntry::file(node, name)
+    };
+    entry.size = Some(data["size"].as_u64().unwrap_or(0));
+    entry.modified = Some(parse_modified(data["modified"].as_str().unwrap_or("")) as i64);
+    entry.revision = Some(revision(data));
+    entry
+}
+
+pub(crate) fn object(
+    host: &sdk::RequestContext,
+    cfg: &Config,
+    session: &Session,
+    node: &str,
+) -> Result<Value, RpcError> {
+    client::authorized(
+        host,
+        cfg,
+        session,
+        "/api/fs/get",
+        &json!({ "path": api_path(node), "password": "" }),
+    )
+}
+
+pub(crate) fn validate(host: &sdk::RequestContext, session: &Session) -> Result<Value, RpcError> {
+    let cfg = client::config(host.params().get("connection"))?;
+    client::authorized(
+        host,
+        &cfg,
+        session,
+        "/api/fs/list",
+        &json!({
+            "path": "/",
+            "password": "",
+            "page": 1,
+            "per_page": 0,
+            "refresh": false
+        }),
+    )?;
+    Ok(json!({ "valid": true }))
+}
+
+pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListing, RpcError> {
+    let host = request.ctx();
+    let cfg = client::config(request.connection())?;
+    let directory = request.node_id().unwrap_or("").to_owned();
+    safe_relative(&directory)?;
+    let parsed = client::authorized(
+        host,
+        &cfg,
+        session,
+        "/api/fs/list",
+        &json!({
+            "path": api_path(&directory),
+            "password": "",
+            "page": 1,
+            "per_page": 0,
+            "refresh": false
+        }),
+    )?;
+    let mut entries = parsed
+        .pointer("/data/content")
+        .and_then(Value::as_array)
+        .map(|items| items.as_slice())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|item| {
+            let name = item.get("name").and_then(Value::as_str)?;
+            if name.is_empty() || name.contains(['/', '\\', '\0']) {
+                return None;
+            }
+            let is_dir = item.get("is_dir").and_then(Value::as_bool).unwrap_or(false);
+            let node = join(&directory, name);
+            let mut entry = if is_dir {
+                FsEntry::directory(node, name)
+            } else {
+                FsEntry::file(node, name)
+            };
+            entry.size = Some(item.get("size").and_then(Value::as_u64).unwrap_or(0));
+            entry.modified = Some(parse_modified(
+                item.get("modified").and_then(Value::as_str).unwrap_or(""),
+            ) as i64);
+            Some(entry)
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    let start = request
+        .params()
+        .get("cursor")
+        .and_then(Value::as_str)
+        .unwrap_or("0")
+        .parse::<usize>()
+        .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+    if start > entries.len() {
+        return Err(RpcError::invalid_params("cursor out of range"));
+    }
+    let limit = request
+        .params()
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(200)
+        .clamp(1, 500) as usize;
+    let total = entries.len();
+    let end = start.saturating_add(limit).min(total);
+    let next_cursor = (end < total).then(|| end.to_string());
+    let entries = entries[start..end].to_vec();
+    Ok(FsListing {
+        entries,
+        next_cursor,
+        warnings: Vec::new(),
+        truncated: false,
+    })
+}
+
+pub(crate) fn stat(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry, RpcError> {
+    let host = request.ctx();
+    let cfg = client::config(request.connection())?;
+    let node = request.node_id().unwrap_or("");
+    safe_relative(node)?;
+    stat_node(host, &cfg, session, node)
+}
+
+pub(crate) fn stat_node(
+    host: &sdk::RequestContext,
+    cfg: &Config,
+    session: &Session,
+    node: &str,
+) -> Result<FsEntry, RpcError> {
+    let parsed = object(host, cfg, session, node)?;
+    Ok(entry_from_data(&parsed["data"], node))
+}
+
+/// Stat with an already-authenticated token; used by the commit callback.
+pub(crate) fn stat_http(
+    http: &sdk::HttpClient,
+    cfg: &Config,
+    token: &str,
+    node: &str,
+) -> Result<FsEntry, RpcError> {
+    let parsed = client::post_http(
+        http,
+        cfg,
+        Some(token),
+        "/api/fs/get",
+        &json!({ "path": api_path(node), "password": "" }),
+    )?;
+    Ok(entry_from_data(&parsed["data"], node))
+}
+
+pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead, RpcError> {
+    let host = request.ctx();
+    let cfg = client::config(request.connection())?;
+    let relative = request.node_id().unwrap_or("").to_owned();
+    safe_relative(&relative)?;
+    if relative.is_empty() {
+        return Err(RpcError::invalid_params("missing node ID"));
+    }
+    let url = raw_url(host, &cfg, session, &relative)?;
+    let response = host
+        .http()
+        .get(&url)
+        .send()
+        .map_err(|e| RpcError::internal(e.to_string()))?;
+    if response.status != 206 && response.status != 200 {
+        return Err(RpcError::internal("storage did not honor range"));
+    }
+    Ok(FsRead::new(response, None))
 }
 
 /// RFC 3339 (openlist returns `2024-01-02T03:04:05Z`) to epoch seconds.
@@ -113,207 +313,6 @@ fn parse_modified(value: &str) -> u64 {
         };
     }
     timestamp.max(0) as u64
-}
-
-pub(crate) fn list(
-    method: &str,
-    p: &Value,
-    session: &Session,
-    host: &sdk::RequestContext,
-) -> Result<Value, RpcError> {
-    let cfg = client::config(host, p.get("connection"))?;
-    let directory = p
-        .get("directoryId")
-        .or_else(|| p.get("nodeId"))
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_owned();
-    safe_relative(&directory)?;
-    let parsed = client::authorized(
-        host,
-        &cfg,
-        session,
-        "/api/fs/list",
-        &json!({
-            "path": api_path(&directory),
-            "password": "",
-            "page": 1,
-            "per_page": 0,
-            "refresh": false
-        }),
-    )?;
-    if method == "connection.validate" {
-        return Ok(json!({ "valid": true }));
-    }
-    let mut entries = parsed
-        .pointer("/data/content")
-        .and_then(Value::as_array)
-        .map(|items| items.as_slice())
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|item| {
-            let name = item.get("name").and_then(Value::as_str)?;
-            if name.is_empty() || name.contains(['/', '\\', '\0']) {
-                return None;
-            }
-            let is_dir = item.get("is_dir").and_then(Value::as_bool).unwrap_or(false);
-            Some(json!({
-                "nodeId": join(&directory, name),
-                "name": name,
-                "kind": if is_dir { "directory" } else { "file" },
-                "size": item.get("size").and_then(Value::as_u64).unwrap_or(0),
-                "modified": parse_modified(
-                    item.get("modified").and_then(Value::as_str).unwrap_or(""),
-                ),
-            }))
-        })
-        .collect::<Vec<_>>();
-    entries.sort_by(|a, b| {
-        a["name"]
-            .as_str()
-            .unwrap_or("")
-            .cmp(b["name"].as_str().unwrap_or(""))
-    });
-    let start = p
-        .get("cursor")
-        .and_then(Value::as_str)
-        .unwrap_or("0")
-        .parse::<usize>()
-        .map_err(|error| RpcError::invalid_params(error.to_string()))?;
-    if start > entries.len() {
-        return Err(RpcError::invalid_params("cursor out of range"));
-    }
-    let limit = p
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
-    let end = start.saturating_add(limit).min(entries.len());
-    Ok(json!({
-        "entries": entries[start..end].to_vec(),
-        "nextCursor": if end < entries.len() { Some(end.to_string()) } else { None },
-        "snapshotToken": null,
-        "identityStability": "path"
-    }))
-}
-
-pub(crate) fn read(
-    method: &str,
-    p: &Value,
-    session: &Session,
-    reads: &Reads,
-    host: &sdk::RequestContext,
-) -> Result<Value, RpcError> {
-    let cfg = client::config(host, p.get("connection"))?;
-    let relative = p
-        .get("nodeId")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_owned();
-    safe_relative(&relative)?;
-    if relative.is_empty() {
-        return Err(RpcError::invalid_params("missing node ID"));
-    }
-    let url = raw_url(host, &cfg, session, &relative)?;
-    if method == "fs.openRead" {
-        if reads
-            .data
-            .lock()
-            .map_err(|_| RpcError::internal("read registry unavailable"))?
-            .len()
-            >= 8
-        {
-            return Err(RpcError::internal("too many open reads"));
-        }
-        let id = format!(
-            "openlist-read-{}",
-            reads.next.fetch_add(1, Ordering::Relaxed) + 1
-        );
-        reads
-            .data
-            .lock()
-            .map_err(|_| RpcError::internal("read registry unavailable"))?
-            .insert(id.clone(), url);
-        return Ok(json!({ "streamId": id }));
-    }
-    range(host, &url, p)
-}
-
-pub(crate) fn read_stream(
-    p: &Value,
-    reads: &Reads,
-    host: &sdk::RequestContext,
-) -> Result<Value, RpcError> {
-    let url = reads
-        .data
-        .lock()
-        .map_err(|_| RpcError::internal("read registry unavailable"))?
-        .get(p["streamId"].as_str().unwrap_or(""))
-        .cloned()
-        .ok_or_else(|| RpcError::invalid_params("unknown stream"))?;
-    range(host, &url, p)
-}
-fn range(host: &sdk::RequestContext, url: &str, p: &Value) -> Result<Value, RpcError> {
-    use base64::Engine;
-    use std::io::Read;
-    let offset = p["offset"].as_u64().unwrap_or(0);
-    let max = p["maxBytes"].as_u64().unwrap_or(262144).clamp(1, 1048576);
-    let end = offset
-        .checked_add(max - 1)
-        .ok_or_else(|| RpcError::invalid_params("range overflow"))?;
-    let mut response = host
-        .http()
-        .get(url)
-        .header("Range", format!("bytes={offset}-{end}"))
-        .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status == 416 {
-        return Ok(json!({"base64":"","eof":true}));
-    }
-    if response.status != 206 && !(response.status == 200 && offset == 0) {
-        return Err(RpcError::internal("storage did not honor range"));
-    }
-    let eof = if response.status == 206 {
-        let range = response
-            .headers
-            .get("content-range")
-            .and_then(|s| s.strip_prefix("bytes "))
-            .and_then(|s| s.split_once('/'))
-            .ok_or_else(|| RpcError::internal("missing range"))?;
-        let (bounds, total) = range;
-        let (start, last) = bounds
-            .split_once('-')
-            .ok_or_else(|| RpcError::internal("invalid range"))?;
-        let parse = |s: &str| {
-            s.parse::<u64>()
-                .map_err(|e| RpcError::internal(e.to_string()))
-        };
-        let (start, last, total) = (parse(start)?, parse(last)?, parse(total)?);
-        if start != offset || last < start || last - start >= max || last >= total {
-            return Err(RpcError::internal("invalid range bounds"));
-        }
-        last + 1 == total
-    } else {
-        true
-    };
-    let mut bytes = Vec::new();
-    (&mut response)
-        .take(max + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if bytes.len() as u64 > max {
-        return Err(RpcError::internal("storage ignored range"));
-    }
-    Ok(
-        json!({"base64":base64::engine::general_purpose::STANDARD.encode(&bytes),"length":bytes.len(),"bytesRead":bytes.len(),"eof":eof}),
-    )
-}
-
-pub(crate) fn close_read(p: &Value, reads: &Reads) {
-    let id = p.get("streamId").and_then(Value::as_str).unwrap_or("");
-    if let Ok(mut buffers) = reads.data.lock() {
-        buffers.remove(id);
-    }
 }
 
 #[cfg(test)]

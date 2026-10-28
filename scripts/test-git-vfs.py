@@ -18,16 +18,20 @@ ipc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ipc)
 
 
+REF = {"mountId": "local", "nodeId": "repo"}
+
+
 class Git:
     def __init__(self, binary, root):
         self.root = root
         self.views = {}
         self.sequence = 0
+        self.tasks = set()
         self.child = subprocess.Popen([str(Path(binary).resolve())], stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.watchdog = threading.Timer(120, self.child.kill)
         self.watchdog.start()
-        self.call('plugin.initialize', {'protocolVersion': '3.0'})
+        self.call('plugin.initialize', {'protocolVersion': '5.0'})
 
     def call(self, method, params):
         self.sequence += 1
@@ -39,17 +43,26 @@ class Git:
                 assert message['id'] == ident
                 return message
             p = message.get('params', {})
-            if message['method'] == 'host.process.run':
+            # File streams run under a background task so the host handles they
+            # opened stay authorized past the `vfs.openRead` request.
+            if message['method'] == 'host.task.start':
+                self.tasks.add(p['taskId'])
+                value = None
+            elif message['method'] == 'host.task.finish':
+                self.tasks.discard(p['taskId'])
+                value = None
+            elif message['method'] == 'host.process.run':
                 assert p['command'] == 'git'
-                assert p['args'][0] == '-C' and Path(p['args'][1]).resolve() == Path(self.root)
-                result = subprocess.run(['git', *p['args']], input=(p.get('stdin') or '').encode(),
+                assert p.get('cwd') == REF
+                result = subprocess.run(['git', '-C', self.root, *p['args']],
+                                        input=(p.get('stdin') or '').encode(),
                                         capture_output=True, timeout=30)
                 value = {'code': result.returncode, 'stdoutBase64': base64.b64encode(result.stdout).decode(),
                          'stderrBase64': base64.b64encode(result.stderr).decode(), 'truncated': False}
             elif message['method'] == 'host.vfs.openView':
                 assert p['contributionId'] == 'history'
-                assert Path(p['resourceRoot']).resolve() == Path(self.root)
-                assert Path(p['viewContext']['repoRoot']).resolve() == Path(self.root)
+                assert p['resourceRoot'] == REF
+                assert p['viewContext']['repoRoot'] == REF
                 assert len(p['viewContext']['commitId']) == 40
                 value = f'fiex://mount/{uuid.uuid4().hex}/'
                 self.views[value] = p['viewContext']
@@ -58,7 +71,9 @@ class Git:
             ipc.send(self.child.stdin, {'jsonrpc': '2.0', 'id': message['id'], 'result': value})
 
     def request(self, uri, method, **params):
-        return self.call(method, {'contributionId': 'history', 'viewContext': self.views[uri], 'nodeId': '', **params})
+        mount = uri.split('/')[3]
+        return self.call(method, {'mountId': mount, 'contributionId': 'history',
+                                  'viewContext': self.views[uri], 'nodeId': '', **params})
 
     def close(self):
         try:
@@ -92,8 +107,8 @@ def main():
         commit_b = git('rev-parse', 'HEAD')
         plugin = Git(args.binary, root)
         try:
-            a = plugin.call('git.browse', {'root': root, 'reference': commit_a})['result']
-            b = plugin.call('git.browse', {'root': root, 'reference': commit_b})['result']
+            a = plugin.call('git.browse', {'root': REF, 'reference': commit_a})['result']
+            b = plugin.call('git.browse', {'root': REF, 'reference': commit_b})['result']
             assert a != b
             assert plugin.views[a]['commitId'] == commit_a and plugin.views[b]['commitId'] == commit_b
             listing = plugin.request(a, 'vfs.list', hidden=True, limit=200)['result']
@@ -102,13 +117,25 @@ def main():
             info = plugin.request(a, 'vfs.stat', nodeId=name)['result']
             assert info['readonly'] and info['size'] == len(payload)
             for uri, expected in [(a, payload), (b, b'changed'), (a, payload)]:
-                response = plugin.request(uri, 'vfs.readSmall', nodeId=name, maxBytes=1024)['result']
-                assert base64.b64decode(response['base64']) == expected
-            found = plugin.request(a, 'vfs.search', query='中文', hidden=True, limit=10)['result']['entries']
+                opened = plugin.request(uri, 'vfs.openRead', nodeId=name)['result']
+                stream = opened['streamId']
+                parts = []
+                offset = 0
+                while offset < len(expected):
+                    part = plugin.request(uri, 'vfs.readStream', streamId=stream,
+                                          offset=offset, maxBytes=min(1024, len(expected) - offset))['result']
+                    parts.append(base64.b64decode(part['base64']))
+                    offset += len(base64.b64decode(part['base64']))
+                    assert not part['eof'] or offset >= len(expected)
+                plugin.request(uri, 'vfs.closeRead', streamId=stream)
+                assert b''.join(parts) == expected
+            searched = plugin.request(a, 'vfs.search', query='中文', hidden=True, limit=10)
+            assert 'result' in searched, searched
+            found = searched['result']['entries']
             assert found[0]['relativePath'] == name
             assert 'error' in plugin.request(a, 'vfs.list', nodeId='../escape')
-            assert 'error' in plugin.call('git.browse', {'root': root, 'reference': 'missing-object'})
-            assert 'error' in plugin.call('fs.writeFile', {'connection': {}, 'nodeId': name})
+            assert 'error' in plugin.call('git.browse', {'root': REF, 'reference': 'missing-object'})
+            assert 'error' in plugin.request(a, 'vfs.beginWrite', nodeId=name, size=1)
             assert not Path(root, '.fiex').exists()
             print('PASS Git: immutable views, binary previews, opaque nodes, Unicode names and invalid contexts')
         finally:

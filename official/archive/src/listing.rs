@@ -54,11 +54,16 @@ pub fn looks_encrypted(message: &str) -> bool {
 }
 
 pub fn list(
-    source: &str,
+    source: &sdk::ResourceRef,
     password: Option<&str>,
     host: &sdk::RequestContext,
 ) -> Result<Value, String> {
-    let lower = source.to_lowercase();
+    let lower = host
+        .files()
+        .metadata(source)
+        .map_err(|error| error.to_string())?
+        .name
+        .to_lowercase();
     let password = password.filter(|value| !value.is_empty());
     let files = host.files();
     if lower.ends_with(".zip") {
@@ -116,10 +121,10 @@ pub fn list(
             "entries": [],
             "encrypted": false,
             "supported": false,
-            "message": "RAR 暂不支持列目录，可直接解压",
+            "message": crate::i18n::t("RAR 暂不支持列目录，可直接解压"),
         }))
     } else {
-        Err("暂不支持预览此格式".into())
+        Err(crate::i18n::t("暂不支持预览此格式").into())
     }
 }
 

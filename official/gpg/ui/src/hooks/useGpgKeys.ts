@@ -38,5 +38,13 @@ export function useGpgKeys() {
     }
   }, [fingerprint]);
 
-  return { keys, fingerprint, setFingerprint, gpg, loadKeys, refreshKeys, loading };
+  return {
+    keys,
+    fingerprint,
+    setFingerprint,
+    gpg,
+    loadKeys,
+    refreshKeys,
+    loading,
+  };
 }

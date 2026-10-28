@@ -6,17 +6,20 @@ use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-pub fn run(host: &sdk::RequestContext, root: &str, args: &[&str]) -> Result<String, String> {
-    let args = ["-C", root]
-        .into_iter()
-        .chain(args.iter().copied())
-        .map(str::to_owned)
+pub fn run(
+    host: &sdk::RequestContext,
+    root: &sdk::ResourceRef,
+    args: &[&str],
+) -> Result<String, String> {
+    let args = args
+        .iter()
+        .map(|arg| (*arg).to_string())
         .collect::<Vec<_>>();
     let result = host
-        .process_run("git", &args, None)
+        .process_run_at(root, "git", &args, None)
         .map_err(|error| error.to_string())?;
     if result.truncated {
-        return Err("命令输出超过限制，请缩小查询范围".into());
+        return Err(crate::i18n::t("命令输出超过限制，请缩小查询范围").into());
     }
     if result.code != Some(0) {
         return Err(if result.stderr.trim().is_empty() {
@@ -28,7 +31,7 @@ pub fn run(host: &sdk::RequestContext, root: &str, args: &[&str]) -> Result<Stri
     Ok(result.stdout)
 }
 
-pub fn status(root: &str, host: &sdk::RequestContext) -> Option<Value> {
+pub fn status(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Option<Value> {
     let branch = run(host, root, &["rev-parse", "--abbrev-ref", "HEAD"])
         .or_else(|_| run(host, root, &["symbolic-ref", "--short", "HEAD"]))
         .ok()?;
@@ -46,13 +49,7 @@ pub fn status(root: &str, host: &sdk::RequestContext) -> Option<Value> {
         }
         let code = &item[..2];
         let path = &item[3..];
-        entries.insert(
-            std::path::Path::new(root)
-                .join(path)
-                .to_string_lossy()
-                .into_owned(),
-            code.to_owned(),
-        );
+        entries.insert(path.to_owned(), code.to_owned());
         if code.contains(['R', 'C']) {
             records.next();
         }
@@ -64,12 +61,12 @@ pub fn status(root: &str, host: &sdk::RequestContext) -> Option<Value> {
     }))
 }
 
-pub fn init(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn init(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {
     run(host, root, &["init", "-b", "main"])?;
-    status(root, host).ok_or("仓库已创建，但无法读取状态".into())
+    status(root, host).ok_or(crate::i18n::t("仓库已创建，但无法读取状态").into())
 }
 
-pub fn refs(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn refs(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {
     let current = run(host, root, &["rev-parse", "--abbrev-ref", "HEAD"])
         .or_else(|_| run(host, root, &["symbolic-ref", "--short", "HEAD"]))?;
     let head = run(host, root, &["rev-parse", "--short=7", "HEAD"]).unwrap_or_default();
@@ -88,14 +85,14 @@ pub fn refs(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
     Ok(json!({"head": head.trim(), "current": current.trim(), "branches": branches, "tags": tags}))
 }
 
-pub fn identity(root: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn identity(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {
     let name = run(host, root, &["config", "user.name"]).unwrap_or_default();
     let email = run(host, root, &["config", "user.email"]).unwrap_or_default();
     Ok(json!({"name": name.trim(), "email": email.trim()}))
 }
 
 pub fn stage(
-    root: &str,
+    root: &sdk::ResourceRef,
     paths: &[String],
     all: bool,
     host: &sdk::RequestContext,
@@ -111,7 +108,7 @@ pub fn stage(
 }
 
 pub fn unstage(
-    root: &str,
+    root: &sdk::ResourceRef,
     paths: &[String],
     all: bool,
     host: &sdk::RequestContext,
@@ -134,7 +131,7 @@ pub fn unstage(
 }
 
 pub fn commit(
-    root: &str,
+    root: &sdk::ResourceRef,
     message: &str,
     name: &str,
     email: &str,

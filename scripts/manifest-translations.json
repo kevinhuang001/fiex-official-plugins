@@ -1,0 +1,214 @@
+{
+  "压缩与解压": {
+    "en": "Compress & Extract",
+    "zh-TW": "壓縮與解壓"
+  },
+  "压缩与解压 ZIP、RAR、7z、TAR 等格式。": {
+    "en": "Compress and extract ZIP, RAR, 7z, TAR and other archives.",
+    "zh-TW": "壓縮與解壓 ZIP、RAR、7z、TAR 等格式。"
+  },
+  "压缩时忽略的文件或目录": {
+    "en": "Files or directories to ignore when compressing",
+    "zh-TW": "壓縮時忽略的檔案或目錄"
+  },
+  "解压输出上限（GiB）": {
+    "en": "Maximum extracted size (GiB)",
+    "zh-TW": "解壓輸出上限（GiB）"
+  },
+  "解压时忽略的文件或目录": {
+    "en": "Files or directories to ignore when extracting",
+    "zh-TW": "解壓時忽略的檔案或目錄"
+  },
+  "校验和": {
+    "en": "Checksums",
+    "zh-TW": "校驗和"
+  },
+  "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": {
+    "en": "Calculate SHA-256, SHA-512, SHA-1, MD5 and CRC32 checksums.",
+    "zh-TW": "計算 SHA-256、SHA-512、SHA-1、MD5 與 CRC32。"
+  },
+  "数据预览": {
+    "en": "Data Preview",
+    "zh-TW": "資料預覽"
+  },
+  "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": {
+    "en": "Read-only preview of SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro, with pagination and sorting.",
+    "zh-TW": "表格資料的唯讀預覽：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支援分頁與排序。"
+  },
+  "通过 IMAP/SMTP 连接邮箱，在 Fiex 中收发邮件。": {
+    "en": "Connect to email via IMAP/SMTP and send or receive messages in Fiex.",
+    "zh-TW": "透過 IMAP/SMTP 連線至信箱，在 Fiex 中收發郵件。"
+  },
+  "邮箱": {
+    "en": "Mail",
+    "zh-TW": "信箱"
+  },
+  "邮箱地址": {
+    "en": "Email address",
+    "zh-TW": "電子郵件地址"
+  },
+  "IMAP/SMTP 授权码": {
+    "en": "IMAP/SMTP app password",
+    "zh-TW": "IMAP/SMTP 授權碼"
+  },
+  "IMAP 服务器": {
+    "en": "IMAP server",
+    "zh-TW": "IMAP 伺服器"
+  },
+  "SMTP 服务器": {
+    "en": "SMTP server",
+    "zh-TW": "SMTP 伺服器"
+  },
+  "Everything 搜索": {
+    "en": "Everything Search",
+    "zh-TW": "Everything 搜尋"
+  },
+  "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。": {
+    "en": "Search the Everything index through the ES executable on the host PATH; Everything and ES must be installed and running.",
+    "zh-TW": "透過主程式呼叫 PATH 中的 ES 指令查詢 Everything 索引；須安裝並執行 Everything 和 ES。"
+  },
+  "Google Drive 按需下载、离线副本与版本保护的双向文件同步。": {
+    "en": "Bidirectional Google Drive sync with on-demand downloads, offline copies and version protection.",
+    "zh-TW": "Google Drive 隨選下載、離線副本與版本保護的雙向檔案同步。"
+  },
+  "OAuth 客户端 ID": {
+    "en": "OAuth client ID",
+    "zh-TW": "OAuth 用戶端 ID"
+  },
+  "OAuth 客户端密钥": {
+    "en": "OAuth client secret",
+    "zh-TW": "OAuth 用戶端密鑰"
+  },
+  "请先在 Google Cloud Console 创建自己的项目，启用 Google Drive API，配置 OAuth 同意屏幕（测试模式下添加自己的账号），并创建“桌面应用”OAuth 客户端。填写该应用的 Client ID 和 Secret，保存时将在系统浏览器中登录 Google 并授权，无需手填刷新令牌。": {
+    "en": "Create your own Google Cloud project, enable the Google Drive API, configure the OAuth consent screen (add your account as a test user when testing), and create a Desktop app OAuth client. Enter its Client ID and Secret. Saving opens the system browser for Google authorization; no manual refresh token is needed.",
+    "zh-TW": "請先在 Google Cloud Console 建立自己的專案，啟用 Google Drive API，設定 OAuth 同意畫面（測試模式下加入自己的帳號），並建立「電腦版應用程式」OAuth 用戶端。填寫 Client ID 和 Secret，儲存時會在系統瀏覽器登入並授權，無須手動填寫更新權杖。"
+  },
+  "源代码管理、提交历史、远程仓库与只读历史浏览。": {
+    "en": "Source control, commit history, remote repositories and read-only history browsing.",
+    "zh-TW": "原始碼管理、提交歷史、遠端儲存庫與唯讀歷史瀏覽。"
+  },
+  "源代码管理": {
+    "en": "Source Control",
+    "zh-TW": "原始碼管理"
+  },
+  "历史提交显示条数": {
+    "en": "Commit history limit",
+    "zh-TW": "歷史提交顯示筆數"
+  },
+  "Git 历史": {
+    "en": "Git History",
+    "zh-TW": "Git 歷史"
+  },
+  "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。": {
+    "en": "Encrypt, decrypt, sign, verify and manage public keys using local GnuPG.",
+    "zh-TW": "使用本機 GnuPG 加密、解密、簽章、驗章及管理公開金鑰。"
+  },
+  "钥匙串": {
+    "en": "Keyring",
+    "zh-TW": "鑰匙圈"
+  },
+  "GPG 钥匙串": {
+    "en": "GPG Keyring",
+    "zh-TW": "GPG 鑰匙圈"
+  },
+  "Office 预览": {
+    "en": "Office Preview",
+    "zh-TW": "Office 預覽"
+  },
+  "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": {
+    "en": "Read-only Word, Excel and PowerPoint preview. Complex layouts are simplified.",
+    "zh-TW": "Word、Excel、PowerPoint 的唯讀預覽。文字層級渲染，複雜版面會簡化。"
+  },
+  "预览页数": {
+    "en": "Preview page limit",
+    "zh-TW": "預覽頁數"
+  },
+  "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。": {
+    "en": "Connect using the OpenList API, browse directories and read files.",
+    "zh-TW": "透過 OpenList 原生 API 連線至伺服器，支援目錄瀏覽與檔案讀取。"
+  },
+  "服务器地址": {
+    "en": "Server URL",
+    "zh-TW": "伺服器位址"
+  },
+  "用户名": {
+    "en": "Username",
+    "zh-TW": "使用者名稱"
+  },
+  "密码": {
+    "en": "Password",
+    "zh-TW": "密碼"
+  },
+  "连接超时（秒）": {
+    "en": "Connection timeout (seconds)",
+    "zh-TW": "連線逾時（秒）"
+  },
+  "通过独立进程连接 SMB / NAS 共享。": {
+    "en": "Connect to SMB/NAS shares through an isolated process.",
+    "zh-TW": "透過獨立程序連線至 SMB / NAS 分享。"
+  },
+  "目录扫描间隔（秒）": {
+    "en": "Directory scan interval (seconds)",
+    "zh-TW": "目錄掃描間隔（秒）"
+  },
+  "SMB 网络共享": {
+    "en": "SMB Network Share",
+    "zh-TW": "SMB 網路分享"
+  },
+  "主机": {
+    "en": "Host",
+    "zh-TW": "主機"
+  },
+  "端口": {
+    "en": "Port",
+    "zh-TW": "連接埠"
+  },
+  "共享名": {
+    "en": "Share name",
+    "zh-TW": "分享名稱"
+  },
+  "子路径": {
+    "en": "Subpath",
+    "zh-TW": "子路徑"
+  },
+  "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。": {
+    "en": "SSH connections via the SDK TCP broker, displayed in a separate PluginView terminal.",
+    "zh-TW": "SSH 連線外掛：透過 SDK TCP Broker 建立連線，在獨立 PluginView 中顯示終端機。"
+  },
+  "私钥内容（可选）": {
+    "en": "Private key (optional)",
+    "zh-TW": "私鑰內容（選填）"
+  },
+  "私钥口令（可选）": {
+    "en": "Private key passphrase (optional)",
+    "zh-TW": "私鑰密碼（選填）"
+  },
+  "终端类型": {
+    "en": "Terminal type",
+    "zh-TW": "終端機類型"
+  },
+  "密码（可选，也可使用私钥）": {
+    "en": "Password (optional; private key also supported)",
+    "zh-TW": "密碼（選填，也可使用私鑰）"
+  },
+  "Vista Aero 视觉主题": {
+    "en": "Vista Aero visual theme",
+    "zh-TW": "Vista Aero 視覺主題"
+  },
+  "通过独立进程连接 WebDAV 服务器，目录按需读取。": {
+    "en": "Connect to WebDAV servers in an isolated process with on-demand directory listing.",
+    "zh-TW": "透過獨立程序連線至 WebDAV 伺服器，目錄隨選讀取。"
+  },
+  "目录刷新周期（秒）": {
+    "en": "Directory refresh interval (seconds)",
+    "zh-TW": "目錄重新整理週期（秒）"
+  },
+  "允许自签名证书": {
+    "en": "Allow self-signed certificates",
+    "zh-TW": "允許自簽憑證"
+  },
+  "Windows 11 视觉主题": {
+    "en": "Windows 11 visual theme",
+    "zh-TW": "Windows 11 視覺主題"
+  }
+}

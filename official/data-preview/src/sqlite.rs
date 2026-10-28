@@ -32,7 +32,12 @@ pub fn open(bytes: Vec<u8>) -> Result<Connection, String> {
     .map_err(|error| error.to_string())?;
     connection
         .deserialize_read_exact("main", Cursor::new(bytes.clone()), bytes.len(), true)
-        .map_err(|error| format!("不是有效的 SQLite 文件: {error}"))?;
+        .map_err(|error| {
+            fiex_plugin_sdk::i18n::format(
+                crate::i18n::t("不是有效的 SQLite 文件: {error}"),
+                &[("error", format!("{}", error))],
+            )
+        })?;
     Ok(connection)
 }
 

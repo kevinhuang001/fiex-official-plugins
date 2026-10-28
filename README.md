@@ -51,6 +51,29 @@ VFS navigation, Info/Preview standard events, decorations (colors/badges/row
 and column styles), context menus, search, settings, hooks and toolbar
 panels/commands.
 
+## Typed provider API
+
+Standard events (`info.resolve`, `preview.open`, `decorations.resolve`,
+`contextMenu.resolve/execute`, `search.query`, `hooks.invoke`, `toolbar.invoke`,
+`connection.*`) can be registered with the optional `sdk::Providers` API
+instead of a hand-written `match ctx.method()`. File access is one typed
+`FSProvider`: explicitly declare `operations()` and override `discover(ctx)` to
+report the server-permitted subset for the current connection and resource.
+The SDK provides ordinary `vfs.*` dispatch without procedural macros. The SDK owns read/write stream IDs, offsets, `commit`/`abort` and
+cleanup. Custom RPC remains in the `serve_with` fallback.
+
+```rust
+sdk::Providers::new()
+    .info(MyInfo)
+    .preview(MyPreview)
+    .context_menu(MyMenu)
+    .connection(MyConnection)
+    .filesystem(MyDrive)
+    .serve_with("org.example.plugin", |ctx| custom(ctx))
+```
+
+The beginner example at `example/hello` and its guides use this API.
+
 ## Info and preview contracts
 
 Info and preview are standard events, not command/panel declarations. A plugin
@@ -70,7 +93,7 @@ see an empty plugin shell or a second spinner.
 
 ## UI builds
 
-SSH, Git, Archive, Checksum and GPG ship connection/panel surfaces under `official/<slug>/`. SSH uses the Host TCP broker (`ctx.tcp()`) and `network.all` at activation; it supports private-key/password/agent auth. CI runs it against a real local sshd via `scripts/test-ssh-plugin.py`. WebDAV/SMB default to `localhost` and add the exact host when a connection is saved.
+SSH, Git, Archive, Checksum and GPG ship connection/panel surfaces under `official/<slug>/`. SSH uses the Host TCP broker (`ctx.tcp()`) and `network.all` at activation; it supports secret private-key/password authentication. CI runs it against a real local sshd via `scripts/test-ssh-plugin.py`. WebDAV/SMB default to `localhost` and add the exact host when a connection is saved.
 CI builds the panels once, uploads them as `plugin-panels`, and uses the same
 artifact in every platform package job. Generated `ui/dist` files are not source
 files. All panels consume the Host theme tokens through the UI SDK.
@@ -121,8 +144,16 @@ Core's own CI uses the standalone SDK mock process.
 
 Standalone virtual trees declare `extensions.vfs`; connection factories declare `extensions.connections` and also register `extensions.vfs` when they expose files. No provider declares a URI scheme or a `capabilities` block. Core generates all `fiex://mount/<id>/` navigation URIs and enforces provider ownership and selected-resource scope.
 
-Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `vfs.*` through the supplied `viewContext` and opaque `nodeId`. It does not snapshot repositories or participate in connection sync.
+Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `vfs.list/stat/read/search` through the supplied `viewContext` and opaque `nodeId` (the blob path). It does not snapshot repositories or participate in connection sync.
 
-All connection uploads use `fs.writeFile` with an exact Core snapshot grant. Google Drive implements resumable chunking internally. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
+All uploads use `vfs.beginWrite` / `vfs.writeStream` / `vfs.commit`, with `vfs.abort` discarding an uncommitted stream. Google Drive implements resumable chunking in its writer and finishes in the commit callback. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
 
 `test-git-vfs.py`, `test-gdrive.py` and `test-connection-sync.py` exercise real provider processes against deterministic brokers. The separate Core-host and live WebDAV/SMB CI jobs retain actual sandbox/network integration coverage.
+
+## Protocol 5 provider pattern
+
+Official native plugins register standard events with `sdk::Providers` and the matching typed provider traits. `FSProvider::operations` reports only the filesystem operations actually implemented. Custom business RPC stays in `serve_with` fallback handlers; connection-only providers use `serve`.
+
+File arguments are `ResourceRef`s bound by Core. Use `ctx.target()` / `ctx.targets()` for selections, `ctx.files()` for controlled IO, typed Storage/Secrets services, and plugin-owned PluginView RPC for terminal sessions. SSH uses the SDK's optional Tokio TCP adapter inside its background-task authorization instead of a private stream pump.
+
+The cross-repository tests target Fiex Core `v0.7.5`; the SDK is pinned to its tested `v0.1.1` release commit. Plugin versions are compared with the previous published catalog so no release downgrades an installed plugin.

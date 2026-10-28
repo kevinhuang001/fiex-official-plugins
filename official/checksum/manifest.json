@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.checksum",
   "name": "校验和",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。",
   "icon": "hash",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "5.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-checksum.exe",
       "macos-aarch64": "fiex-plugin-checksum",
@@ -71,6 +71,16 @@
           "file"
         ]
       }
+    }
+  },
+  "locales": {
+    "en": {
+      "校验和": "Checksums",
+      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "Calculate SHA-256, SHA-512, SHA-1, MD5 and CRC32 checksums."
+    },
+    "zh-TW": {
+      "校验和": "校驗和",
+      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "計算 SHA-256、SHA-512、SHA-1、MD5 與 CRC32。"
     }
   }
 }

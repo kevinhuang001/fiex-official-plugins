@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { AlertTriangle } from "lucide-react";
 import type { Key } from "../types";
 
@@ -18,19 +19,22 @@ export function DeleteKeyDialog({
         className="gpg-confirm"
         role="dialog"
         aria-modal="true"
-        aria-label="删除密钥"
+        aria-label={t("删除密钥")}
       >
         <span className="gpg-confirm-icon" aria-hidden>
           <AlertTriangle size={18} />
         </span>
-        <h3>删除密钥？</h3>
+        <h3>{t("删除密钥？")}</h3>
         <p>
-          {selected.name} 的{selected.hasSecret ? "公钥和私钥" : "公钥"}将从本机
-          GnuPG 钥匙串中删除，此操作无法撤销。
+          {t(
+            "将从本机 GnuPG 钥匙串中删除 {0} 的{1}，此操作无法撤销。",
+            selected.name,
+            selected.hasSecret ? t("公钥和私钥") : t("公钥"),
+          )}
         </p>
         <footer>
           <button type="button" onClick={onCancel} disabled={busy}>
-            取消
+            {t("取消")}{" "}
           </button>
           <button
             type="button"
@@ -38,7 +42,7 @@ export function DeleteKeyDialog({
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? "正在删除…" : "删除"}
+            {busy ? t("正在删除…") : t("删除")}
           </button>
         </footer>
       </div>

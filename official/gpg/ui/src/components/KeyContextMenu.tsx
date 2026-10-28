@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { useEffect, useRef } from "react";
 import { Download, Trash2 } from "lucide-react";
 import type { Key } from "../types";
@@ -46,7 +47,7 @@ export function KeyContextMenu({
       className="gpg-key-menu"
       style={style}
       role="menu"
-      aria-label="密钥操作"
+      aria-label={t("密钥操作")}
     >
       <button
         type="button"
@@ -57,7 +58,7 @@ export function KeyContextMenu({
         }}
       >
         <Download size={13} />
-        导出公钥
+        {t("导出公钥")}{" "}
       </button>
       {selected.hasSecret && (
         <button
@@ -69,7 +70,7 @@ export function KeyContextMenu({
           }}
         >
           <Download size={13} />
-          导出私钥
+          {t("导出私钥")}{" "}
         </button>
       )}
       <button
@@ -82,7 +83,7 @@ export function KeyContextMenu({
         }}
       >
         <Trash2 size={13} />
-        删除密钥
+        {t("删除密钥")}{" "}
       </button>
     </div>
   );

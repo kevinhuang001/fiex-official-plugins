@@ -33,12 +33,15 @@ pub fn csv(bytes: Vec<u8>, path: &str) -> Result<Table, String> {
         .next()
         .transpose()
         .map_err(|error| error.to_string())?
-        .ok_or_else(|| "CSV 没有内容".to_string())?;
+        .ok_or_else(|| crate::i18n::t("CSV 没有内容").to_string())?;
     let mut names: Vec<String> = Vec::new();
     for (index, value) in header.iter().enumerate() {
         let mut name = value.trim().to_string();
         if name.is_empty() {
-            name = format!("列 {}", index + 1);
+            name = fiex_plugin_sdk::i18n::format(
+                crate::i18n::t("列 {0}"),
+                &[("0", format!("{}", index + 1))],
+            );
         }
         while names.contains(&name) {
             name.push('_');
@@ -76,14 +79,18 @@ pub fn csv(bytes: Vec<u8>, path: &str) -> Result<Table, String> {
     Ok(Table {
         columns,
         rows,
-        note: Some(format!(
-            "分隔符：{}",
-            match delimiter {
-                b'\t' => "Tab",
-                b';' => "分号",
-                b'|' => "竖线",
-                _ => "逗号",
-            }
+        note: Some(fiex_plugin_sdk::i18n::format(
+            crate::i18n::t("分隔符：{0}"),
+            &[(
+                "0",
+                (match delimiter {
+                    b'\t' => "Tab",
+                    b';' => crate::i18n::t("分号"),
+                    b'|' => crate::i18n::t("竖线"),
+                    _ => crate::i18n::t("逗号"),
+                })
+                .to_string(),
+            )],
         )),
     })
 }

@@ -2,7 +2,7 @@
 use super::super::{
     err,
     extract::extract_file,
-    paths::{safe_name, text},
+    paths::{entry_ref, safe_name},
     ArchiveContext, CANCELLED, MAX_ENTRIES,
 };
 use crate::ignores::IgnoreSet;
@@ -13,8 +13,8 @@ use std::{
 
 pub(crate) fn extract_zip(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     password: Option<&str>,
     ignore: &IgnoreSet,
     remaining: &mut u64,
@@ -22,7 +22,7 @@ pub(crate) fn extract_zip(
     let files = context.files();
     let mut archive = zip::ZipArchive::new(files.open_read(source).map_err(err)?).map_err(err)?;
     if archive.len() > MAX_ENTRIES {
-        return Err("压缩包项目过多".into());
+        return Err(crate::i18n::t("压缩包项目过多").into());
     }
     let mut processed = 0;
     for i in 0..archive.len() {
@@ -38,10 +38,10 @@ pub(crate) fn extract_zip(
         };
         let name = input
             .enclosed_name()
-            .ok_or("压缩包包含越界路径")?
+            .ok_or(crate::i18n::t("压缩包包含越界路径"))?
             .to_owned();
         if input.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {
-            return Err("不解压符号链接".into());
+            return Err(crate::i18n::t("不解压符号链接").into());
         }
         if ignore.is_ignored(&name) {
             continue;
@@ -56,8 +56,8 @@ pub(crate) fn extract_zip(
 
 pub(crate) fn extract_7z(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     password: Option<&str>,
     ignore: &IgnoreSet,
     remaining: &mut u64,
@@ -76,9 +76,9 @@ pub(crate) fn extract_7z(
             }
             count += 1;
             if count > MAX_ENTRIES {
-                return Err(sevenz_rust2::Error::from(io::Error::other(
+                return Err(sevenz_rust2::Error::from(io::Error::other(crate::i18n::t(
                     "压缩包项目过多",
-                )));
+                ))));
             }
             if ignore.is_ignored(Path::new(&meta.name)) {
                 return Ok(true);
@@ -102,8 +102,8 @@ pub(crate) fn extract_7z(
 
 pub(crate) fn extract_rar(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     password: Option<&str>,
     ignore: &IgnoreSet,
     max_total: u64,
@@ -150,7 +150,9 @@ pub(crate) fn extract_rar(
             }
             count += 1;
             if count > MAX_ENTRIES {
-                return Err(rars::Error::from(io::Error::other("压缩包项目过多")));
+                return Err(rars::Error::from(io::Error::other(crate::i18n::t(
+                    "压缩包项目过多",
+                ))));
             }
             let name = String::from_utf8(meta.name.clone())
                 .map_err(|e| rars::Error::from(io::Error::other(e)))?;
@@ -158,22 +160,15 @@ pub(crate) fn extract_rar(
             if ignore.is_ignored(Path::new(&name)) {
                 return Ok(Box::new(io::sink()));
             }
-            let path = root.join(name);
+            let reference = entry_ref(&files, root, Path::new(&name), meta.is_directory)
+                .map_err(|error| rars::Error::from(io::Error::other(error)))?;
             if meta.is_directory {
-                files
-                    .create_dir_all(&text(&path))
-                    .map_err(rars::Error::from)?;
                 context.progress(count as u64, None);
                 return Ok(Box::new(io::sink()));
             }
-            if let Some(parent) = path.parent() {
-                files
-                    .create_dir_all(&text(parent))
-                    .map_err(rars::Error::from)?;
-            }
             let output = Arc::new(Mutex::new(Some(
                 files
-                    .begin_write(&text(&path), true)
+                    .begin_write(&reference, true)
                     .map_err(rars::Error::from)?,
             )));
             pending = Some(output.clone());
@@ -195,8 +190,8 @@ pub(crate) fn extract_rar(
 
 pub(crate) fn extract_stream(
     context: &dyn ArchiveContext,
-    root: &Path,
-    source: &str,
+    root: &fiex_plugin_sdk::ResourceRef,
+    source: &fiex_plugin_sdk::ResourceRef,
     source_path: &Path,
     lower: &str,
     ignore: &IgnoreSet,
@@ -213,7 +208,7 @@ pub(crate) fn extract_stream(
     } else if lower.ends_with(".tar") {
         Box::new(reader)
     } else {
-        return Err("不支持的压缩格式".into());
+        return Err(crate::i18n::t("不支持的压缩格式").into());
     };
     let tar = lower.ends_with(".tar")
         || [".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz"]
@@ -227,13 +222,13 @@ pub(crate) fn extract_stream(
                 return Err(CANCELLED.into());
             }
             if i >= MAX_ENTRIES {
-                return Err("压缩包项目过多".into());
+                return Err(crate::i18n::t("压缩包项目过多").into());
             }
             let mut input = input.map_err(err)?;
             let name = input.path().map_err(err)?.into_owned();
             let kind = input.header().entry_type();
             if !kind.is_file() && !kind.is_dir() {
-                return Err("不解压链接或特殊文件".into());
+                return Err(crate::i18n::t("不解压链接或特殊文件").into());
             }
             if ignore.is_ignored(&name) {
                 continue;
@@ -255,7 +250,11 @@ pub(crate) fn extract_stream(
             &files,
             context,
             root,
-            Path::new(source_path.file_stem().ok_or("无效文件名")?),
+            Path::new(
+                source_path
+                    .file_stem()
+                    .ok_or(crate::i18n::t("无效文件名"))?,
+            ),
             false,
             &mut { reader },
             remaining,

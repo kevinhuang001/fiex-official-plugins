@@ -6,20 +6,17 @@ use crate::{
 
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[derive(Clone)]
 pub struct Route {
-    pub root: PathBuf,
+    pub root: sdk::ResourceRef,
     pub commit: String,
     pub relative: String,
 }
 pub fn route(relative: &str, context: &Value) -> Option<Route> {
-    let root = context["repoRoot"].as_str()?;
+    let root = serde_json::from_value::<sdk::ResourceRef>(context["repoRoot"].clone()).ok()?;
     let commit = context["commitId"].as_str()?;
-    if !Path::new(root).is_absolute()
-        || ![40, 64].contains(&commit.len())
-        || !commit.bytes().all(|c| c.is_ascii_hexdigit())
-    {
+    if ![40, 64].contains(&commit.len()) || !commit.bytes().all(|c| c.is_ascii_hexdigit()) {
         return None;
     }
     if relative.starts_with('/')
@@ -29,23 +26,47 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
         return None;
     }
     Some(Route {
-        root: root.into(),
+        root,
         commit: commit.into(),
         relative: relative.into(),
     })
 }
 fn request_route(path: &str, host: &sdk::RequestContext) -> Result<Route, String> {
-    route(path, &host.params()["viewContext"]).ok_or_else(|| "无效历史上下文".into())
+    route(path, &host.params()["viewContext"])
+        .ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
-pub fn provider_entry(entry: Entry) -> Value {
+/// The blob path is stable for one commit, so it doubles as the node id.
+pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
+    use sdk::filesystem::{FsEntry, FsKind};
     let node = entry.path.clone();
-    let mut value = serde_json::to_value(entry).expect("entry serializes");
-    value["nodeId"] = json!(node);
-    value["relativePath"] = json!(node);
-    value
+    let kind = if entry.is_dir {
+        FsKind::Directory
+    } else if entry.is_symlink {
+        FsKind::Symlink
+    } else {
+        FsKind::File
+    };
+    FsEntry {
+        node_id: node.clone(),
+        name: entry.name,
+        kind,
+        size: Some(entry.size),
+        modified: Some(entry.modified as i64),
+        extension: (!entry.extension.is_empty()).then_some(entry.extension),
+        mime: Some(entry.mime),
+        revision: None,
+        readonly: Some(true),
+        link_target: entry.link_target,
+        allowed_ops: None,
+        relative_path: Some(node),
+    }
 }
-pub fn history(root: &str, skip: usize, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn history(
+    root: &sdk::ResourceRef,
+    skip: usize,
+    host: &sdk::RequestContext,
+) -> Result<Value, String> {
     if run(host, root, &["rev-parse", "--verify", "HEAD"]).is_err() {
         return Ok(json!([]));
     }
@@ -66,11 +87,15 @@ pub fn history(root: &str, skip: usize, host: &sdk::RequestContext) -> Result<Va
     let entries=fields.chunks(6).filter(|p|p.len()==6).map(|p|json!({"id":p[0].trim_start_matches('\n'),"shortId":p[1],"subject":p[2],"author":p[3],"timestamp":p[4].parse::<u64>().unwrap_or(0),"refs":p[5]})).collect::<Vec<_>>();
     Ok(json!(entries))
 }
-pub fn browse(root: &str, reference: &str, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn browse(
+    root: &sdk::ResourceRef,
+    reference: &str,
+    host: &sdk::RequestContext,
+) -> Result<Value, String> {
     if reference.is_empty() || reference.starts_with('-') {
-        return Err("无效版本".into());
+        return Err(crate::i18n::t("无效版本").into());
     }
-    let full = run(host, root, &["rev-parse", "--show-toplevel"])?;
+
     let object = format!("{reference}^{{commit}}");
     let hash = run(
         host,
@@ -79,8 +104,8 @@ pub fn browse(root: &str, reference: &str, host: &sdk::RequestContext) -> Result
     )?;
     host.open_vfs_view(
         "history",
-        full.trim(),
-        json!({"repoRoot":full.trim(),"commitId":hash.trim()}),
+        root,
+        json!({"repoRoot":root,"commitId":hash.trim()}),
     )
     .map_err(|e| e.to_string())
     .map(Value::String)
@@ -103,7 +128,7 @@ fn entries(
         args.push("-r");
     }
     args.push(&object);
-    let output = run(host, &r.root.to_string_lossy(), &args)?;
+    let output = run(host, &r.root, &args)?;
     let ignored = crate::ignores::IgnoreSet::new(ignores);
     let mut values = Vec::new();
     for record in output.split('\0').filter(|s| !s.is_empty()) {
@@ -173,7 +198,7 @@ pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
         let r = request_route(path, host)?;
         run(
             host,
-            &r.root.to_string_lossy(),
+            &r.root,
             &["cat-file", "-e", &format!("{}^{{commit}}", r.commit)],
         )?;
         return Ok(Entry {
@@ -196,25 +221,16 @@ pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
     entries(parent, true, &[], false, host)?
         .into_iter()
         .find(|v| v.path == path)
-        .ok_or("历史文件不存在".into())
+        .ok_or(crate::i18n::t("历史文件不存在").into())
 }
 pub fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
     let r = request_route(path, host)?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
-        .process_run(
-            "git",
-            &[
-                "-C".into(),
-                r.root.to_string_lossy().into_owned(),
-                "show".into(),
-                object,
-            ],
-            None,
-        )
+        .process_run_at(&r.root, "git", &["show".into(), object], None)
         .map_err(|e| e.to_string())?;
     if result.code != Some(0) || result.truncated {
-        return Err("无法读取历史内容，或内容超过命令输出限制".into());
+        return Err(crate::i18n::t("无法读取历史内容，或内容超过命令输出限制").into());
     }
     result.stdout_bytes()
 }
@@ -237,10 +253,9 @@ mod tests {
     use super::*;
     #[test]
     fn routes_are_immutable_and_reject_traversal() {
-        let a =
-            json!({"repoRoot":std::env::temp_dir().to_string_lossy(),"commitId":"a".repeat(40)});
-        let b =
-            json!({"repoRoot":std::env::temp_dir().to_string_lossy(),"commitId":"b".repeat(40)});
+        let repo = |node: &str| json!({"mountId":"local","nodeId":node});
+        let a = json!({"repoRoot":repo("repo-a"),"commitId":"a".repeat(40)});
+        let b = json!({"repoRoot":repo("repo-b"),"commitId":"b".repeat(40)});
         assert_ne!(
             route("src/x", &a).unwrap().commit,
             route("src/x", &b).unwrap().commit
@@ -248,6 +263,6 @@ mod tests {
         for path in ["../secret", "a\\b", "/absolute", "a/./b"] {
             assert!(route(path, &a).is_none());
         }
-        assert!(route("", &json!({"repoRoot":"relative","commitId":"HEAD"})).is_none());
+        assert!(route("", &json!({"repoRoot":repo("repo-a"),"commitId":"HEAD"})).is_none());
     }
 }

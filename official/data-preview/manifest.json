@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.data-preview",
   "name": "数据预览",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。",
   "icon": "database",
   "author": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/kevinhuang001/fiex-official-plugins"
   },
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "5.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-data-preview.exe",
       "macos-aarch64": "fiex-plugin-data-preview",
@@ -83,7 +83,7 @@
         ]
       },
       "loading": {
-        "entry": "ui/loading.html"
+        "entry": "ui/dist/loading.html"
       }
     },
     "info": {
@@ -104,6 +104,16 @@
           "avro"
         ]
       }
+    }
+  },
+  "locales": {
+    "en": {
+      "数据预览": "Data Preview",
+      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "Read-only preview of SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro, with pagination and sorting."
+    },
+    "zh-TW": {
+      "数据预览": "資料預覽",
+      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "表格資料的唯讀預覽：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支援分頁與排序。"
     }
   }
 }

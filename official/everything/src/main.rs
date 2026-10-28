@@ -1,14 +1,21 @@
 //! Optional Windows search adapter. The authorized ES command runs in Host;
 //! the plugin never contacts Everything's native IPC endpoint itself.
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]
 fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let query = p.get("query").and_then(Value::as_str).unwrap_or("").trim();
-    let root = p
-        .get("root")
-        .and_then(Value::as_str)
-        .filter(|r| !r.is_empty() && *r != "everywhere://");
+    // Core now sends the search root as an opaque ref. The ES adapter must
+    // not receive host paths; `process_run` resolves command args that carry
+    // the SDK's `fiex-ref:` prefix inside the operation scope.
+    let root = p.get("root").and_then(|value| {
+        serde_json::from_value::<sdk::ResourceRef>(
+            value.get("ref").cloned().unwrap_or(value.clone()),
+        )
+        .ok()
+    });
     let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
     let limit = p
         .get("limit")
@@ -18,8 +25,8 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let mut entries = Vec::new();
     for (filter, is_dir) in [("/ad", true), ("/a-d", false)] {
         let mut args = vec!["-n".into(), (limit + 1).to_string(), filter.into()];
-        if let Some(root) = root {
-            args.extend(["-path".into(), root.into()]);
+        if let Some(root) = &root {
+            args.extend(["-path".into(), root.command_arg()]);
         }
         if !hidden {
             args.push("/a-h".into());
@@ -27,9 +34,11 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
         args.push(query.into());
         let output = host.process_run("es", &args, None)?;
         if output.code != Some(0) || output.truncated {
-            return Err(RpcError::internal(format!(
-                "Everything ES 查询失败，请确认 Everything 正在运行且 es.exe 位于 PATH：{}",
-                output.stderr
+            return Err(RpcError::internal(fiex_plugin_sdk::i18n::format(
+                crate::i18n::t(
+                    "Everything ES 查询失败，请确认 Everything 正在运行且 es.exe 位于 PATH：{0}",
+                ),
+                &[("0", output.stderr)],
             )));
         }
         for line in output.stdout.lines() {
@@ -55,22 +64,36 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
 }
 #[cfg(not(windows))]
 fn query(_p: &Value, _host: &sdk::RequestContext) -> Result<Value, RpcError> {
-    Ok(json!({"entries":[],"truncated":false,"warning":"Everything 搜索只在 Windows 上可用"}))
+    Ok(
+        json!({"entries":[],"truncated":false,"warning":crate::i18n::t("Everything 搜索只在 Windows 上可用")}),
+    )
 }
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     match method {
-        "search.query" => query(ctx.params(), &ctx),
         "search.status" => Ok(
             json!({"available":cfg!(windows),"provider":"everything","indexOwner":"Everything","requires":"Everything and ES command in PATH"}),
         ),
-        "search.rebuild" => Err(RpcError::invalid_params("索引由 Everything 管理")),
+        "search.rebuild" => Err(RpcError::invalid_params(crate::i18n::t(
+            "索引由 Everything 管理",
+        ))),
         _ => Err(RpcError::method_not_found(method)),
     }
 }
 fn main() {
-    if let Err(e) = sdk::serve("org.fiex.everything", dispatch) {
+    if let Err(e) = sdk::Providers::new()
+        .search(Everything)
+        .serve_with("org.fiex.everything", dispatch)
+    {
         eprintln!("Everything IPC failed: {e}");
         std::process::exit(1);
+    }
+}
+
+struct Everything;
+impl sdk::SearchProvider for Everything {
+    fn query(&self, ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+        serde_json::from_value(query(ctx.params(), ctx)?)
+            .map_err(|error| RpcError::internal(error.to_string()))
     }
 }

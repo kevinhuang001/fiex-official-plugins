@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { useCallback, useEffect, useState } from "react";
 import type { FiexUiClient } from "../../../../../sdk/ui/src/index";
 import type { RemoteEdit } from "../types";
@@ -59,12 +60,12 @@ export function useRemotePanel(
   const sync = useCallback(
     (push: boolean) =>
       void runTask(
-        push ? "推送分支" : "拉取分支",
-        `${remoteName}/${syncBranch || remote?.branch || "当前分支"}`,
+        push ? t("推送分支") : t("拉取分支"),
+        `${remoteName}/${syncBranch || remote?.branch || t("当前分支")}`,
         async (taskId) => {
-          if (!remoteName.trim()) throw new Error("请先配置远程仓库");
+          if (!remoteName.trim()) throw new Error(t("请先配置远程仓库"));
           await client.tasks.update(taskId, {
-            step: "连接远程仓库",
+            step: t("连接远程仓库"),
             progress: 0.25,
           });
           await invokeGit(client, "git.remoteSync", {
@@ -74,10 +75,10 @@ export function useRemotePanel(
             branch: syncBranch || undefined,
           });
           await client.tasks.update(taskId, {
-            step: "更新本地状态",
+            step: t("更新本地状态"),
             progress: 0.9,
           });
-          return push ? "推送完成" : "拉取完成";
+          return push ? t("推送完成") : t("拉取完成");
         },
       ),
     [client, remote, remoteName, root, runTask, syncBranch],

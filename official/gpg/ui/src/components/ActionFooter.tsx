@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { Status } from "../types";
 
 export function ActionFooter({
@@ -21,7 +22,8 @@ export function ActionFooter({
   canRun: boolean;
   onRun: () => void;
 }) {
-  const message = status.text || (gpg ? "" : "需要安装 GnuPG 才能使用此插件");
+  const message =
+    status.text || (gpg ? "" : t("需要安装 GnuPG 才能使用此插件"));
   if (!message && !showAction) return null;
   return (
     <footer className="gpg-foot">
@@ -42,7 +44,7 @@ export function ActionFooter({
           disabled={!canRun}
           onClick={() => void onRun()}
         >
-          {busy ? "处理中…" : actionLabel}
+          {busy ? t("处理中…") : actionLabel}
         </button>
       )}
     </footer>

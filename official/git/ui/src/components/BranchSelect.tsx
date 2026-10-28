@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
@@ -59,10 +60,10 @@ export function BranchSelect({
         className="branch-select-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="同步分支"
+        aria-label={t("同步分支")}
         onClick={() => setOpen(!open)}
       >
-        {value || "选择分支"}
+        {value || t("选择分支")}
         <ChevronDown size={13} className={open ? "open" : ""} />
       </button>
       {open && (
@@ -70,7 +71,7 @@ export function BranchSelect({
           ref={menu}
           className={`branch-select-menu${placement.up ? " open-up" : ""}`}
           role="listbox"
-          aria-label="同步分支"
+          aria-label={t("同步分支")}
           style={{ maxHeight: placement.maxHeight }}
         >
           {options.map((item) => (

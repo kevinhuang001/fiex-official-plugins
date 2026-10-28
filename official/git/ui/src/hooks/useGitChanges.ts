@@ -4,7 +4,7 @@ import type { Status } from "../types";
 
 /** Derives the sorted change list and its staged/unstaged partitions. */
 export function useGitChanges(status: Status | null) {
-  const changes = useMemo(() => collectChanges(status), [status]);
+  const changes = collectChanges(status);
   const staged = useMemo(
     () => changes.filter((item) => item.staged),
     [changes],

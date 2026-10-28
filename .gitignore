@@ -12,3 +12,8 @@ node_modules/
 
 # Bundles are built once in CI and packaged from the same artifact.
 official/*/ui/dist/
+
+# Workspace members share the root lockfile. SSH and SMB are standalone.
+official/*/Cargo.lock
+!official/ssh/Cargo.lock
+!official/smb/Cargo.lock

@@ -1,3 +1,5 @@
+import { t } from "../../../../../support/ui/i18n";
+import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileList } from "./FileList";
 import { KeyPicker } from "./KeyPicker";
 import { OutputSummary } from "./OutputSummary";
@@ -18,8 +20,8 @@ export function SignForm({
   armor,
   onArmor,
 }: {
-  files: string[];
-  directory: string;
+  files: ResourceContext[];
+  directory: ResourceContext | undefined;
   keys: Key[];
   totalKeys: number;
   fingerprint: string;
@@ -53,7 +55,7 @@ export function SignForm({
       />
       <div className="gpg-options">
         <Toggle
-          label="ASCII 装甲签名"
+          label={t("ASCII 装甲签名")}
           checked={armor}
           onChange={onArmor}
           disabled={busy}

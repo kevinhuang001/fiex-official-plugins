@@ -7,7 +7,7 @@
 //!   cargo run --manifest-path example/hello/Cargo.toml
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest},
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest, VfsProvider},
     RpcError,
 };
 use serde_json::{json, Value};

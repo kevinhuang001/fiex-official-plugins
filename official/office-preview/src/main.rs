@@ -56,8 +56,7 @@ fn cached_render(
     let value = render::render(bytes, &render::extension(resources::name(target)?), pages)?;
     *cache()
         .lock()
-        .map_err(|_| RpcError::internal("preview cache unavailable"))? =
-        Some((key, value.clone()));
+        .map_err(|_| RpcError::internal("preview cache unavailable"))? = Some((key, value.clone()));
     Ok(value)
 }
 

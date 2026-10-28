@@ -55,7 +55,11 @@ pub(crate) fn config(connection: Option<&Value>) -> Result<Config, RpcError> {
     Ok(Config {
         url,
         username: text(connection.get("username")),
-        password: text(connection.get("password")),
+        password: connection
+            .get("password")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
         timeout: number(connection.get("timeout"), 30),
     })
 }

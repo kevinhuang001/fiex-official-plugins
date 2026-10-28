@@ -4,9 +4,7 @@ import type { ChangeEntry, Status } from "../types";
 export const baseName = (path: string) => path.split(/[/\\]/).pop() || path;
 
 /** Parses a `git status` two-letter code into display state. */
-export const changeOf = (
-  code: string,
-): Omit<ChangeEntry, "path" | "code"> | null => {
+const changeOf = (code: string): Omit<ChangeEntry, "path" | "code"> | null => {
   if (code === "??")
     return { letter: "U", label: "未跟踪", staged: false, unstaged: true };
   const index = code[0] ?? " ";

@@ -5,6 +5,10 @@ use std::io::{Read, Seek};
 
 const MAX_ENTRIES: usize = 5000;
 
+fn is_directory(name: &str, zip_is_dir: bool, unix_mode: Option<u32>) -> bool {
+    zip_is_dir || name.ends_with('/') || unix_mode.is_some_and(|mode| mode & 0o170000 == 0o040000)
+}
+
 fn entries_from_zip<R: Read + Seek>(reader: R) -> Result<(Vec<Value>, bool), String> {
     let mut archive = zip::ZipArchive::new(reader).map_err(|e| e.to_string())?;
     let mut entries = Vec::new();
@@ -12,10 +16,14 @@ fn entries_from_zip<R: Read + Seek>(reader: R) -> Result<(Vec<Value>, bool), Str
     for index in 0..archive.len().min(MAX_ENTRIES) {
         let file = archive.by_index_raw(index).map_err(|e| e.to_string())?;
         encrypted |= file.encrypted();
+        let name = file.name().to_string();
+        // Some zip writers store an empty folder without a trailing slash and
+        // only mark the directory bit in the Unix external attributes.
+        let is_dir = is_directory(&name, file.is_dir(), file.unix_mode());
         entries.push(json!({
-            "name": file.name(),
+            "name": name,
             "size": file.size(),
-            "isDir": file.is_dir(),
+            "isDir": is_dir,
             "encrypted": file.encrypted(),
         }));
     }
@@ -148,6 +156,14 @@ mod tests {
         assert_eq!(entries[0]["name"], "a.txt");
         assert_eq!(entries[1]["isDir"], true);
         assert!(!encrypted);
+    }
+
+    #[test]
+    fn detects_directories_from_name_or_unix_mode() {
+        assert!(is_directory("docs", false, Some(0o040755)));
+        assert!(is_directory("docs", true, None));
+        assert!(is_directory("docs/", false, None));
+        assert!(!is_directory("docs.txt", false, Some(0o100644)));
     }
 
     #[test]

@@ -10,13 +10,13 @@ mod table;
 mod tabular;
 
 use fiex_plugin_sdk as sdk;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 fn main() {
-    let cache = Mutex::new(None);
+    let cache = Arc::new(Mutex::new(None));
     if let Err(error) = sdk::Providers::new()
-        .info(dispatch::Presentation)
-        .preview(dispatch::Presentation)
+        .info(dispatch::Presentation(Arc::clone(&cache)))
+        .preview(dispatch::Presentation(Arc::clone(&cache)))
         .serve_with("org.fiex.data-preview", move |ctx| {
             dispatch::dispatch(ctx, &cache)
         })

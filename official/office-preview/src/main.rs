@@ -12,14 +12,55 @@ mod sanitize;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
+use std::sync::{Mutex, OnceLock};
 
-fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
+fn cache() -> &'static Mutex<Option<(String, Value)>> {
+    static CACHE: OnceLock<Mutex<Option<(String, Value)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(None))
+}
+fn cached_render(
+    ctx: &sdk::RequestContext,
+    target: &sdk::ResourceContext,
+) -> Result<Value, RpcError> {
+    let pages = ctx
+        .storage()
+        .scoped("global")
+        .get::<Value>("previewPages")?
+        .and_then(|value| {
+            value
+                .as_u64()
+                .or_else(|| value.as_f64().map(|number| number as u64))
+        })
+        .unwrap_or(6)
+        .clamp(1, 30) as usize;
+    let metadata = ctx
+        .files()
+        .metadata(&target.reference)
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    let key = serde_json::to_string(&(&target.reference, metadata.modified, metadata.size, pages))
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    if let Some(value) = cache().lock().ok().and_then(|entry| {
+        entry
+            .as_ref()
+            .filter(|(old, _)| old == &key)
+            .map(|(_, value)| value.clone())
+    }) {
+        return Ok(value);
+    }
     let bytes = ctx
         .files()
         .read(&target.reference)
-        .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    let value = render::render(bytes, &render::extension(resources::name(target)?), pages)?;
+    *cache()
+        .lock()
+        .map_err(|_| RpcError::internal("preview cache unavailable"))? = Some((key, value.clone()));
+    Ok(value)
+}
+
+fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
     let extension = render::extension(resources::name(target)?);
-    let value = render::render(bytes, &extension)?;
+    let value = cached_render(ctx, target)?;
     let html = value["html"].as_str().unwrap_or("");
     let count = |needle: &str| html.matches(needle).count();
     Ok(serde_json::json!({"rows": [
@@ -41,12 +82,7 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         }
         "office.render" => {
             let target = resources::input(&ctx, "path")?;
-            let path = resources::name(&target)?;
-            let bytes = ctx
-                .files()
-                .read(&target.reference)
-                .map_err(|error| RpcError::internal(format!("读取文件失败: {error}")))?;
-            render::render(bytes, &render::extension(path))
+            cached_render(&ctx, &target)
         }
         _ => Err(RpcError::method_not_found(method)),
     }

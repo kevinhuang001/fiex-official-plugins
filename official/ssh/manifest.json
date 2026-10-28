@@ -3,7 +3,7 @@
   "id": "org.fiex.ssh",
   "name": "SSH",
   "version": "0.1.1",
-  "description": "SSH 连接插件：经 Host TCP Broker 连接，终端由 Core 的 xterm.js 渲染。",
+  "description": "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。",
   "icon": "terminal",
   "author": {
     "name": "Fiex Contributors",

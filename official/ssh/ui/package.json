@@ -1,15 +1,14 @@
 {
-  "name": "fiex-checksum-ui",
+  "name": "fiex-ssh-ui",
   "private": true,
-  "version": "0.2.11",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
-    "lucide-react": "^0.577.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "@xterm/xterm": "^6.0.0",
+    "@xterm/addon-fit": "^0.11.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",

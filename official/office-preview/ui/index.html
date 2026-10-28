@@ -40,6 +40,7 @@
         background: var(--line);
       }
       .document { overflow-wrap: anywhere; }
+      .page-limit { margin: 22px 0 0; color: var(--muted); text-align: center; font-size: 11px; }
     </style>
   </head>
   <body>
@@ -102,6 +103,12 @@
             // The plugin sanitizes this HTML on the Rust side before it arrives.
             documentView.innerHTML = value.html
             content.replaceChildren(documentView)
+            if (value.truncated) {
+              const note = document.createElement('p')
+              note.className = 'page-limit'
+              note.textContent = `仅显示前 ${value.pages} 页`
+              content.append(note)
+            }
             ready()
           } catch (error) {
             fail(error)
@@ -133,7 +140,18 @@
           port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
           start()
         })
-        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+        const announce = () =>
+          window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+        announce()
+        // A srcDoc iframe can execute this script before the host has attached
+        // its message listener. Keep announcing until the host answers.
+        const announceTimer = setInterval(() => {
+          if (port) {
+            clearInterval(announceTimer)
+            return
+          }
+          announce()
+        }, 250)
       })()
     </script>
   </body>

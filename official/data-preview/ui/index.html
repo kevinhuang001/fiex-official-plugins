@@ -377,7 +377,18 @@
           port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
           start()
         })
-        window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+        const announce = () =>
+          window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+        announce()
+        // A srcDoc iframe can execute this script before the host has attached
+        // its message listener. Keep announcing until the host answers.
+        const announceTimer = setInterval(() => {
+          if (port) {
+            clearInterval(announceTimer)
+            return
+          }
+          announce()
+        }, 250)
       })()
     </script>
   </body>

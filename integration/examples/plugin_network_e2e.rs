@@ -163,7 +163,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();
     assert!(plugin_host::global()
-        .invoke(id, "plugin.ping", json!({}))
+        .invoke(id, "connection.validate", json!({"connection":config}))
         .is_err());
 }
 

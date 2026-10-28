@@ -1,3 +1,39 @@
+# Fiex plugins 0.5.5
+
+SSH owns its terminal UI and sessions in a self-contained PluginView. Every native plugin uses the typed Providers API with protocol 5 and SDK 0.1.1. CI uses sccache on all Rust jobs and tests actual process protocols, encrypted SSH and installed plugins against Core.
+
+# Fiex plugins 0.5.0
+
+- Plugin manifests now use schema 2, scoped event providers, and per-plugin versioning. Unchanged plugins keep their existing versions.
+- Archive, Office preview and Data preview ship package-local loading pages. Core keeps the loading page visible until the preview calls `preview.ready` after its first data render.
+- Archive can extract through the `beforeOpen` hook, grant sibling output folders and poll Core-owned extraction tasks.
+- New GPG keychain plugin: encrypt, decrypt, sign and verify through the system GnuPG, plus a keychain panel with public/secret keys, fingerprints, import, export and delete.
+- New Email plugin: IMAP/SMTP connection, Gmail-style plugin view, list/read/send, with no local mailbox copy.
+- New SSH and Google Drive plugins.
+- Checksum no longer ships a legacy panel UI; checksum stays available through Info and the context menu.
+- Only plugins whose `official/<slug>/` files changed receive a version bump.
+
+# Versioning
+
+Only plugins whose `official/<slug>/` files changed get a new version. Do not
+bump every official plugin for one release.
+
+Use **Actions → Prepare plugin release** (workflow_dispatch): enter the previous
+`plugins-v*` tag and `patch`/`minor`/`major`. It opens a PR that bumps only the
+changed plugins. The PR check enforces the same rule.
+
+```bash
+# Bump only changed plugins, relative to the previous release tag:
+python scripts/plugin-versions.py bump --base plugins-v0.4.0 --part patch
+
+# Review, then let CI enforce the rule:
+python scripts/plugin-versions.py check --base plugins-v0.4.0
+```
+
+The script updates `manifest.json`, `Cargo.toml`, `Cargo.lock`,
+`ui/package.json` and `ui/package-lock.json` for changed plugins only. The
+release catalog and release page read those manifest versions.
+
 # Fiex plugins 0.4.0
 
 - New data-preview plugin (replaces sqlite-preview): paged, sortable tables for SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro.
@@ -23,7 +59,7 @@
 
 - New OpenList plugin: native API client (login, directory listing, file reads), not WebDAV. The server address is a connection (so Core approves exactly that host); username, password and timeout live in the plugin settings.
 - New Office preview plugin: read-only Word, Excel and PowerPoint previews (text-level; charts, animations and legacy formats are out of scope).
-- Previewers are pluggable: a plugin declares `extensions.preview` with extensions and a priority, so it can override a built-in previewer such as PDF.
+- Previewers are pluggable: a plugin declares `contributions.preview` with extensions and a priority, so it can override a built-in previewer such as PDF.
 - Archive's ignore lists use the new list setting type: rows with add/remove instead of a comma-separated field.
 - New GPG plugin: right-click 加密 / 解密 / 签名 / 验证签名, plus a toolbar key manager. It drives the system GnuPG; private-key passphrases stay in pinentry.
 - New Vista Aero and Windows 11 theme packages. A theme is a declarative token set with no executable, iframe or permissions.

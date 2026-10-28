@@ -1,4 +1,4 @@
-import { KeyRound, Search } from "lucide-react";
+import { KeyRound, LoaderCircle, Search } from "lucide-react";
 import type { Key } from "../types";
 
 export function KeyPicker({
@@ -9,6 +9,7 @@ export function KeyPicker({
   query,
   onQuery,
   busy,
+  loading,
   kind = "public",
 }: {
   keys: Key[];
@@ -18,8 +19,17 @@ export function KeyPicker({
   query: string;
   onQuery: (value: string) => void;
   busy: boolean;
+  loading?: boolean;
   kind?: "public" | "secret";
 }) {
+  if (loading) {
+    return (
+      <div className="gpg-empty" aria-busy="true">
+        <LoaderCircle className="gpg-spin" size={15} />
+        正在加载系统密钥…
+      </div>
+    );
+  }
   if (!total) {
     return (
       <div className="gpg-empty">

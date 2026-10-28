@@ -97,18 +97,20 @@
     "hooks": {
       "event": "beforeOpen",
       "priority": 100,
-      "extensions": [
-        "zip",
-        "rar",
-        "7z",
-        "tar",
-        "gz",
-        "tgz",
-        "bz2",
-        "tbz2",
-        "xz",
-        "txz"
-      ]
+      "match": {
+        "extensions": [
+          "zip",
+          "rar",
+          "7z",
+          "tar",
+          "gz",
+          "tgz",
+          "bz2",
+          "tbz2",
+          "xz",
+          "txz"
+        ]
+      }
     },
     "preview": {
       "priority": 100,

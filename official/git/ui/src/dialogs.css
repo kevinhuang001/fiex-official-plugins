@@ -8,6 +8,10 @@
   background: color-mix(in srgb, var(--accent) 24%, transparent);
   backdrop-filter: blur(3px);
 }
+.git-remote-sheet {
+  background: transparent;
+  backdrop-filter: none;
+}
 .git-sheet-card {
   display: flex;
   flex-direction: column;

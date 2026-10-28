@@ -154,6 +154,6 @@ All uploads use `fs.beginWrite` / `fs.writeStream` / `fs.commit`, with `fs.abort
 
 Official native plugins register standard events with `sdk::Providers` and the matching typed provider traits. `#[sdk::filesystem]` reports only the filesystem operations actually implemented. Custom business RPC stays in `serve_with` fallback handlers; connection-only providers use `serve`.
 
-File arguments are `ResourceRef`s bound by Core. Use `ctx.target()` / `ctx.targets()` for selections, `ctx.files()` for controlled IO, typed Storage/Secrets services, and `ctx.terminal(session_id)` for terminal operations. SSH uses the SDK's optional Tokio TCP adapter inside its background-task authorization instead of a private stream pump.
+File arguments are `ResourceRef`s bound by Core. Use `ctx.target()` / `ctx.targets()` for selections, `ctx.files()` for controlled IO, typed Storage/Secrets services, and plugin-owned PluginView RPC for terminal sessions. SSH uses the SDK's optional Tokio TCP adapter inside its background-task authorization instead of a private stream pump.
 
-The cross-repository tests target Fiex Core `v0.7.4`; the SDK is pinned to its tested `v0.1.0` release commit. Plugin versions are compared with the previous published catalog so no release downgrades an installed plugin.
+The cross-repository tests target Fiex Core `v0.7.5`; the SDK is pinned to its tested `v0.1.1` release commit. Plugin versions are compared with the previous published catalog so no release downgrades an installed plugin.

@@ -16,6 +16,7 @@ export function EncryptForm({
   query,
   onQuery,
   busy,
+  loading,
   armor,
   onArmor,
   trust,
@@ -31,6 +32,7 @@ export function EncryptForm({
   query: string;
   onQuery: (value: string) => void;
   busy: boolean;
+  loading: boolean;
   armor: boolean;
   onArmor: (value: boolean) => void;
   trust: boolean;
@@ -53,6 +55,7 @@ export function EncryptForm({
         query={query}
         onQuery={onQuery}
         busy={busy}
+        loading={loading}
       />
       <div className="gpg-options">
         <Toggle

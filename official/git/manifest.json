@@ -92,11 +92,6 @@
       "readOnly": true
     },
     "decorations": {
-      "match": {
-        "contains": [
-          ".git"
-        ]
-      },
       "priority": 50
     }
   },

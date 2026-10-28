@@ -100,6 +100,12 @@ export function KeysView({
           </button>
         </div>
       </div>
+      {busy && (
+        <div className="gpg-keychain-pending" role="status" aria-live="polite">
+          <LoaderCircle className="gpg-spin" size={14} />
+          <span>正在执行命令…</span>
+        </div>
+      )}
       <div className="gpg-keychain-columns" aria-hidden>
         <span>类型</span>
         <span>名称</span>
@@ -151,12 +157,6 @@ export function KeysView({
             <li className="gpg-keychain-empty">
               <KeyRound size={18} />
               <span>{total ? "没有匹配的密钥" : "本机钥匙串为空"}</span>
-              {!total && (
-                <button type="button" onClick={onImport} disabled={busy || loading}>
-                  <Upload size={13} />
-                  导入密钥
-                </button>
-              )}
             </li>
           )
         )}

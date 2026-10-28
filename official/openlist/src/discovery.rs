@@ -5,7 +5,10 @@ use crate::{
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use serde_json::{json, Value};
 
-pub fn discover(ctx: &sdk::RequestContext, session: &Session) -> Result<Vec<FsOperation>, RpcError> {
+pub fn discover(
+    ctx: &sdk::RequestContext,
+    session: &Session,
+) -> Result<Vec<FsOperation>, RpcError> {
     let cfg = client::config(ctx.params().get("connection"))?;
     let node = ctx.params()["nodeId"]
         .as_str()

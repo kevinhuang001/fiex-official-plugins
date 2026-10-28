@@ -83,9 +83,14 @@ fn browser_authorization(
         .insert("access_type".into(), "offline".into());
     request.parameters.insert("prompt".into(), "consent".into());
     let code = ctx.oauth().authorize(&request)?;
-    let body = format!("client_id={}&client_secret={}&code={}&redirect_uri={}&code_verifier={}&grant_type=authorization_code",
-        urlencoding::encode(client_id), urlencoding::encode(client_secret),
-        urlencoding::encode(&code.code), urlencoding::encode(&code.redirect_uri), urlencoding::encode(&code.code_verifier));
+    let body = format!(
+        "client_id={}&client_secret={}&code={}&redirect_uri={}&code_verifier={}&grant_type=authorization_code",
+        urlencoding::encode(client_id),
+        urlencoding::encode(client_secret),
+        urlencoding::encode(&code.code),
+        urlencoding::encode(&code.redirect_uri),
+        urlencoding::encode(&code.code_verifier)
+    );
     let response = ctx
         .http()
         .post("https://oauth2.googleapis.com/token")

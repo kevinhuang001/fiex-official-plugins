@@ -45,7 +45,11 @@ fn resource_privileges(
     // Servers without ACL support remain usable for reading. No speculative
     // write probes or optimistic write grants on an absent property.
     if matches!(response.status, 400 | 404 | 405 | 501) {
-        return Ok(vec![FsOperation::List, FsOperation::Stat, FsOperation::Read]);
+        return Ok(vec![
+            FsOperation::List,
+            FsOperation::Stat,
+            FsOperation::Read,
+        ]);
     }
     let xml = response
         .error_for_status()
@@ -99,7 +103,11 @@ fn privileges(xml: &str) -> Result<Vec<FsOperation>, RpcError> {
         }
     }
     if !present {
-        return Ok(vec![FsOperation::List, FsOperation::Stat, FsOperation::Read]);
+        return Ok(vec![
+            FsOperation::List,
+            FsOperation::Stat,
+            FsOperation::Read,
+        ]);
     }
     let has = |name| granted.iter().any(|p| p == name || p == "all");
     let mut ops = vec![FsOperation::Stat];

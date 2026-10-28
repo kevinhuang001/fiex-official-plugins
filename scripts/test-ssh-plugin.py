@@ -168,8 +168,12 @@ def main():
                 continue
             elif method == "host.net.tcp.writeBytes":
                 data = base64.b64decode(params["base64"])
-                sock.sendall(data)
-                result = {"size": len(data)}
+                try:
+                    sock.sendall(data)
+                    result = {"size": len(data)}
+                except OSError as error:
+                    reply(request_id, error=str(error))
+                    continue
             elif method == "host.net.tcp.close":
                 sock.close()
             elif method == "host.net.tcp.shutdown":

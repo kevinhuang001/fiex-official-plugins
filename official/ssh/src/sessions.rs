@@ -10,7 +10,7 @@ use std::{
 
 const MAX_OUTPUT: usize = 1024 * 1024;
 const MAX_INPUT: usize = 64 * 1024;
-const IDLE: Duration = Duration::from_secs(60);
+const IDLE: Duration = Duration::from_secs(300);
 
 #[derive(Default)]
 struct Registry {

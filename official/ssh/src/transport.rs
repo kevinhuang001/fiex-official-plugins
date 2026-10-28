@@ -14,6 +14,14 @@ use serde_json::{json, Value};
 use std::{path::Path, sync::Arc, time::Duration};
 use tokio::io::AsyncWriteExt;
 
+// Unblock any pending SDK read before Tokio tears down its blocking workers.
+struct StreamGuard(sdk::TcpStream);
+impl Drop for StreamGuard {
+    fn drop(&mut self) {
+        let _ = self.0.shutdown(std::net::Shutdown::Both);
+    }
+}
+
 struct ServerKey {
     host: String,
     port: u16,
@@ -147,6 +155,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .connect_async(host.clone(), port)
                 .await
                 .map_err(|error| RpcError::internal(format!("SSH TCP 连接失败：{error}")))?;
+            let _transport = StreamGuard(stream.get_ref().clone());
             let key_handler = ServerKey {
                 host: host.clone(),
                 port,

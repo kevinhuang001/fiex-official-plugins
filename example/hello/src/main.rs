@@ -85,8 +85,14 @@ fn docs() -> FsEntry {
 struct HelloFiles;
 
 impl FSProvider for HelloFiles {
-
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] { &[sdk::filesystem::FsOp::List, sdk::filesystem::FsOp::Stat, sdk::filesystem::FsOp::Read, sdk::filesystem::FsOp::Search] }
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+        &[
+            sdk::filesystem::FsOp::List,
+            sdk::filesystem::FsOp::Stat,
+            sdk::filesystem::FsOp::Read,
+            sdk::filesystem::FsOp::Search,
+        ]
+    }
 
     fn list(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         Ok(FsListing::new([readme(), docs()]))

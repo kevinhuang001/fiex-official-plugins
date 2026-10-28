@@ -554,7 +554,10 @@ fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
 struct Smb;
 
 impl VfsProvider for Smb {
-    fn discover(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::filesystem::FsOperation>, RpcError> {
+    fn discover(
+        &self,
+        ctx: &sdk::RequestContext,
+    ) -> Result<Vec<sdk::filesystem::FsOperation>, RpcError> {
         discovery::discover(ctx)
     }
 

@@ -49,7 +49,7 @@ pub fn list(_params: &Value, host: &sdk::RequestContext) -> Result<Value, String
                 continue;
             };
             decorations.push(json!({
-                "name": name,
+                "ref": target.reference,
                 "badge": {"text": text, "color": color, "tooltip": tooltip},
                 "style": {"color": hex, "fontWeight": "600"}
             }));

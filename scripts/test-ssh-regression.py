@@ -69,6 +69,9 @@ def serve(listener, key, user_key, reject_pty):
                     channel.shutdown_write()
                     return
                 channel.send(line + b"\r\nFIEX_SSH_OK\r\nfixture$ ")
+    except (EOFError, paramiko.SSHException, OSError):
+        # The client may deliberately close after rejecting the server key.
+        pass
     finally:
         transport.close()
         listener.close()
@@ -86,10 +89,12 @@ def main():
         wrong_identity = str(Path(directory) / "wrong_identity")
         user_key.write_private_key_file(identity)
         paramiko.RSAKey.generate(2048).write_private_key_file(wrong_identity)
-        for name, wrong_key, reject_pty, error in [
-            ("shell and stderr", False, False, None),
-            ("authentication failure", True, False, "SSH 认证失败"),
-            ("PTY rejected", False, True, "SSH server rejected PTY"),
+        for name, wrong_key, reject_pty, error, reject_host, close_view in [
+            ("shell and stderr", False, False, None, False, False),
+            ("authentication failure", True, False, "SSH 认证失败", False, False),
+            ("PTY rejected", False, True, "SSH server rejected PTY", False, False),
+            ("changed host key", False, False, "SSH 握手失败", True, False),
+            ("closing the PluginView finishes its task", False, False, None, False, True),
         ]:
             listener = socket.socket()
             listener.bind(("127.0.0.1", 0))
@@ -98,9 +103,17 @@ def main():
             thread = threading.Thread(target=serve, args=(listener, host_key, user_key, reject_pty), daemon=True)
             thread.start()
             command = [sys.executable, harness, "--binary", args.binary, "--port", str(port),
-                       "--identity", wrong_identity if wrong_key else identity,
-                       "--expect-banner", "FIEX_SSH_BANNER"]
-            command += ["--expect-error", error] if error else ["--expect-output", "FIEX_SSH_STDERR"]
+                       "--identity", wrong_identity if wrong_key else identity]
+            if reject_host:
+                command += ["--reject-host-key"]
+            else:
+                command += ["--expect-banner", "FIEX_SSH_BANNER"]
+            if close_view:
+                command += ["--close-after-ready"]
+            elif not error:
+                command += ["--expect-output", "FIEX_SSH_STDERR"]
+            if error:
+                command += ["--expect-error", error]
             subprocess.run(command, check=True, timeout=50)
             thread.join(timeout=1)
             print("PASS:", name)

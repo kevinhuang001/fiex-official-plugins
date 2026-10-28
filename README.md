@@ -93,7 +93,7 @@ see an empty plugin shell or a second spinner.
 
 ## UI builds
 
-SSH, Git, Archive, Checksum and GPG ship connection/panel surfaces under `official/<slug>/`. SSH uses the Host TCP broker (`ctx.tcp()`) and `network.all` at activation; it supports private-key/password/agent auth. CI runs it against a real local sshd via `scripts/test-ssh-plugin.py`. WebDAV/SMB default to `localhost` and add the exact host when a connection is saved.
+SSH, Git, Archive, Checksum and GPG ship connection/panel surfaces under `official/<slug>/`. SSH uses the Host TCP broker (`ctx.tcp()`) and `network.all` at activation; it supports secret private-key/password authentication. CI runs it against a real local sshd via `scripts/test-ssh-plugin.py`. WebDAV/SMB default to `localhost` and add the exact host when a connection is saved.
 CI builds the panels once, uploads them as `plugin-panels`, and uses the same
 artifact in every platform package job. Generated `ui/dist` files are not source
 files. All panels consume the Host theme tokens through the UI SDK.

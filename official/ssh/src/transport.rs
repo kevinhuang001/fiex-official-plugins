@@ -3,15 +3,13 @@
 //! then the SSH handshake and channel run over that stream.
 use crate::sessions::{self, Terminal};
 use fiex_plugin_sdk::{self as sdk, RpcError};
-#[cfg(unix)]
-use russh::keys::agent::client::AgentClient;
 use russh::{
     client::{self, Handler},
     keys::PublicKeyOrCertificate,
-    keys::{load_secret_key, PrivateKeyWithHashAlg},
+    keys::{decode_secret_key, PrivateKeyWithHashAlg},
 };
 use serde_json::{json, Value};
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::io::AsyncWriteExt;
 
 // Unblock any pending SDK read before Tokio tears down its blocking workers.
@@ -26,6 +24,7 @@ struct ServerKey {
     host: String,
     port: u16,
     terminal: Terminal,
+    task: Arc<sdk::TaskContext>,
 }
 
 impl Handler for ServerKey {
@@ -43,34 +42,34 @@ impl Handler for ServerKey {
         &mut self,
         key: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
-        let public = key.public_key();
-        if russh::keys::check_known_hosts(&self.host, self.port, &public).unwrap_or(false) {
-            return Ok(true);
-        }
-        // First use: learn the host key (equivalent to ssh accept-new). A
-        // changed key for a host already in known_hosts remains rejected.
-        let known = russh::keys::known_hosts::known_host_keys(&self.host, self.port)
-            .map(|entries| !entries.is_empty())
-            .unwrap_or(false);
-        if known {
-            return Ok(false);
-        }
-        let _ = russh::keys::known_hosts::learn_known_hosts(&self.host, self.port, &public);
-        Ok(true)
+        let identity = format!("{}:{}", self.host, self.port);
+        let fingerprint = key
+            .public_key()
+            .fingerprint(russh::keys::HashAlg::Sha256)
+            .to_string();
+        // Persist first-use trust through the SDK. Never read or mutate ~/.ssh.
+        // CAS prevents concurrent first connections from replacing each other's trust.
+        let hosts = self
+            .task
+            .storage()
+            .scoped("ssh")
+            .update::<BTreeMap<String, String>>("host-keys", |current| {
+                let mut current = current.unwrap_or_default();
+                current
+                    .entry(identity.clone())
+                    .or_insert_with(|| fingerprint.clone());
+                Some(current)
+            })
+            .map_err(|error| russh::Error::from(std::io::Error::other(error.message)))?;
+        Ok(hosts
+            .and_then(|hosts| hosts.get(&identity).cloned())
+            .as_deref()
+            == Some(fingerprint.as_str()))
     }
 }
 
 fn text<'a>(value: &'a Value, key: &str) -> &'a str {
     value.get(key).and_then(Value::as_str).unwrap_or("")
-}
-
-fn expanded(value: &str) -> String {
-    if let Some(rest) = value.strip_prefix("~/") {
-        if let Some(home) = std::env::var_os("HOME") {
-            return Path::new(&home).join(rest).to_string_lossy().into_owned();
-        }
-    }
-    value.to_string()
 }
 
 async fn request_accepted(
@@ -131,7 +130,8 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         username
     }
     .to_string();
-    let identity = expanded(text(connection, "identityFile"));
+    let identity = text(connection, "privateKey").to_string();
+    let passphrase = text(connection, "passphrase").to_string();
     let password = text(connection, "password").to_string();
 
     let terminal_type = match text(connection, "terminalType") {
@@ -160,6 +160,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 host: host.clone(),
                 port,
                 terminal: terminal.clone(),
+                task: Arc::clone(&task),
             };
             let mut handle = tokio::time::timeout(Duration::from_secs(30),
                 client::connect_stream(Arc::new(client::Config::default()), stream, key_handler))
@@ -168,7 +169,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
             let mut authenticated = false;
             if !identity.is_empty() {
-                if let Ok(key) = load_secret_key(&identity, None) {
+                if let Ok(key) = decode_secret_key(&identity, if passphrase.is_empty(){None}else{Some(&passphrase)}) {
                     authenticated = handle
                         .authenticate_publickey(
                             &username,
@@ -177,25 +178,6 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                         .await
                         .map(|result| result.success())
                         .unwrap_or(false);
-                }
-            }
-            #[cfg(unix)]
-            if !authenticated {
-                if let Ok(mut agent) = AgentClient::connect_env().await {
-                    if let Ok(identities) = agent.request_identities().await {
-                        for identity in identities {
-                            let key = identity.public_key().into_owned();
-                            if handle
-                                .authenticate_publickey_with(&username, key, None, &mut agent)
-                                .await
-                                .map(|result| result.success())
-                                .unwrap_or(false)
-                            {
-                                authenticated = true;
-                                break;
-                            }
-                        }
-                    }
                 }
             }
             if !authenticated && !password.is_empty() {
@@ -207,7 +189,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             }
             if !authenticated {
                 return Err(RpcError::internal(
-                    "SSH 认证失败：请检查私钥、ssh-agent 或密码",
+                    "SSH 认证失败：请检查私钥或密码",
                 ));
             }
 

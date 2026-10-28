@@ -49,10 +49,15 @@
           "placeholder": "root"
         },
         {
-          "id": "identityFile",
-          "label": "私钥文件（可选）",
-          "type": "text",
-          "placeholder": "~/.ssh/id_ed25519"
+          "id": "privateKey",
+          "label": "私钥内容（可选）",
+          "type": "secret",
+          "multiline": true
+        },
+        {
+          "id": "passphrase",
+          "label": "私钥口令（可选）",
+          "type": "secret"
         },
         {
           "id": "terminalType",

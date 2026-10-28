@@ -56,6 +56,8 @@ def main():
     parser.add_argument("--user", default="root")
     parser.add_argument("--identity", required=True)
     parser.add_argument("--expect-error")
+    parser.add_argument("--reject-host-key", action="store_true")
+    parser.add_argument("--close-after-ready", action="store_true")
     parser.add_argument("--expect-banner")
     parser.add_argument("--expect-output")
     args = parser.parse_args()
@@ -65,6 +67,10 @@ def main():
     messages = queue.Queue()
     sock = None
     tasks = set()
+    storage = {}
+    if args.reject_host_key:
+        storage[("ssh", "host-keys")] = {f"{args.host}:{args.port}": "SHA256:untrusted"}
+    close_requested = False
     output = bytearray()
     input_queue = bytearray()
     ready = False
@@ -99,7 +105,7 @@ def main():
         assert initialized.get("result", {}).get("pluginId") == "org.fiex.ssh", initialized
         send(child.stdin, lock, {"jsonrpc":"2.0", "id":2, "method":"connection.open",
             "params":{"connectionId":"ssh-test", "connection":{"host":args.host,"port":args.port,
-            "username":args.user,"identityFile":args.identity}}})
+            "username":args.user,"privateKey":Path(args.identity).read_text(encoding="utf-8")}}})
         view = receive(child.stdout)
         assert view.get("result", {}).get("kind") == "pluginView", view
         state = view["result"]["state"]
@@ -113,7 +119,7 @@ def main():
         waiting = None
         deadline = time.monotonic() + 45
         while not ended and time.monotonic() < deadline:
-            if started and waiting is None:
+            if started and waiting is None and not close_requested:
                 poll_id += 1
                 waiting = poll_id
                 send(child.stdin, lock, {"jsonrpc":"2.0", "id":poll_id,"method":"ssh.exchange",
@@ -139,7 +145,10 @@ def main():
                     output.extend(base64.b64decode(result["dataBase64"]))
                     ended = result["ended"]
                     terminal_error = result.get("error")
-                    if ready and not command_sent and (b"$ " in output or b"# " in output):
+                    if ready and args.close_after_ready and not close_requested:
+                        close_requested = True
+                        send(child.stdin, lock, {"jsonrpc":"2.0","id":999,"method":"ssh.close","params":{"sessionId":session_id}})
+                    if ready and not args.close_after_ready and not command_sent and (b"$ " in output or b"# " in output):
                         input_queue.extend(b"echo FIEX_SSH_OK\n")
                         command_sent = True
                     if output.count(b"FIEX_SSH_OK") >= 2 and not exit_sent:
@@ -154,8 +163,21 @@ def main():
                 tasks.add(params["taskId"])
             elif method == "host.task.finish":
                 tasks.discard(task_id)
+                if close_requested:
+                    ended = True
             elif method == "host.task.progress":
                 pass
+            elif method == "host.storage.get":
+                key = (params["scope"], params["key"])
+                result = {"found": key in storage, "value": storage.get(key)}
+            elif method == "host.storage.compareAndSet":
+                key = (params["scope"], params["key"])
+                result = (key in storage) == params["expectedExists"] and storage.get(key) == params.get("expected")
+                if result:
+                    if params.get("delete"):
+                        storage.pop(key, None)
+                    else:
+                        storage[key] = params["value"]
             elif method == "host.net.tcp.open":
                 try:
                     sock = socket.create_connection((args.host, args.port), timeout=10)
@@ -194,7 +216,9 @@ def main():
             assert not ready, "a failed connection was reported ready"
         else:
             assert not terminal_error, terminal_error
-            assert ready and output.count(b"FIEX_SSH_OK") >= 2, text[-2000:]
+            assert ready, text[-2000:]
+            if not args.close_after_ready:
+                assert output.count(b"FIEX_SSH_OK") >= 2, text[-2000:]
         if args.expect_output:
             assert args.expect_output in text, text[-2000:]
         if args.expect_banner:

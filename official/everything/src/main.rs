@@ -10,12 +10,15 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     // Core now sends the search root as an opaque ref. The ES adapter must
     // not receive host paths; `process_run` resolves command args that carry
     // the SDK's `fiex-ref:` prefix inside the operation scope.
-    let root = p.get("root").and_then(|value| {
-        serde_json::from_value::<sdk::ResourceRef>(
-            value.get("ref").cloned().unwrap_or(value.clone()),
-        )
-        .ok()
-    });
+    let root = p
+        .get("root")
+        .and_then(|value| {
+            serde_json::from_value::<sdk::ResourceRef>(
+                value.get("ref").cloned().unwrap_or(value.clone()),
+            )
+            .ok()
+        })
+        .ok_or_else(|| RpcError::invalid_params("search root ResourceRef is required"))?;
     let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
     let limit = p
         .get("limit")
@@ -25,9 +28,9 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     let mut entries = Vec::new();
     for (filter, is_dir) in [("/ad", true), ("/a-d", false)] {
         let mut args = vec!["-n".into(), (limit + 1).to_string(), filter.into()];
-        if let Some(root) = &root {
-            args.extend(["-path".into(), root.command_arg()]);
-        }
+        // The host resolves the ref inside this operation scope. Never let
+        // Everything enumerate the entire host index for a missing root.
+        args.extend(["-path".into(), root.command_arg()]);
         if !hidden {
             args.push("/a-h".into());
         }

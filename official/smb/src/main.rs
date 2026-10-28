@@ -6,7 +6,7 @@ mod sync;
 mod transport;
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
     RpcError,
 };
 use serde::Deserialize;

@@ -9,7 +9,7 @@ mod writes;
 use auth::token;
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
     RpcError,
 };
 use serde_json::{json, Value};

@@ -52,7 +52,8 @@
           "id": "privateKey",
           "label": "私钥内容（可选）",
           "type": "secret",
-          "multiline": true
+          "multiline": true,
+          "fromFile": true
         },
         {
           "id": "passphrase",

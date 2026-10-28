@@ -65,17 +65,23 @@ class Connection(module.Fixture):
                   f'<d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status>'
                   f'</d:propstat></d:response></d:multistatus>').encode()
         elif p['method']=='GET':
-            headers={'content-length':str(len(self.content))}
-            body=self.content
+            if url.endswith('/api/me'):
+                body=json.dumps({'code':200,'data':{'role':2,'permission':4294967295}}).encode()
+            else:
+                headers={'content-length':str(len(self.content))}
+                body=self.content
         elif p['method']=='MKCOL' or p['method']=='MOVE' or p['method']=='DELETE':
             status=201 if p['method']=='MKCOL' else 204
         elif url.endswith('/api/auth/login'):
             body=b'{"code":200,"data":{"token":"fixture"}}'
+        elif url.endswith('/api/me'):
+            body=json.dumps({'code':200,'data':{'role':2,'permission':4294967295}}).encode()
         elif url.endswith('/api/fs/get'):
             body=json.dumps({'code':200,'data':{'modified':self.version,'size':len(self.content),
-                'raw_url':'https://fixture.invalid/hello.txt'}}).encode()
+                'is_dir':False,'raw_url':'https://fixture.invalid/hello.txt'}}).encode()
         elif url.endswith('/api/fs/list'):
-            body=json.dumps({'code':200,'data':{'content':[{'name':'hello.txt','size':len(self.content),'is_dir':False,'modified':'2024-01-01T00:00:00Z'}]}}).encode()
+            body=json.dumps({'code':200,'data':{'write':True,
+                'content':[{'name':'hello.txt','size':len(self.content),'is_dir':False,'modified':'2024-01-01T00:00:00Z'}]}}).encode()
         elif p['method']=='PUT':
             raise AssertionError('uploads must stream through bodyStream')
         else:

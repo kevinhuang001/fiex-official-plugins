@@ -57,9 +57,9 @@ Standard events (`info.resolve`, `preview.open`, `decorations.resolve`,
 `contextMenu.resolve/execute`, `search.query`, `hooks.invoke`, `toolbar.invoke`,
 `connection.*`) can be registered with the optional `sdk::Providers` API
 instead of a hand-written `match ctx.method()`. File access is one typed
-`FileSystemProvider`: annotate the impl with `#[fiex_sdk::filesystem]` and the
-macro declares exactly the implemented operations and generates the `fs.*`
-dispatcher. The SDK owns read/write stream IDs, offsets, `commit`/`abort` and
+`FSProvider`: explicitly declare `operations()` and override `discover(ctx)` to
+report the server-permitted subset for the current connection and resource.
+The SDK provides ordinary `fs.*` dispatch without procedural macros. The SDK owns read/write stream IDs, offsets, `commit`/`abort` and
 cleanup. Custom RPC remains in the `serve_with` fallback.
 
 ```rust
@@ -152,7 +152,7 @@ All uploads use `fs.beginWrite` / `fs.writeStream` / `fs.commit`, with `fs.abort
 
 ## Protocol 5 provider pattern
 
-Official native plugins register standard events with `sdk::Providers` and the matching typed provider traits. `#[sdk::filesystem]` reports only the filesystem operations actually implemented. Custom business RPC stays in `serve_with` fallback handlers; connection-only providers use `serve`.
+Official native plugins register standard events with `sdk::Providers` and the matching typed provider traits. `FSProvider::operations` reports only the filesystem operations actually implemented. Custom business RPC stays in `serve_with` fallback handlers; connection-only providers use `serve`.
 
 File arguments are `ResourceRef`s bound by Core. Use `ctx.target()` / `ctx.targets()` for selections, `ctx.files()` for controlled IO, typed Storage/Secrets services, and plugin-owned PluginView RPC for terminal sessions. SSH uses the SDK's optional Tokio TCP adapter inside its background-task authorization instead of a private stream pump.
 

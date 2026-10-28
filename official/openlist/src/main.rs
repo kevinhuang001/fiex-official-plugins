@@ -3,13 +3,14 @@
 //! Every credential — server, account and timeout — belongs to the connection,
 //! so a profile can hold several servers without sharing a login.
 mod client;
+mod discovery;
 mod fs;
 mod mutate;
 mod sync;
 
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
 };
 use std::sync::Arc;
 
@@ -17,8 +18,26 @@ struct OpenList {
     session: Arc<client::Session>,
 }
 
-#[sdk::filesystem]
-impl FileSystemProvider for OpenList {
+impl FSProvider for OpenList {
+    fn discover(
+        &self,
+        ctx: &sdk::RequestContext,
+    ) -> Result<Vec<sdk::filesystem::FsOp>, sdk::RpcError> {
+        discovery::discover(ctx, &self.session)
+    }
+
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+        &[
+            sdk::filesystem::FsOp::List,
+            sdk::filesystem::FsOp::Stat,
+            sdk::filesystem::FsOp::Read,
+            sdk::filesystem::FsOp::Write,
+            sdk::filesystem::FsOp::Mkdir,
+            sdk::filesystem::FsOp::Rename,
+            sdk::filesystem::FsOp::Remove,
+        ]
+    }
+
     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, sdk::RpcError> {
         fs::list(request, &self.session)
     }

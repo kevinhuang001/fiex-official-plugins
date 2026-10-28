@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.gdrive",
   "name": "Google Drive",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Google Drive 按需下载、离线副本与版本保护的双向文件同步。",
   "icon": "cloud",
   "author": {
@@ -54,7 +54,8 @@
       "enabled": true,
       "domains": [
         "www.googleapis.com",
-        "oauth2.googleapis.com"
+        "oauth2.googleapis.com",
+        "accounts.google.com"
       ]
     },
     "commands": {
@@ -80,17 +81,29 @@
           "label": "OAuth 客户端密钥",
           "type": "secret",
           "required": true
-        },
-        {
-          "id": "refreshToken",
-          "label": "OAuth 刷新令牌（Drive 读写权限）",
-          "type": "secret",
-          "required": true
         }
-      ]
+      ],
+      "credentials": [
+        "refreshToken"
+      ],
+      "description": "请先在 Google Cloud Console 创建自己的项目，启用 Google Drive API，配置 OAuth 同意屏幕（测试模式下添加自己的账号），并创建“桌面应用”OAuth 客户端。填写该应用的 Client ID 和 Secret，保存时将在系统浏览器中登录 Google 并授权，无需手填刷新令牌。",
+      "setupUrl": "https://console.cloud.google.com/apis/credentials"
     },
     "vfs": {
       "title": "Google Drive"
+    },
+    "ui": {
+      "timeoutMs": 600000
+    }
+  },
+  "locales": {
+    "en": {
+      "请先在 Google Cloud Console 创建自己的项目，启用 Google Drive API，配置 OAuth 同意屏幕（测试模式下添加自己的账号），并创建“桌面应用”OAuth 客户端。填写该应用的 Client ID 和 Secret，保存时将在系统浏览器中登录 Google 并授权，无需手填刷新令牌。": "Create your own Google Cloud project, enable the Google Drive API, configure the OAuth consent screen (add your account as a test user when testing), and create a Desktop app OAuth client. Enter its Client ID and Secret. Saving opens the system browser for Google authorization; no manual refresh token is needed.",
+      "OAuth 客户端 ID": "OAuth client ID",
+      "OAuth 客户端密钥": "OAuth client secret"
+    },
+    "zh-TW": {
+      "请先在 Google Cloud Console 创建自己的项目，启用 Google Drive API，配置 OAuth 同意屏幕（测试模式下添加自己的账号），并创建“桌面应用”OAuth 客户端。填写该应用的 Client ID 和 Secret，保存时将在系统浏览器中登录 Google 并授权，无需手填刷新令牌。": "請先在 Google Cloud Console 建立自己的專案，啟用 Google Drive API，設定 OAuth 同意畫面（測試模式下加入自己的帳號），並建立「電腦版應用程式」OAuth 用戶端。填寫 Client ID 和 Secret，儲存時會在系統瀏覽器登入並授權，無須手動填寫更新權杖。"
     }
   }
 }

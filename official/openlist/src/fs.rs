@@ -109,7 +109,7 @@ fn entry_from_data(data: &Value, node: &str) -> FsEntry {
     entry
 }
 
-fn object(
+pub(crate) fn object(
     host: &sdk::RequestContext,
     cfg: &Config,
     session: &Session,

@@ -1,15 +1,16 @@
 //! Google Drive v3 adapter. All HTTP goes through Core's authorized network
 //! transport; the plugin has no filesystem, subprocess or socket permission.
+mod auth;
 mod mutate;
 mod reads;
 mod writes;
+use auth::token;
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
 use serde_json::{json, Value};
-use std::sync::Mutex;
 
 const API: &str = "https://www.googleapis.com/drive/v3";
 
@@ -34,53 +35,6 @@ fn node(v: &str) -> Result<&str, RpcError> {
         return Err(RpcError::invalid_params("invalid Drive file ID"));
     }
     Ok(v)
-}
-
-fn token(http: &sdk::HttpClient, cfg: &Value) -> Result<String, RpcError> {
-    use std::{
-        collections::HashMap,
-        sync::OnceLock,
-        time::{Duration, Instant},
-    };
-    type Tokens = HashMap<String, (String, Instant)>;
-    static CACHE: OnceLock<Mutex<Tokens>> = OnceLock::new();
-    let cache = CACHE.get_or_init(Default::default);
-    let key = serde_json::to_string(cfg).map_err(error)?;
-    if let Some((token, until)) = cache.lock().map_err(error)?.get(&key) {
-        if *until > Instant::now() {
-            return Ok(token.clone());
-        }
-    }
-
-    let body = format!(
-        "client_id={}&client_secret={}&refresh_token={}&grant_type=refresh_token",
-        urlencoding::encode(text(cfg, "clientId")?),
-        urlencoding::encode(text(cfg, "clientSecret")?),
-        urlencoding::encode(text(cfg, "refreshToken")?)
-    );
-    let value: Value = http
-        .post("https://oauth2.googleapis.com/token")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .and_then(|r| r.error_for_status())
-        .and_then(|r| r.json())
-        .map_err(error)?;
-    let token = text(&value, "access_token")?.to_string();
-    let ttl = value["expires_in"]
-        .as_u64()
-        .unwrap_or(3600)
-        .min(3600)
-        .saturating_sub(60);
-    let mut cached = cache.lock().map_err(error)?;
-    if cached.len() >= 32 {
-        cached.clear();
-    }
-    cached.insert(
-        key,
-        (token.clone(), Instant::now() + Duration::from_secs(ttl)),
-    );
-    Ok(token)
 }
 
 fn http_request(
@@ -132,8 +86,19 @@ fn entry(file: &Value) -> FsEntry {
 
 struct Drive;
 
-#[sdk::filesystem]
-impl FileSystemProvider for Drive {
+impl FSProvider for Drive {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+        &[
+            sdk::filesystem::FsOp::List,
+            sdk::filesystem::FsOp::Stat,
+            sdk::filesystem::FsOp::Read,
+            sdk::filesystem::FsOp::Write,
+            sdk::filesystem::FsOp::Mkdir,
+            sdk::filesystem::FsOp::Rename,
+            sdk::filesystem::FsOp::Remove,
+        ]
+    }
+
     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         reads::list(request)
     }
@@ -170,27 +135,12 @@ fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
     Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
 }
 
-fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-    let cfg = &ctx.params()["connection"];
-    let token = token(&ctx.http(), cfg)?;
-    http_request(
-        &ctx.http(),
-        &token,
-        "GET",
-        &format!("{API}/about?fields=user(displayName)"),
-    )
-    .send()
-    .and_then(|r| r.error_for_status())
-    .map_err(error)?;
-    Ok(json!({"valid":true}))
-}
-
 impl sdk::ConnectionProvider for Drive {
     fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
         open(ctx)
     }
     fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
-        validate(ctx)
+        auth::validate(ctx)
     }
 }
 

@@ -7,7 +7,7 @@
 //!   cargo run --manifest-path example/hello/Cargo.toml
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest},
+    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest},
     RpcError,
 };
 use serde_json::{json, Value};
@@ -84,8 +84,10 @@ fn docs() -> FsEntry {
 /// declared by the macro exactly as written here.
 struct HelloFiles;
 
-#[sdk::filesystem]
-impl FileSystemProvider for HelloFiles {
+impl FSProvider for HelloFiles {
+
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] { &[sdk::filesystem::FsOp::List, sdk::filesystem::FsOp::Stat, sdk::filesystem::FsOp::Read, sdk::filesystem::FsOp::Search] }
+
     fn list(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         Ok(FsListing::new([readme(), docs()]))
     }

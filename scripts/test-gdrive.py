@@ -28,6 +28,8 @@ class Fixture:
         self.readers = {}
         self.change_before_commit = False
         self.offline = False
+        self.oauth_calls = 0
+        self.oauth_denied = False
         # Core authorizes every host call with the request that made it and
         # revokes it when that request returns; only a running background task
         # keeps its authorization. The fixture enforces the same rule so a
@@ -68,6 +70,14 @@ class Fixture:
 
     def host(self, method, p):
         self.authorize(p)
+        if method == 'host.oauth.authorize':
+            self.oauth_calls += 1
+            assert p['authorizationEndpoint'] == 'https://accounts.google.com/o/oauth2/v2/auth'
+            assert p['clientId'] == 'fixture'
+            assert p['parameters'] == {'access_type':'offline','prompt':'consent'}
+            if self.oauth_denied:
+                raise RuntimeError('OAuth authorization was denied')
+            return {'code':'fixture-code','redirectUri':'http://127.0.0.1:4321/oauth/callback','codeVerifier':'fixture-verifier'}
         if method == 'host.task.start':
             self.tasks.add(p['taskId'])
             return None
@@ -103,7 +113,15 @@ class Fixture:
         status, headers = 200, {}
         body = b'{}'
         if 'oauth2.googleapis.com/token' in url:
-            body = json.dumps({'access_token':'fixture-token','expires_in':3600}).encode()
+            from urllib.parse import parse_qs
+            form = parse_qs(base64.b64decode(p['bodyBase64']).decode())
+            tokens = {'access_token':'fixture-token','expires_in':3600}
+            if form.get('grant_type') == ['authorization_code']:
+                assert form['code'] == ['fixture-code']
+                assert form['code_verifier'] == ['fixture-verifier']
+                assert form['redirect_uri'] == ['http://127.0.0.1:4321/oauth/callback']
+                tokens['refresh_token'] = 'browser-refresh'
+            body = json.dumps(tokens).encode()
         elif '/about?' in url:
             body = b'{"user":{"displayName":"fixture"}}'
         elif '/files?q=' in url:
@@ -169,6 +187,20 @@ def main():
             return f.call(method, {'connection':cfg,**params})
         validated = call('connection.validate')
         assert 'result' in validated, validated
+        # New accounts need only user-owned app credentials; Core receives the
+        # generated refresh token privately rather than asking the UI to hold it.
+        new_cfg = {'clientId':'fixture','clientSecret':'secret'}
+        authorized = f.call('connection.validate', {'connection':new_cfg})
+        assert authorized['result']['credentials'] == {'refreshToken':'browser-refresh'}, authorized
+        assert f.oauth_calls == 1
+        resumed = f.call('connection.validate', {'connection':{**new_cfg, **authorized['result']['credentials']}})
+        assert 'result' in resumed and 'credentials' not in resumed['result']
+        assert f.oauth_calls == 1
+        f.oauth_denied = True
+        denied = f.call('connection.validate', {'connection':new_cfg})
+        assert 'error' in denied and 'result' not in denied
+        f.oauth_denied = False
+
         entries = call('fs.list',nodeId='',cursor='0')['result']['entries']
         assert entries[0]['nodeId'] == 'file1' and entries[0]['revision'] == '1'
         stream = call('fs.openRead',nodeId='file1')['result']['streamId']

@@ -153,7 +153,7 @@ Provider 就不会注册该事件。
 | `HookProvider` | `hooks.invoke` |
 | `ToolbarProvider` | `toolbar.invoke` |
 | `ConnectionProvider` | `connection.validate/open/create`（生命周期） |
-| `FileSystemProvider` | `fs.list/stat/read/write/mkdir/rename/remove/search`；`#[fiex_sdk::filesystem]` 只把实际写进 impl 的方法计入能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
+| `FSProvider` | `fs.list/stat/read/write/mkdir/rename/remove/search`；`operations()` 显式声明实现范围，`discover(ctx)` 按服务器权限收窄能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
 
 `RequestContext` 常用方法（协议 4.0 只接受 `ResourceRef`）：
 

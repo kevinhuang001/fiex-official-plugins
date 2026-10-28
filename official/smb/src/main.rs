@@ -1,9 +1,10 @@
 //! SMB protocol implementation. All socket operations are brokered by Core.
+mod discovery;
 mod sync;
 mod transport;
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
 use serde::Deserialize;
@@ -550,8 +551,23 @@ fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
 
 struct Smb;
 
-#[sdk::filesystem]
-impl FileSystemProvider for Smb {
+impl FSProvider for Smb {
+    fn discover(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::filesystem::FsOp>, RpcError> {
+        discovery::discover(ctx)
+    }
+
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+        &[
+            sdk::filesystem::FsOp::List,
+            sdk::filesystem::FsOp::Stat,
+            sdk::filesystem::FsOp::Read,
+            sdk::filesystem::FsOp::Write,
+            sdk::filesystem::FsOp::Mkdir,
+            sdk::filesystem::FsOp::Rename,
+            sdk::filesystem::FsOp::Remove,
+        ]
+    }
+
     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         list(request)
     }

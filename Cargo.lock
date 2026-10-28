@@ -975,7 +975,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gdrive"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1026,23 +1026,13 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-sdk"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
- "fiex-plugin-sdk-macros",
  "serde",
  "serde_json",
  "shared_memory",
  "tokio",
-]
-
-[[package]]
-name = "fiex-plugin-sdk-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]

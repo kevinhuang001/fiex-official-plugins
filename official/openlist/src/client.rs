@@ -210,3 +210,23 @@ mod tests {
         assert_ne!(session_key(&first), session_key(&second));
     }
 }
+
+pub(crate) fn current_user(
+    host: &sdk::RequestContext,
+    cfg: &Config,
+    session: &Session,
+) -> Result<Value, RpcError> {
+    let token = token(host, cfg, session)?;
+    let response = host
+        .http()
+        .get(&format!("{}/api/me", cfg.url))
+        .header("Authorization", token)
+        .send()
+        .and_then(|r| r.error_for_status())
+        .and_then(|r| r.json::<Value>())
+        .map_err(|e| RpcError::internal(e.to_string()))?;
+    if response["code"].as_i64() != Some(200) {
+        return Err(RpcError::internal("OpenList permission discovery failed"));
+    }
+    Ok(response["data"].clone())
+}

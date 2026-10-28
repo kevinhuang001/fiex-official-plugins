@@ -25,7 +25,7 @@ export function ReadingPane({
           <MailOpen size={26} />
         </span>
         <h2>选择一封邮件</h2>
-        <p>邮件内容会显示在这里。你的凭据只保存在系统钥匙串中。</p>
+        <p>邮件内容会显示在这里。凭据由 Fiex 按设置保存。</p>
       </section>
     );
   }

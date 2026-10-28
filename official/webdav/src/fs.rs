@@ -1,7 +1,7 @@
 //! WebDAV filesystem provider: PROPFIND listings/metadata and body streams.
 //!
 //! Core owns mount configuration, caching and conflict resolution; this
-//! provider translates the unified `fs.*` requests into WebDAV calls.
+//! provider translates the unified `vfs.*` requests into WebDAV calls.
 use super::client::{self, StoredConnection, DAV_BODY};
 use fiex_plugin_sdk::{
     self as sdk,

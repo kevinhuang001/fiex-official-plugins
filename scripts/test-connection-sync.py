@@ -119,33 +119,33 @@ def main():
         def call(method,**p):
             return f.call(method,{'connection':config,'nodeId':'hello.txt',**p})
         def upload(data,if_revision):
-            opened=call('fs.beginWrite',size=len(data),ifRevision=if_revision)
+            opened=call('vfs.beginWrite',size=len(data),ifRevision=if_revision)
             if 'error' in opened: return opened
             stream=opened['result']['streamId']
             offset=0
             while offset<len(data):
                 chunk=data[offset:offset+CHUNK]
-                pushed=call('fs.writeStream',streamId=stream,offset=offset,
+                pushed=call('vfs.writeStream',streamId=stream,offset=offset,
                             base64=base64.b64encode(chunk).decode())
                 if 'error' in pushed:
-                    call('fs.abort',streamId=stream)
+                    call('vfs.abort',streamId=stream)
                     return pushed
                 offset+=len(chunk)
-            return call('fs.commit',streamId=stream)
-        before=call('fs.stat')['result']['revision']
+            return call('vfs.commit',streamId=stream)
+        before=call('vfs.stat')['result']['revision']
         # Opening a file streams it through openRead/readStream: the plugin's
         # HTTP body outlives the request that opened it.
-        stream=call('fs.openRead')['result']['streamId']
+        stream=call('vfs.openRead')['result']['streamId']
         parts=[]
         offset=0
         while True:
-            result=call('fs.readStream',streamId=stream,offset=offset,maxBytes=CHUNK)['result']
+            result=call('vfs.readStream',streamId=stream,offset=offset,maxBytes=CHUNK)['result']
             chunk=base64.b64decode(result['base64'])
             parts.append(chunk)
             offset+=len(chunk)
             if result['eof']: break
         assert b''.join(parts)==f.content and offset==len(f.content)
-        call('fs.closeRead',streamId=stream)
+        call('vfs.closeRead',streamId=stream)
         assert not f.streams, f.streams
         assert 'error' in upload(f.source,'stale')
         f.offline=True

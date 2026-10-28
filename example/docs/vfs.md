@@ -9,7 +9,7 @@ VFS 是 Core 与插件之间的**节点协议**，不是真实挂载。Core 负�
 Explorer 切到 fiex://mount/<id>/
       │
       ▼
-Core 调 fs.list / fs.stat / fs.search / fs.read
+Core 调 vfs.list / vfs.stat / vfs.search / vfs.openRead/readStream/closeRead
       │
       ▼
 插件返回节点、revision、内容
@@ -73,8 +73,8 @@ impl FSProvider for ExampleFs {
 只读插件仅报告读取相关操作。
 
 普通 SDK 分发器按 `FSProvider::operations()` 与 `discover(ctx)` 的交集调用方法，SDK 自动管理
-`fs.openRead/readStream/closeRead` 的 offset、分块和 `fs.closeRead`，以及
-`fs.beginWrite/writeStream/commit/abort` 的顺序写入。不要手写 stream ID 表。
+`vfs.openRead/readStream/closeRead` 的 offset、分块和 `vfs.closeRead`，以及
+`vfs.beginWrite/writeStream/commit/abort` 的顺序写入。不要手写 stream ID 表。
 
 注册时把 provider 交给 `Providers`，自定义 RPC 仍走 fallback：
 

@@ -3,7 +3,7 @@
 ## 原理
 
 `connections` 只负责“用户怎么添加/打开一个连接”。文件列表由同一插件的
-`ConnectionProvider`（`fs.*`）或 `VfsProvider`（`vfs.*`）提供。
+`ConnectionProvider`（`vfs.*`）或 `VfsProvider`（`vfs.*`）提供。
 
 ```
 用户点 + / 连接项
@@ -93,7 +93,7 @@ impl sdk::ConnectionProvider for ExampleConnection {
 }
 ```
 
-`fs.openRead` / `fs.readStream` / `fs.closeRead` 不需要自己实现：返回
+`vfs.openRead` / `vfs.readStream` / `vfs.closeRead` 不需要自己实现：返回
 `ConnectionReader` 后，SDK 负责 stream ID、offset、分块和关闭。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloConnection`。

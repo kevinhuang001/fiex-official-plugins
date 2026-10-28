@@ -19,7 +19,7 @@ fn fail(e: impl std::fmt::Display) -> RpcError {
     RpcError::internal(e.to_string())
 }
 
-/// Bytes go straight from `fs.writeStream` chunks into Core's HTTP worker.
+/// Bytes go straight from `vfs.writeStream` chunks into Core's HTTP worker.
 struct BodyWriter {
     body: Arc<Mutex<Option<StreamingBody>>>,
 }

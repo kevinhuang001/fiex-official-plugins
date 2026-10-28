@@ -33,7 +33,7 @@ class Fixture:
         # Core authorizes every host call with the request that made it and
         # revokes it when that request returns; only a running background task
         # keeps its authorization. The fixture enforces the same rule so a
-        # stream that outlives its `fs.openRead`/`fs.beginWrite` request is
+        # stream that outlives its `vfs.openRead`/`vfs.beginWrite` request is
         # caught here instead of only in the app.
         self.request = None
         self.tasks = set()
@@ -201,32 +201,32 @@ def main():
         assert 'error' in denied and 'result' not in denied
         f.oauth_denied = False
 
-        entries = call('fs.list',nodeId='',cursor='0')['result']['entries']
+        entries = call('vfs.list',nodeId='',cursor='0')['result']['entries']
         assert entries[0]['nodeId'] == 'file1' and entries[0]['revision'] == '1'
-        stream = call('fs.openRead',nodeId='file1')['result']['streamId']
+        stream = call('vfs.openRead',nodeId='file1')['result']['streamId']
         parts = []
         for offset in (0,262144):
-            result = call('fs.readStream',streamId=stream,offset=offset,maxBytes=262144)['result']
+            result = call('vfs.readStream',streamId=stream,offset=offset,maxBytes=262144)['result']
             parts.append(base64.b64decode(result['base64']))
         assert b''.join(parts) == f.content and result['eof']
-        call('fs.closeRead',streamId=stream)
+        call('vfs.closeRead',streamId=stream)
         f.offline = True
-        assert 'error' in call('fs.stat',nodeId='file1')
+        assert 'error' in call('vfs.stat',nodeId='file1')
         f.offline = False
         def upload(data,if_revision,node='file1'):
-            opened=call('fs.beginWrite',nodeId=node,size=len(data),ifRevision=if_revision)
+            opened=call('vfs.beginWrite',nodeId=node,size=len(data),ifRevision=if_revision)
             if 'error' in opened: return opened
             stream=opened['result']['streamId']
             offset=0
             while offset<len(data):
                 chunk=data[offset:offset+262144]
-                pushed=call('fs.writeStream',streamId=stream,offset=offset,
+                pushed=call('vfs.writeStream',streamId=stream,offset=offset,
                             base64=base64.b64encode(chunk).decode())
                 if 'error' in pushed:
-                    call('fs.abort',streamId=stream)
+                    call('vfs.abort',streamId=stream)
                     return pushed
                 offset+=len(chunk)
-            return call('fs.commit',streamId=stream)
+            return call('vfs.commit',streamId=stream)
         f.source = b'y' * (262144+17)
         assert 'error' in upload(f.source,'stale')
         assert upload(f.source,'1')['result']['revision'] == '2'

@@ -14,7 +14,7 @@ pub fn discover(ctx: &sdk::RequestContext, session: &Session) -> Result<Vec<FsOp
     fs::safe_relative(node)?;
     // /api/fs/list reports the directory's meta write gate. For a file,
     // mutations operate in its parent; mkdir already supplies parentId.
-    let directory_target = ctx.method() == "fs.list"
+    let directory_target = ctx.method() == "vfs.list"
         || ctx.params().get("parentId").is_some()
         || (!node.is_empty()
             && fs::object(ctx, &cfg, session, node)?

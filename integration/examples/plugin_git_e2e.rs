@@ -98,7 +98,7 @@ fn main() {
     let child = listing.entries[0].path.clone();
     let info = plugin_vfs::stat(&child).expect("vfs.stat failed");
     assert_eq!(info.name, "a.txt");
-    let preview = plugin_vfs::read_prefix(&child, 1024).expect("fs.openRead failed");
+    let preview = plugin_vfs::read_prefix(&child, 1024).expect("vfs.openRead failed");
     assert_eq!(String::from_utf8_lossy(&preview), "hello\n");
     let (found, _) =
         plugin_vfs::search(&history_path, "a.txt", true, &[], 50).expect("vfs.search failed");
@@ -156,7 +156,7 @@ fn main() {
     assert!(fiex_lib::remote::connection_for_path(&child).is_none());
     assert!(plugin_vfs::list("fiex://mount/unknown/", true, &[]).is_err());
     assert!(plugin_host::global()
-        .invoke(id, "fs.beginWrite", json!({"connection":{},"nodeId":"x"}))
+        .invoke(id, "vfs.beginWrite", json!({"connection":{},"nodeId":"x"}))
         .is_err());
     let unselected = fiex_lib::plugins::resource::fs_access::Scope::selected(&repo, &[]).unwrap();
     assert!(fiex_lib::plugins::mounts::open_view(

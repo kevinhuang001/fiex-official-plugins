@@ -44,7 +44,7 @@ class Git:
                 return message
             p = message.get('params', {})
             # File streams run under a background task so the host handles they
-            # opened stay authorized past the `fs.openRead` request.
+            # opened stay authorized past the `vfs.openRead` request.
             if message['method'] == 'host.task.start':
                 self.tasks.add(p['taskId'])
                 value = None
@@ -111,31 +111,31 @@ def main():
             b = plugin.call('git.browse', {'root': REF, 'reference': commit_b})['result']
             assert a != b
             assert plugin.views[a]['commitId'] == commit_a and plugin.views[b]['commitId'] == commit_b
-            listing = plugin.request(a, 'fs.list', hidden=True, limit=200)['result']
+            listing = plugin.request(a, 'vfs.list', hidden=True, limit=200)['result']
             entry = listing['entries'][0]
             assert entry['name'] == name and entry['nodeId'] == name
-            info = plugin.request(a, 'fs.stat', nodeId=name)['result']
+            info = plugin.request(a, 'vfs.stat', nodeId=name)['result']
             assert info['readonly'] and info['size'] == len(payload)
             for uri, expected in [(a, payload), (b, b'changed'), (a, payload)]:
-                opened = plugin.request(uri, 'fs.openRead', nodeId=name)['result']
+                opened = plugin.request(uri, 'vfs.openRead', nodeId=name)['result']
                 stream = opened['streamId']
                 parts = []
                 offset = 0
                 while offset < len(expected):
-                    part = plugin.request(uri, 'fs.readStream', streamId=stream,
+                    part = plugin.request(uri, 'vfs.readStream', streamId=stream,
                                           offset=offset, maxBytes=min(1024, len(expected) - offset))['result']
                     parts.append(base64.b64decode(part['base64']))
                     offset += len(base64.b64decode(part['base64']))
                     assert not part['eof'] or offset >= len(expected)
-                plugin.request(uri, 'fs.closeRead', streamId=stream)
+                plugin.request(uri, 'vfs.closeRead', streamId=stream)
                 assert b''.join(parts) == expected
-            searched = plugin.request(a, 'fs.search', query='中文', hidden=True, limit=10)
+            searched = plugin.request(a, 'vfs.search', query='中文', hidden=True, limit=10)
             assert 'result' in searched, searched
             found = searched['result']['entries']
             assert found[0]['relativePath'] == name
-            assert 'error' in plugin.request(a, 'fs.list', nodeId='../escape')
+            assert 'error' in plugin.request(a, 'vfs.list', nodeId='../escape')
             assert 'error' in plugin.call('git.browse', {'root': REF, 'reference': 'missing-object'})
-            assert 'error' in plugin.request(a, 'fs.beginWrite', nodeId=name, size=1)
+            assert 'error' in plugin.request(a, 'vfs.beginWrite', nodeId=name, size=1)
             assert not Path(root, '.fiex').exists()
             print('PASS Git: immutable views, binary previews, opaque nodes, Unicode names and invalid contexts')
         finally:

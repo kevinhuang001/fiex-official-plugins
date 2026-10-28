@@ -34,7 +34,7 @@ UI SDK 不再提供 `fiex.vfs.*`：VFS 是 native Provider 的职责。
 
 ## 坑
 
-- `plugin.invoke` 的 method 不能以 `host.`、`core.`、`fs.`、`connection.`、
+- `plugin.invoke` 的 method 不能以 `host.`、`core.`、`vfs.`、`connection.`、
   `vfs.` 开头；
 - 预览页面不要画标题栏；
 - 面板输入一律按不可信处理；

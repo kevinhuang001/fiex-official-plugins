@@ -153,7 +153,7 @@ Provider 就不会注册该事件。
 | `HookProvider` | `hooks.invoke` |
 | `ToolbarProvider` | `toolbar.invoke` |
 | `ConnectionProvider` | `connection.validate/open/create`（生命周期） |
-| `FSProvider` | `fs.list/stat/read/write/mkdir/rename/remove/search`；`operations()` 显式声明实现范围，`discover(ctx)` 按服务器权限收窄能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
+| `FSProvider` | `vfs.list/stat/read/write/mkdir/rename/remove/search`；`operations()` 显式声明实现范围，`discover(ctx)` 按服务器权限收窄能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
 
 `RequestContext` 常用方法（协议 4.0 只接受 `ResourceRef`）：
 
@@ -281,12 +281,12 @@ Connection 导航**不能**返回弹窗、侧面板、局部 iframe 或外部 UR
 声明了 `extensions.vfs` 后，Core 会把挂载点内的请求转给插件，常用方法：
 
 ```text
-fs.list      { mountId, nodeId, cursor?, limit } -> { entries[], nextCursor?, warnings? }
-fs.stat      { mountId, nodeId }                 -> FsEntry
-fs.search    { mountId, nodeId, query, limit }   -> { entries[], truncated? }
-fs.beginWrite{ mountId, nodeId?, parentId?, name?, size?, ifRevision? } -> { streamId }
-fs.writeStream / fs.commit / fs.abort            （SDK 负责分块与提交）
-fs.openRead / fs.readStream / fs.closeRead       （SDK 负责读流）
+vfs.list      { mountId, nodeId, cursor?, limit } -> { entries[], nextCursor?, warnings? }
+vfs.stat      { mountId, nodeId }                 -> FsEntry
+vfs.search    { mountId, nodeId, query, limit }   -> { entries[], truncated? }
+vfs.beginWrite{ mountId, nodeId?, parentId?, name?, size?, ifRevision? } -> { streamId }
+vfs.writeStream / vfs.commit / vfs.abort            （SDK 负责分块与提交）
+vfs.openRead / vfs.readStream / vfs.closeRead       （SDK 负责读流）
 ```
 
 示例只实现了只读的内存树。真实实现要注意：
@@ -420,7 +420,7 @@ const value = await invoke("plugin.invoke", {
 });
 ```
 
-`plugin.invoke` 只能调用插件自己的业务方法；`host.*`、`fs.*`、`vfs.*`、`connection.*` 等宿主方法会被 Core 拒绝。
+`plugin.invoke` 只能调用插件自己的业务方法；`host.*`、`vfs.*`、`vfs.*`、`connection.*` 等宿主方法会被 Core 拒绝。
 
 ### 5.2 没有 panel：固定调用 `toolbar.invoke`
 
@@ -849,7 +849,7 @@ example/
   hello/
     Cargo.toml
     manifest.json          ← connections / vfs / decorations / toolbar 全量示例
-    src/main.rs            ← connection.open、fs.*、decorations.resolve、命令
+    src/main.rs            ← connection.open、vfs.*、decorations.resolve、命令
     ui/index.html          ← toolbar 面板
     ui/account.html        ← connection 的 pluginView
     ui/preview.html        ← preview.open 返回的 PreviewView html

@@ -28,7 +28,7 @@ struct StoredConnection {
     port: Option<u16>,
 }
 
-/// A real remote file kept open for the lifetime of one `fs.openRead` stream.
+/// A real remote file kept open for the lifetime of one `vfs.openRead` stream.
 /// Reusing the connection, authenticated session, tree and file handle avoids
 /// reconnecting and re-authenticating for every read chunk.
 struct OpenStream {

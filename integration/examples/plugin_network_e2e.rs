@@ -33,7 +33,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     let listing = plugin_host::global()
         .invoke(
             id,
-            "fs.list",
+            "vfs.list",
             json!({"connection": config, "directoryId": "", "limit": 200}),
         )
         .expect("network listing through Core failed");
@@ -45,7 +45,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     let opened = plugin_host::global()
         .invoke(
             id,
-            "fs.openRead",
+            "vfs.openRead",
             json!({"connection": config, "nodeId": "hello.txt"}),
         )
         .unwrap();
@@ -53,7 +53,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     let result = plugin_host::global()
         .invoke(
             id,
-            "fs.readStream",
+            "vfs.readStream",
             json!({"streamId": stream, "offset": 0, "maxBytes": 262144}),
         )
         .unwrap();
@@ -63,7 +63,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     );
     assert_eq!(result["eof"], true);
     plugin_host::global()
-        .invoke(id, "fs.closeRead", json!({"streamId": stream}))
+        .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
         .unwrap();
     let source_dir = tempfile::tempdir().unwrap();
     let source = source_dir.path().join("source.dat");
@@ -73,14 +73,14 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         let baseline = plugin_host::global()
             .invoke(
                 id,
-                "fs.stat",
+                "vfs.stat",
                 json!({"connection":config,"nodeId":"hello.txt"}),
             )
             .unwrap();
         let begin = plugin_host::global()
             .invoke(
                 id,
-                "fs.beginWrite",
+                "vfs.beginWrite",
                 json!({"connection":config,"nodeId":"hello.txt","size":contents.len(),"ifRevision":baseline["revision"]}),
             )
             .unwrap();
@@ -90,27 +90,27 @@ fn check(id: &str, config: Value, expected: &[u8]) {
             plugin_host::global()
                 .invoke(
                     id,
-                    "fs.writeStream",
+                    "vfs.writeStream",
                     json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
                 )
                 .unwrap();
             offset += chunk.len();
         }
         let committed = plugin_host::global()
-            .invoke(id, "fs.commit", json!({"streamId":stream}))
+            .invoke(id, "vfs.commit", json!({"streamId":stream}))
             .unwrap();
         assert_ne!(committed["revision"], baseline["revision"]);
         assert!(plugin_host::global()
             .invoke(
                 id,
-                "fs.beginWrite",
+                "vfs.beginWrite",
                 json!({"connection":config,"nodeId":"hello.txt","size":1,"ifRevision":baseline["revision"]}),
             )
             .is_err());
         let opened = plugin_host::global()
             .invoke(
                 id,
-                "fs.openRead",
+                "vfs.openRead",
                 json!({"connection":config,"nodeId":"hello.txt"}),
             )
             .unwrap();
@@ -118,7 +118,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         let readback = plugin_host::global()
             .invoke(
                 id,
-                "fs.readStream",
+                "vfs.readStream",
                 json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
             )
             .unwrap();
@@ -129,7 +129,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
             contents
         );
         plugin_host::global()
-            .invoke(id, "fs.closeRead", json!({"streamId": stream}))
+            .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
             .unwrap();
     }
     if id == "org.fiex.webdav" {

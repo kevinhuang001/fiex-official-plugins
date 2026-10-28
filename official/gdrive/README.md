@@ -17,19 +17,19 @@
 
 连接只声明 `extensions.connections`。Core 根据实际文件版本与 I/O 操作结果协调缓存，不再读取 `capabilities` 或同步开关。官方插件没有特权，调用前检查插件启用状态和全部授权。
 
-`fs.list` 的每个条目是 `FsEntry`（`nodeId`、`name`、`kind`、`size`、`modified`、`revision` 等）；Drive 文件 ID 就是稳定节点 ID。`fs.list` 返回 `{entries, nextCursor?, warnings?}`，`fs.stat` 返回 `FsEntry`。Core 保存逻辑路径到稳定节点 ID 的映射。目录分页成功后保存离线元数据，失败时读取上次完整快照。
+`vfs.list` 的每个条目是 `FsEntry`（`nodeId`、`name`、`kind`、`size`、`modified`、`revision` 等）；Drive 文件 ID 就是稳定节点 ID。`vfs.list` 返回 `{entries, nextCursor?, warnings?}`，`vfs.stat` 返回 `FsEntry`。Core 保存逻辑路径到稳定节点 ID 的映射。目录分页成功后保存离线元数据，失败时读取上次完整快照。
 
 | 能力    | 线方法                                           | 返回                    |
 | ------- | ------------------------------------------------ | ----------------------- |
-| `list`  | `fs.list`                                        | `FsListing`             |
-| `stat`  | `fs.stat`                                        | `FsEntry`               |
-| `read`  | `fs.openRead` / `fs.readStream` / `fs.closeRead` | SDK 管理流              |
-| `write` | `fs.beginWrite` / `fs.writeStream` / `fs.commit` / `fs.abort` | `fs.commit` 返回 `FsEntry` |
-| `mkdir` | `fs.mkdir` | 新建的文件夹 `FsEntry` |
-| `rename` | `fs.rename` | 新名称/父目录下的 `FsEntry` |
-| `remove` | `fs.remove` | 空文件夹或文件删除成功；非空文件夹明确拒绝 |
+| `list`  | `vfs.list`                                        | `FsListing`             |
+| `stat`  | `vfs.stat`                                        | `FsEntry`               |
+| `read`  | `vfs.openRead` / `vfs.readStream` / `vfs.closeRead` | SDK 管理流              |
+| `write` | `vfs.beginWrite` / `vfs.writeStream` / `vfs.commit` / `vfs.abort` | `vfs.commit` 返回 `FsEntry` |
+| `mkdir` | `vfs.mkdir` | 新建的文件夹 `FsEntry` |
+| `rename` | `vfs.rename` | 新名称/父目录下的 `FsEntry` |
+| `remove` | `vfs.remove` | 空文件夹或文件删除成功；非空文件夹明确拒绝 |
 
-上传使用 `fs.beginWrite({nodeId, size, ifRevision})`：Core 通过标准 `Write` 分块写入，插件以 256 KiB 为界边收边执行 resumable PATCH；`fs.commit` 校验版本与 ETag 后发送最后一块、读取提交后的元数据并返回 `FsEntry`。没有 `writeMode`、`sync` 或 `conflictControl` 配置字段。
+上传使用 `vfs.beginWrite({nodeId, size, ifRevision})`：Core 通过标准 `Write` 分块写入，插件以 256 KiB 为界边收边执行 resumable PATCH；`vfs.commit` 校验版本与 ETag 后发送最后一块、读取提交后的元数据并返回 `FsEntry`。没有 `writeMode`、`sync` 或 `conflictControl` 配置字段。
 
 WebDAV 使用 HEAD/PROPFIND ETag 和 If-Match 条件 PUT；没有强 ETag 的服务器仍可离线缓存，但拒绝不安全的自动覆盖。SMB 使用修改/变更时间和大小校验，先写远端临时文件，提交前再检查后原子替换。OpenList 使用 `/api/fs/get` 的元数据基线和 `/api/fs/put` 的流式上传；其 API 无标准 CAS，属于尽力检测并发冲突，不能承诺服务端原子版本条件。SMB 提交前检查与替换之间同样存在协议客户端不配合时的窄竞争窗口。这些差异由 Provider 的版本检查和实际操作结果体现，比较后写入不能描述为 CAS。
 
@@ -41,4 +41,4 @@ Google Drive 使用 OAuth 自动刷新访问令牌、范围读取、resumable �
 
 Core CI 覆盖离线目录元数据持久化、基线版本不被目录刷新覆盖、固定继承与释放例外、路径边界和内容指纹。官方插件 CI 在三个平台运行真实插件进程，对接确定性 Core HTTP 替身，覆盖范围读取、断网失败/恢复、分块上传、过期基线、提交前远端变化和资源释放。真实 Google 账号 OAuth 和 Drive 服务联调仍需使用测试账号完成。
 
-统一上传：`fs.beginWrite` 以 `nodeId, size, ifRevision` 打开写流，`fs.commit` 返回最终 `FsEntry`。普通虚拟树不能调用 Connection Provider 接口。
+统一上传：`vfs.beginWrite` 以 `nodeId, size, ifRevision` 打开写流，`vfs.commit` 返回最终 `FsEntry`。普通虚拟树不能调用 Connection Provider 接口。

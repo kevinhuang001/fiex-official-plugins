@@ -59,7 +59,7 @@ Standard events (`info.resolve`, `preview.open`, `decorations.resolve`,
 instead of a hand-written `match ctx.method()`. File access is one typed
 `FSProvider`: explicitly declare `operations()` and override `discover(ctx)` to
 report the server-permitted subset for the current connection and resource.
-The SDK provides ordinary `fs.*` dispatch without procedural macros. The SDK owns read/write stream IDs, offsets, `commit`/`abort` and
+The SDK provides ordinary `vfs.*` dispatch without procedural macros. The SDK owns read/write stream IDs, offsets, `commit`/`abort` and
 cleanup. Custom RPC remains in the `serve_with` fallback.
 
 ```rust
@@ -144,9 +144,9 @@ Core's own CI uses the standalone SDK mock process.
 
 Standalone virtual trees declare `extensions.vfs`; connection factories declare `extensions.connections` and also register `extensions.vfs` when they expose files. No provider declares a URI scheme or a `capabilities` block. Core generates all `fiex://mount/<id>/` navigation URIs and enforces provider ownership and selected-resource scope.
 
-Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `fs.list/stat/read/search` through the supplied `viewContext` and opaque `nodeId` (the blob path). It does not snapshot repositories or participate in connection sync.
+Git calls `ctx.open_vfs_view` after resolving an immutable commit and serves `vfs.list/stat/read/search` through the supplied `viewContext` and opaque `nodeId` (the blob path). It does not snapshot repositories or participate in connection sync.
 
-All uploads use `fs.beginWrite` / `fs.writeStream` / `fs.commit`, with `fs.abort` discarding an uncommitted stream. Google Drive implements resumable chunking in its writer and finishes in the commit callback. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
+All uploads use `vfs.beginWrite` / `vfs.writeStream` / `vfs.commit`, with `vfs.abort` discarding an uncommitted stream. Google Drive implements resumable chunking in its writer and finishes in the commit callback. Manifest `sync`, `writeMode`, `conflictControl` switches and duplicated category `capabilities` fields are removed.
 
 `test-git-vfs.py`, `test-gdrive.py` and `test-connection-sync.py` exercise real provider processes against deterministic brokers. The separate Core-host and live WebDAV/SMB CI jobs retain actual sandbox/network integration coverage.
 

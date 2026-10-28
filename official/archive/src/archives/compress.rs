@@ -28,11 +28,11 @@ pub(crate) fn sources(
             return Ok(());
         }
         if out.len() >= MAX_ENTRIES {
-            return Err("文件数量超过限制".into());
+            return Err(crate::i18n::t("文件数量超过限制").into());
         }
         let meta = files.metadata(path).map_err(err)?;
         if meta.kind == "symlink" {
-            return Err("不跟随符号链接".into());
+            return Err(crate::i18n::t("不跟随符号链接").into());
         }
         out.push(Source {
             path: path.clone(),
@@ -71,7 +71,7 @@ pub fn compress(
     context: &dyn ArchiveContext,
 ) -> Result<ResourceRef, String> {
     if paths.is_empty() {
-        return Err("请选择文件".into());
+        return Err(crate::i18n::t("请选择文件").into());
     }
     let files = context.files();
     let sources = sources(&files, paths, &IgnoreSet::new(ignores))?;
@@ -79,7 +79,7 @@ pub fn compress(
     let level = level.unwrap_or(6).min(9);
     let password = password.filter(|p| !p.is_empty());
     if password.is_some() && !matches!(format, "zip" | "rar") {
-        return Err("只有 ZIP 和 RAR 支持密码".into());
+        return Err(crate::i18n::t("只有 ZIP 和 RAR 支持密码").into());
     }
     let writer = match format {
         "zip" => formats::write_zip(context, &sources, writer, level, password)?,
@@ -89,7 +89,7 @@ pub fn compress(
         "tar.xz" => formats::write_tar_xz(context, &sources, writer, level)?,
         "7z" => formats::write_7z(context, &sources, writer)?,
         "rar" => formats::write_rar(context, &sources, writer, level, password)?,
-        _ => return Err("不支持的压缩格式".into()),
+        _ => return Err(crate::i18n::t("不支持的压缩格式").into()),
     };
     writer.commit().map_err(err)?;
     Ok(destination.clone())

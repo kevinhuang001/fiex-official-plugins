@@ -36,7 +36,7 @@ pub(crate) fn extract_file(
             break;
         }
         if n as u64 > *remaining {
-            return Err("展开内容超过 20 GiB 限制".into());
+            return Err(crate::i18n::t("展开内容超过 20 GiB 限制").into());
         }
         output.write_all(&block[..n]).map_err(err)?;
         *remaining -= n as u64;
@@ -61,7 +61,7 @@ pub fn extract(
         base,
         &source_path
             .file_stem()
-            .ok_or("无效文件名")?
+            .ok_or(crate::i18n::t("无效文件名"))?
             .to_string_lossy(),
     )?;
     let stamp = std::time::SystemTime::now()

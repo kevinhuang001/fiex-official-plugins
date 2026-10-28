@@ -19,7 +19,7 @@ pub fn run(
         .process_run_at(root, "git", &args, None)
         .map_err(|error| error.to_string())?;
     if result.truncated {
-        return Err("命令输出超过限制，请缩小查询范围".into());
+        return Err(crate::i18n::t("命令输出超过限制，请缩小查询范围").into());
     }
     if result.code != Some(0) {
         return Err(if result.stderr.trim().is_empty() {
@@ -63,7 +63,7 @@ pub fn status(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Option<Val
 
 pub fn init(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {
     run(host, root, &["init", "-b", "main"])?;
-    status(root, host).ok_or("仓库已创建，但无法读取状态".into())
+    status(root, host).ok_or(crate::i18n::t("仓库已创建，但无法读取状态").into())
 }
 
 pub fn refs(root: &sdk::ResourceRef, host: &sdk::RequestContext) -> Result<Value, String> {

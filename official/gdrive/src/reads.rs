@@ -72,9 +72,9 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .as_str()
         .is_some_and(|s| s.starts_with("application/vnd.google-apps."))
     {
-        return Err(error(
+        return Err(error(crate::i18n::t(
             "Google 原生文档请在浏览器中编辑；离线文件同步支持普通文件",
-        ));
+        )));
     }
     let size = file["size"].as_str().and_then(|s| s.parse::<u64>().ok());
     // The SDK owns chunk offsets and seek-forward; a plain response body is the

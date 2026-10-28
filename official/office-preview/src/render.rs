@@ -12,7 +12,9 @@ fn format(extension: &str) -> Result<DocumentFormat, RpcError> {
         "docx" => Ok(DocumentFormat::Docx),
         "xlsx" => Ok(DocumentFormat::Xlsx),
         "pptx" => Ok(DocumentFormat::Pptx),
-        _ => Err(RpcError::invalid_params("仅支持 docx、xlsx、pptx")),
+        _ => Err(RpcError::invalid_params(crate::i18n::t(
+            "仅支持 docx、xlsx、pptx",
+        ))),
     }
 }
 
@@ -58,8 +60,12 @@ fn limit_docx(ir: &mut DocumentIR, limit: usize) -> bool {
 
 pub(crate) fn render(bytes: Vec<u8>, extension: &str, limit: usize) -> Result<Value, RpcError> {
     let format = format(extension)?;
-    let document = Document::from_reader(Cursor::new(bytes), format)
-        .map_err(|error| RpcError::internal(format!("无法解析 Office 文件: {error}")))?;
+    let document = Document::from_reader(Cursor::new(bytes), format).map_err(|error| {
+        RpcError::internal(fiex_plugin_sdk::i18n::format(
+            crate::i18n::t("无法解析 Office 文件: {error}"),
+            &[("error", format!("{}", error))],
+        ))
+    })?;
     let mut ir = document.to_ir();
     let total_sections = ir.sections.len();
     let limit = limit.max(1);

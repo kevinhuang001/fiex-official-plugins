@@ -10,7 +10,7 @@ pub(crate) fn safe_name(path: &Path) -> Result<(), String> {
             .components()
             .any(|p| !matches!(p, Component::Normal(_) | Component::CurDir))
     {
-        Err("压缩包包含不安全路径".into())
+        Err(crate::i18n::t("压缩包包含不安全路径").into())
     } else {
         Ok(())
     }
@@ -43,7 +43,7 @@ pub(crate) fn unique(
                 .map_err(|error| error.to_string());
         }
     }
-    Err("无法生成不冲突的文件名".into())
+    Err(crate::i18n::t("无法生成不冲突的文件名").into())
 }
 
 pub(crate) fn entry_ref(
@@ -64,7 +64,7 @@ pub(crate) fn entry_ref(
         })
         .collect::<Vec<_>>();
     if components.is_empty() && !directory {
-        return Err("无效文件名".into());
+        return Err(crate::i18n::t("无效文件名").into());
     }
     let mut current = root.clone();
     for (index, name) in components.iter().enumerate() {
@@ -89,12 +89,15 @@ pub fn default_destination(
         format,
         "zip" | "rar" | "7z" | "tar" | "tar.gz" | "tar.bz2" | "tar.xz"
     ) {
-        return Err("不支持的压缩格式".into());
+        return Err(crate::i18n::t("不支持的压缩格式").into());
     }
-    let parent = host.directory().ok_or("请选择输出文件夹")?.reference;
+    let parent = host
+        .directory()
+        .ok_or(crate::i18n::t("请选择输出文件夹"))?
+        .reference;
     let files = host.files();
     let metadata = files
-        .metadata(paths.first().ok_or("请选择文件")?)
+        .metadata(paths.first().ok_or(crate::i18n::t("请选择文件"))?)
         .map_err(|error| error.to_string())?;
     let stem = if paths.len() == 1 {
         Path::new(&metadata.name)

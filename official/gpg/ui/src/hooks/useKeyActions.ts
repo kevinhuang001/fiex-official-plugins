@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import type { Dispatch, SetStateAction } from "react";
 import { client } from "../client";
@@ -21,7 +22,7 @@ export function useKeyActions({
       extensions: ["asc", "gpg", "pgp", "key"],
     });
     if (!path) return;
-    setStatus({ kind: "busy", text: "正在导入密钥…" });
+    setStatus({ kind: "busy", text: t("正在导入密钥…") });
     try {
       const result = await client.plugin.invoke<{ imported: number }>(
         "gpg.import",
@@ -30,7 +31,7 @@ export function useKeyActions({
         },
       );
       await refreshKeys();
-      setStatus({ kind: "ok", text: `已导入 ${result.imported} 个密钥` });
+      setStatus({ kind: "ok", text: t("已导入 {0} 个密钥", result.imported) });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
     }
@@ -43,14 +44,14 @@ export function useKeyActions({
       extensions: ["asc"],
     });
     if (!path) return;
-    setStatus({ kind: "busy", text: "正在导出公钥…" });
+    setStatus({ kind: "busy", text: t("正在导出公钥…") });
     try {
       await client.plugin.invoke("gpg.export", {
         output: path.ref,
         fingerprint: key.fingerprint,
         armor: true,
       });
-      setStatus({ kind: "ok", text: `已导出到 ${baseName(path)}` });
+      setStatus({ kind: "ok", text: t("已导出到 {0}", baseName(path)) });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
     }
@@ -63,7 +64,7 @@ export function useKeyActions({
       extensions: ["asc"],
     });
     if (!path) return;
-    setStatus({ kind: "busy", text: "正在导出私钥…" });
+    setStatus({ kind: "busy", text: t("正在导出私钥…") });
     try {
       await client.plugin.invoke("gpg.export", {
         output: path.ref,
@@ -71,14 +72,14 @@ export function useKeyActions({
         armor: true,
         secret: true,
       });
-      setStatus({ kind: "ok", text: `已导出私钥到 ${baseName(path)}` });
+      setStatus({ kind: "ok", text: t("已导出私钥到 {0}", baseName(path)) });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
     }
   };
 
   const createKey = async (input: CreateKeyInput) => {
-    setStatus({ kind: "busy", text: "正在创建密钥…" });
+    setStatus({ kind: "busy", text: t("正在创建密钥…") });
     try {
       const result = await client.plugin.invoke<{ fingerprint?: string }>(
         "gpg.createKey",
@@ -88,8 +89,8 @@ export function useKeyActions({
       setStatus({
         kind: "ok",
         text: result.fingerprint
-          ? `已创建密钥 ${result.fingerprint.slice(-8)}`
-          : "密钥已创建",
+          ? t("已创建密钥 {0}", result.fingerprint.slice(-8))
+          : t("密钥已创建"),
       });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
@@ -98,14 +99,14 @@ export function useKeyActions({
   };
 
   const deleteKey = async (key: Key) => {
-    setStatus({ kind: "busy", text: "正在删除密钥…" });
+    setStatus({ kind: "busy", text: t("正在删除密钥…") });
     try {
       await client.plugin.invoke("gpg.deleteKey", {
         fingerprint: key.fingerprint,
         secret: Boolean(key.hasSecret),
       });
       await refreshKeys();
-      setStatus({ kind: "ok", text: "密钥已删除" });
+      setStatus({ kind: "ok", text: t("密钥已删除") });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
       throw error;

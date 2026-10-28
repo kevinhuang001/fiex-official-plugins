@@ -1,8 +1,9 @@
+import { t } from "../../../../support/ui/i18n";
 import type { ResourceContext } from "../../../../sdk/ui/src/index";
 import type { Action } from "./types";
 
 export function baseName(path: string | ResourceContext) {
-  if (typeof path !== "string") return path.metadata?.name || "文件";
+  if (typeof path !== "string") return path.metadata?.name || t("文件");
   return path.split(/[\\/]/).pop() || path;
 }
 
@@ -31,7 +32,11 @@ export function isSignature(value: string | ResourceContext) {
   return lower.endsWith(".sig") || lower.endsWith(".asc");
 }
 
-export function outputName(input: string | ResourceContext, action: Action, armor: boolean) {
+export function outputName(
+  input: string | ResourceContext,
+  action: Action,
+  armor: boolean,
+) {
   const name = baseName(input);
   const lower = name.toLowerCase();
   if (action === "encrypt") {

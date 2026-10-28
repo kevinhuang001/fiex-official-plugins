@@ -34,7 +34,7 @@ fn check_version(
 ) -> Result<(), RpcError> {
     let (file, current_etag) = metadata(http, token, node)?;
     if file["version"].as_str() != Some(revision) || current_etag != etag {
-        return Err(error("同步冲突：云端版本已改变"));
+        return Err(error(crate::i18n::t("同步冲突：云端版本已改变")));
     }
     Ok(())
 }
@@ -201,7 +201,7 @@ pub(super) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
     let token = token(&http, cfg)?;
     let (file, etag) = metadata(&http, &token, id)?;
     if file["version"].as_str() != Some(revision) {
-        return Err(error("同步冲突：云端版本已改变"));
+        return Err(error(crate::i18n::t("同步冲突：云端版本已改变")));
     }
     if etag.is_empty() {
         return Err(error(

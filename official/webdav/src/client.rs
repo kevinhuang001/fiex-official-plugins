@@ -157,7 +157,12 @@ pub(crate) fn parse_dav(url: &str, _rel: &str, xml: &str) -> Result<Vec<RemoteFi
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(format!("WebDAV 响应解析失败：{e}")),
+            Err(e) => {
+                return Err(fiex_plugin_sdk::i18n::format(
+                    crate::i18n::t("WebDAV 响应解析失败：{e}"),
+                    &[("e", format!("{}", e))],
+                ))
+            }
             _ => {}
         }
     }

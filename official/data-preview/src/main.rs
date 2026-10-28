@@ -3,6 +3,8 @@
 //! format crates, never by hand.
 mod columnar;
 mod dispatch;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod open;
 mod sheet;
 mod sqlite;

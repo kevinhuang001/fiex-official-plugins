@@ -62,7 +62,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             let settings = settings(&ctx, p)?;
             let to = text(p, "to")?.trim();
             if !crate::config::valid_address(to) {
-                return Err(RpcError::invalid_params("无效的收件人地址"));
+                return Err(RpcError::invalid_params(crate::i18n::t("无效的收件人地址")));
             }
             let subject = p.get("subject").and_then(Value::as_str).unwrap_or("");
             let body = text(p, "body")?;
@@ -130,7 +130,7 @@ impl sdk::ConnectionProvider for EmailConnection {
         Ok(json!({
             "kind": "pluginView",
             "view": {"source": "package", "entry": "ui/dist/index.html"},
-            "tabTitle": format!("邮箱 · {}", settings.email),
+            "tabTitle": fiex_plugin_sdk::i18n::format(crate::i18n::t("邮箱 · {0}"), &[("0", settings.email.clone())]),
             "state": {
                 "connectionId": connection_id,
                 "email": settings.email,

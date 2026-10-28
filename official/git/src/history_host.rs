@@ -32,7 +32,8 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
     })
 }
 fn request_route(path: &str, host: &sdk::RequestContext) -> Result<Route, String> {
-    route(path, &host.params()["viewContext"]).ok_or_else(|| "无效历史上下文".into())
+    route(path, &host.params()["viewContext"])
+        .ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
 /// The blob path is stable for one commit, so it doubles as the node id.
@@ -92,7 +93,7 @@ pub fn browse(
     host: &sdk::RequestContext,
 ) -> Result<Value, String> {
     if reference.is_empty() || reference.starts_with('-') {
-        return Err("无效版本".into());
+        return Err(crate::i18n::t("无效版本").into());
     }
 
     let object = format!("{reference}^{{commit}}");
@@ -220,7 +221,7 @@ pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
     entries(parent, true, &[], false, host)?
         .into_iter()
         .find(|v| v.path == path)
-        .ok_or("历史文件不存在".into())
+        .ok_or(crate::i18n::t("历史文件不存在").into())
 }
 pub fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
     let r = request_route(path, host)?;
@@ -229,7 +230,7 @@ pub fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
         .process_run_at(&r.root, "git", &["show".into(), object], None)
         .map_err(|e| e.to_string())?;
     if result.code != Some(0) || result.truncated {
-        return Err("无法读取历史内容，或内容超过命令输出限制".into());
+        return Err(crate::i18n::t("无法读取历史内容，或内容超过命令输出限制").into());
     }
     result.stdout_bytes()
 }

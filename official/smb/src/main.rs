@@ -1,5 +1,7 @@
 //! SMB protocol implementation. All socket operations are brokered by Core.
 mod discovery;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod sync;
 mod transport;
 use fiex_plugin_sdk::{
@@ -423,7 +425,7 @@ fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
         let source = mut_open(&tree, &smb_path(&cfg, node))?;
         if let Some(revision) = request.if_revision() {
             if resource_revision(&source)? != revision {
-                return Err(fail("同步冲突：远端已修改"));
+                return Err(fail(crate::i18n::t("同步冲突：远端已修改")));
             }
         }
         let info = smb::FileRenameInformation {
@@ -462,7 +464,7 @@ fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
         let resource = mut_open(&tree, &smb_path(&cfg, node))?;
         if let Some(revision) = request.if_revision() {
             if resource_revision(&resource)? != revision {
-                return Err(fail("同步冲突：远端已修改"));
+                return Err(fail(crate::i18n::t("同步冲突：远端已修改")));
             }
         }
         if resource.is_dir() {
@@ -477,7 +479,7 @@ fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
                 });
             if non_empty {
                 let _ = dir.close();
-                return Err(fail("目录不为空，无法删除"));
+                return Err(fail(crate::i18n::t("目录不为空，无法删除")));
             }
             dir.set_info(smb::FileDispositionInformation {
                 delete_pending: true.into(),

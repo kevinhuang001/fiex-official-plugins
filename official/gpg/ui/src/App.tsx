@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from "react";
+import { i18n } from "../../../../support/ui/i18n";
 import type { ResourceContext } from "../../../../sdk/ui/src/index";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActionFooter } from "./components/ActionFooter";
@@ -13,7 +15,7 @@ import { useGpgKeys } from "./hooks/useGpgKeys";
 import { isSignature, withoutSignature } from "./paths";
 import { client } from "./client";
 import {
-  ACTIONS,
+  getActions,
   DEFAULT_ACTION,
   isAction,
   type Action,
@@ -21,6 +23,7 @@ import {
 } from "./types";
 
 export function App() {
+  useSyncExternalStore(i18n.subscribe, i18n.getLocale, i18n.getLocale);
   const [action, setAction] = useState<Action>(DEFAULT_ACTION);
   const [files, setFiles] = useState<ResourceContext[]>([]);
   const [directory, setDirectory] = useState<ResourceContext>();
@@ -32,8 +35,15 @@ export function App() {
   const [status, setStatus] = useState<Status>({ kind: "idle", text: "" });
   const loaded = useRef(false);
 
-  const { keys, fingerprint, setFingerprint, gpg, loadKeys, refreshKeys, loading } =
-    useGpgKeys();
+  const {
+    keys,
+    fingerprint,
+    setFingerprint,
+    gpg,
+    loadKeys,
+    refreshKeys,
+    loading,
+  } = useGpgKeys();
   const { progress, run } = useGpgAction({
     action,
     directory,
@@ -47,7 +57,7 @@ export function App() {
   });
 
   const busy = status.kind === "busy";
-  const meta = ACTIONS[action];
+  const meta = getActions()[action];
   const visibleKeys = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return keys;
@@ -82,7 +92,14 @@ export function App() {
         if (next === "verify") {
           const signed = selection.find(isSignature);
           setSignature(signed);
-          setData(signed ? selection.find((resource) => resource.metadata?.name === withoutSignature(signed)) : selection[0]);
+          setData(
+            signed
+              ? selection.find(
+                  (resource) =>
+                    resource.metadata?.name === withoutSignature(signed),
+                )
+              : selection[0],
+          );
           setFiles(selection.slice(0, 1));
         } else {
           setFiles(selection);
@@ -113,7 +130,12 @@ export function App() {
     const path = await client.dialog.openFile({ directory: directory?.ref });
     if (path) {
       setSignature(path);
-      if (!data) setData(files.find((resource) => resource.metadata?.name === withoutSignature(path)));
+      if (!data)
+        setData(
+          files.find(
+            (resource) => resource.metadata?.name === withoutSignature(path),
+          ),
+        );
     }
   };
 

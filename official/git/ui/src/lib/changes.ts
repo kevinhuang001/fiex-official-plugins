@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ChangeEntry, Status } from "../types";
 
 /** Last path segment, used for the short file label. */
@@ -6,19 +7,19 @@ export const baseName = (path: string) => path.split(/[/\\]/).pop() || path;
 /** Parses a `git status` two-letter code into display state. */
 const changeOf = (code: string): Omit<ChangeEntry, "path" | "code"> | null => {
   if (code === "??")
-    return { letter: "U", label: "未跟踪", staged: false, unstaged: true };
+    return { letter: "U", label: t("未跟踪"), staged: false, unstaged: true };
   const index = code[0] ?? " ";
   const work = code[1] ?? " ";
   const staged = index !== " " && index !== "?";
   const unstaged = work !== " " && work !== "?";
   const names: Record<string, string> = {
-    M: "修改",
-    A: "新增",
-    D: "删除",
-    R: "重命名",
-    C: "复制",
-    T: "类型变更",
-    U: "冲突",
+    M: t("修改"),
+    A: t("新增"),
+    D: t("删除"),
+    R: t("重命名"),
+    C: t("复制"),
+    T: t("类型变更"),
+    U: t("冲突"),
   };
   const letter = unstaged ? work : index;
   if (letter === " ") return null;
@@ -27,10 +28,10 @@ const changeOf = (code: string): Omit<ChangeEntry, "path" | "code"> | null => {
     letter,
     label:
       staged && unstaged
-        ? `已暂存并${label}`
+        ? t("已暂存并{0}", label)
         : staged
-          ? `已暂存${label}`
-          : `未暂存${label}`,
+          ? t("已暂存{0}", label)
+          : t("未暂存{0}", label),
     staged,
     unstaged,
   };

@@ -1,6 +1,8 @@
 //! Google Drive v3 adapter. All HTTP goes through Core's authorized network
 //! transport; the plugin has no filesystem, subprocess or socket permission.
 mod auth;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod mutate;
 mod reads;
 mod writes;

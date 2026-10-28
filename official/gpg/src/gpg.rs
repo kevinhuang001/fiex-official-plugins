@@ -16,7 +16,10 @@ pub(crate) fn invoke_with_stdin(
     stdin: Option<&str>,
 ) -> Result<ProcessResult, RpcError> {
     host.process_run("gpg", args, stdin).map_err(|error| {
-        RpcError::internal(format!("无法运行 gpg，请先安装 GnuPG 并加入 PATH：{error}"))
+        RpcError::internal(fiex_plugin_sdk::i18n::format(
+            crate::i18n::t("无法运行 gpg，请先安装 GnuPG 并加入 PATH：{error}"),
+            &[("error", format!("{}", error))],
+        ))
     })
 }
 

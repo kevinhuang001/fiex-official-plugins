@@ -1,5 +1,8 @@
+import { useSyncExternalStore } from "react";
+import { i18n } from "../../../../support/ui/i18n";
+import { client } from "../../../../support/ui/i18n";
 import { useState } from "react";
-import { FiexUiClient } from "../../../../sdk/ui/src/index";
+
 import { CommitDialog } from "./components/CommitDialog";
 import { CommitPicker } from "./components/CommitPicker";
 import {
@@ -19,10 +22,9 @@ import { useGitRepository } from "./hooks/useGitRepository";
 import { usePanelResize } from "./hooks/usePanelResize";
 import { useRemotePanel } from "./hooks/useRemotePanel";
 
-const client = new FiexUiClient();
-
 /** Composition root: owns the bridge client and the panel's UI state. */
 export function App() {
+  useSyncExternalStore(i18n.subscribe, i18n.getLocale, i18n.getLocale);
   const repository = useGitRepository(client);
   const { changes, staged, unstaged } = useGitChanges(repository.status);
   const history = useGitHistory(repository.history, repository.refs?.head);

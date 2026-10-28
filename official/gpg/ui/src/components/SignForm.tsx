@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileList } from "./FileList";
 import { KeyPicker } from "./KeyPicker";
@@ -54,7 +55,7 @@ export function SignForm({
       />
       <div className="gpg-options">
         <Toggle
-          label="ASCII 装甲签名"
+          label={t("ASCII 装甲签名")}
           checked={armor}
           onChange={onArmor}
           disabled={busy}

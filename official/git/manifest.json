@@ -99,5 +99,19 @@
       },
       "priority": 50
     }
+  },
+  "locales": {
+    "en": {
+      "Git 历史": "Git History",
+      "历史提交显示条数": "Commit history limit",
+      "源代码管理": "Source Control",
+      "源代码管理、提交历史、远程仓库与只读历史浏览。": "Source control, commit history, remote repositories and read-only history browsing."
+    },
+    "zh-TW": {
+      "Git 历史": "Git 歷史",
+      "历史提交显示条数": "歷史提交顯示筆數",
+      "源代码管理": "原始碼管理",
+      "源代码管理、提交历史、远程仓库与只读历史浏览。": "原始碼管理、提交歷史、遠端儲存庫與唯讀歷史瀏覽。"
+    }
   }
 }

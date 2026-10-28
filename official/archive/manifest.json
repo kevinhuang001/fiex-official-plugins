@@ -129,7 +129,7 @@
         ]
       },
       "loading": {
-        "entry": "ui/loading.html"
+        "entry": "ui/dist/loading.html"
       }
     },
     "info": {
@@ -171,6 +171,22 @@
     },
     "ui": {
       "timeoutMs": 300000
+    }
+  },
+  "locales": {
+    "en": {
+      "压缩与解压": "Compress & Extract",
+      "压缩与解压 ZIP、RAR、7z、TAR 等格式。": "Compress and extract ZIP, RAR, 7z, TAR and other archives.",
+      "压缩时忽略的文件或目录": "Files or directories to ignore when compressing",
+      "解压时忽略的文件或目录": "Files or directories to ignore when extracting",
+      "解压输出上限（GiB）": "Maximum extracted size (GiB)"
+    },
+    "zh-TW": {
+      "压缩与解压": "壓縮與解壓",
+      "压缩与解压 ZIP、RAR、7z、TAR 等格式。": "壓縮與解壓 ZIP、RAR、7z、TAR 等格式。",
+      "压缩时忽略的文件或目录": "壓縮時忽略的檔案或目錄",
+      "解压时忽略的文件或目录": "解壓時忽略的檔案或目錄",
+      "解压输出上限（GiB）": "解壓輸出上限（GiB）"
     }
   }
 }

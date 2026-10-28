@@ -72,5 +72,15 @@
         ]
       }
     }
+  },
+  "locales": {
+    "en": {
+      "校验和": "Checksums",
+      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "Calculate SHA-256, SHA-512, SHA-1, MD5 and CRC32 checksums."
+    },
+    "zh-TW": {
+      "校验和": "校驗和",
+      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "計算 SHA-256、SHA-512、SHA-1、MD5 與 CRC32。"
+    }
   }
 }

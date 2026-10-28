@@ -75,7 +75,7 @@ pub(crate) fn write(request: &FsRequest<'_>, session: &Session) -> Result<FsWrit
     if request.node_id().is_some() {
         let before = fs::stat_http(&host.http(), &cfg, &token, &node)?;
         if request.if_revision() != before.revision.as_deref() {
-            return Err(fail("同步冲突：远端已修改"));
+            return Err(fail(crate::i18n::t("同步冲突：远端已修改")));
         }
     } else if request.if_revision().is_some() {
         return Err(fail("new files cannot carry a revision"));

@@ -73,5 +73,27 @@
         }
       ]
     }
+  },
+  "locales": {
+    "en": {
+      "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。": "SSH connections via the SDK TCP broker, displayed in a separate PluginView terminal.",
+      "主机": "Host",
+      "密码（可选，也可使用私钥）": "Password (optional; private key also supported)",
+      "用户名": "Username",
+      "私钥内容（可选）": "Private key (optional)",
+      "私钥口令（可选）": "Private key passphrase (optional)",
+      "端口": "Port",
+      "终端类型": "Terminal type"
+    },
+    "zh-TW": {
+      "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。": "SSH 連線外掛：透過 SDK TCP Broker 建立連線，在獨立 PluginView 中顯示終端機。",
+      "主机": "主機",
+      "密码（可选，也可使用私钥）": "密碼（選填，也可使用私鑰）",
+      "用户名": "使用者名稱",
+      "私钥内容（可选）": "私鑰內容（選填）",
+      "私钥口令（可选）": "私鑰密碼（選填）",
+      "端口": "連接埠",
+      "终端类型": "終端機類型"
+    }
   }
 }

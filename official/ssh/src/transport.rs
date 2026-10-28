@@ -106,7 +106,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let connection = &connection;
     let host = text(connection, "host").to_string();
     if host.is_empty() {
-        return Err(RpcError::internal("SSH 主机为空"));
+        return Err(RpcError::internal(crate::i18n::t("SSH 主机为空")));
     }
     let port = connection
         .get("port")
@@ -139,7 +139,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         value => value,
     }
     .to_owned();
-    ctx.spawn_internal_task("SSH 终端", move |task| {
+    ctx.spawn_internal_task(crate::i18n::t("SSH 终端"), move |task| {
         let task = Arc::new(task);
         let stream_terminal = terminal.clone();
         let result = (|| {
@@ -154,7 +154,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .tcp()
                 .connect_async(host.clone(), port)
                 .await
-                .map_err(|error| RpcError::internal(format!("SSH TCP 连接失败：{error}")))?;
+                .map_err(|error| RpcError::internal(fiex_plugin_sdk::i18n::format(crate::i18n::t("SSH TCP 连接失败：{error}"), &[("error", format!("{}", error))])))?;
             let _transport = StreamGuard(stream.get_ref().clone());
             let key_handler = ServerKey {
                 host: host.clone(),
@@ -165,7 +165,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             let mut handle = tokio::time::timeout(Duration::from_secs(30),
                 client::connect_stream(Arc::new(client::Config::default()), stream, key_handler))
                 .await.map_err(|_| RpcError::internal("SSH handshake timed out"))?
-                .map_err(|error| RpcError::internal(format!("SSH 握手失败：{error}")))?;
+                .map_err(|error| RpcError::internal(fiex_plugin_sdk::i18n::format(crate::i18n::t("SSH 握手失败：{error}"), &[("error", format!("{}", error))])))?;
 
             let mut authenticated = false;
             if !identity.is_empty() {
@@ -189,7 +189,7 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             }
             if !authenticated {
                 return Err(RpcError::internal(
-                    "SSH 认证失败：请检查私钥或密码",
+                    crate::i18n::t("SSH 认证失败：请检查私钥或密码"),
                 ));
             }
 
@@ -200,12 +200,12 @@ pub(crate) fn open(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             channel
                 .request_pty(true, &terminal_type, cols, rows, 0, 0, &[])
                 .await
-                .map_err(|error| RpcError::internal(format!("SSH PTY 请求失败：{error}")))?;
+                .map_err(|error| RpcError::internal(fiex_plugin_sdk::i18n::format(crate::i18n::t("SSH PTY 请求失败：{error}"), &[("error", format!("{}", error))])))?;
             request_accepted(&mut channel, "PTY").await?;
             channel
                 .request_shell(true)
                 .await
-                .map_err(|error| RpcError::internal(format!("SSH shell 启动失败：{error}")))?;
+                .map_err(|error| RpcError::internal(fiex_plugin_sdk::i18n::format(crate::i18n::t("SSH shell 启动失败：{error}"), &[("error", format!("{}", error))])))?;
 
             request_accepted(&mut channel, "shell").await?;
             terminal.ready()?;

@@ -109,5 +109,25 @@
     "vfs": {
       "title": "WebDAV"
     }
+  },
+  "locales": {
+    "en": {
+      "允许自签名证书": "Allow self-signed certificates",
+      "密码": "Password",
+      "服务器地址": "Server URL",
+      "用户名": "Username",
+      "目录刷新周期（秒）": "Directory refresh interval (seconds)",
+      "连接超时（秒）": "Connection timeout (seconds)",
+      "通过独立进程连接 WebDAV 服务器，目录按需读取。": "Connect to WebDAV servers in an isolated process with on-demand directory listing."
+    },
+    "zh-TW": {
+      "允许自签名证书": "允許自簽憑證",
+      "密码": "密碼",
+      "服务器地址": "伺服器位址",
+      "用户名": "使用者名稱",
+      "目录刷新周期（秒）": "目錄重新整理週期（秒）",
+      "连接超时（秒）": "連線逾時（秒）",
+      "通过独立进程连接 WebDAV 服务器，目录按需读取。": "透過獨立程序連線至 WebDAV 伺服器，目錄隨選讀取。"
+    }
   }
 }

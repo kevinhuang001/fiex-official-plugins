@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { KeyRound, LoaderCircle, Search } from "lucide-react";
 import type { Key } from "../types";
 
@@ -26,7 +27,7 @@ export function KeyPicker({
     return (
       <div className="gpg-empty" aria-busy="true">
         <LoaderCircle className="gpg-spin" size={15} />
-        正在加载系统密钥…
+        {t("正在加载系统密钥…")}{" "}
       </div>
     );
   }
@@ -35,22 +36,22 @@ export function KeyPicker({
       <div className="gpg-empty">
         <KeyRound size={15} />
         {kind === "secret"
-          ? "没有可用私钥。请先在 GPG 钥匙串中新建或导入私钥。"
-          : "没有可用公钥。请从工具栏的“GPG 钥匙串”导入密钥。"}
+          ? t("没有可用私钥。请先在 GPG 钥匙串中新建或导入私钥。")
+          : t("没有可用公钥。请从工具栏的“GPG 钥匙串”导入密钥。")}
       </div>
     );
   }
   return (
     <div className="gpg-keys">
       <div className="gpg-keys-head">
-        <span>{kind === "secret" ? "签名密钥" : "收件人"}</span>
+        <span>{kind === "secret" ? t("签名密钥") : t("收件人")}</span>
         {total > 3 && (
           <div className="gpg-search">
             <Search size={12} />
             <input
               value={query}
               onChange={(event) => onQuery(event.target.value)}
-              placeholder="搜索"
+              placeholder={t("搜索")}
               disabled={busy}
             />
           </div>
@@ -73,7 +74,9 @@ export function KeyPicker({
             </button>
           </li>
         ))}
-        {keys.length === 0 && <li className="gpg-empty">没有匹配的密钥</li>}
+        {keys.length === 0 && (
+          <li className="gpg-empty">{t("没有匹配的密钥")}</li>
+        )}
       </ul>
     </div>
   );

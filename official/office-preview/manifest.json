@@ -96,5 +96,17 @@
         "placeholder": "6"
       }
     ]
+  },
+  "locales": {
+    "en": {
+      "Office 预览": "Office Preview",
+      "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": "Read-only Word, Excel and PowerPoint preview. Complex layouts are simplified.",
+      "预览页数": "Preview page limit"
+    },
+    "zh-TW": {
+      "Office 预览": "Office 預覽",
+      "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": "Word、Excel、PowerPoint 的唯讀預覽。文字層級渲染，複雜版面會簡化。",
+      "预览页数": "預覽頁數"
+    }
   }
 }

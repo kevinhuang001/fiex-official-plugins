@@ -83,7 +83,7 @@
         ]
       },
       "loading": {
-        "entry": "ui/loading.html"
+        "entry": "ui/dist/loading.html"
       }
     },
     "info": {
@@ -104,6 +104,16 @@
           "avro"
         ]
       }
+    }
+  },
+  "locales": {
+    "en": {
+      "数据预览": "Data Preview",
+      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "Read-only preview of SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro, with pagination and sorting."
+    },
+    "zh-TW": {
+      "数据预览": "資料預覽",
+      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "表格資料的唯讀預覽：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支援分頁與排序。"
     }
   }
 }

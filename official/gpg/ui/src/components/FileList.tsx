@@ -1,9 +1,10 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileSignature } from "lucide-react";
 import { baseName } from "../paths";
 
 export function FileList({ files }: { files: ResourceContext[] }) {
-  if (!files.length) return <p className="gpg-empty">没有选中的文件</p>;
+  if (!files.length) return <p className="gpg-empty">{t("没有选中的文件")}</p>;
   return (
     <ul className="gpg-files">
       {files.slice(0, 4).map((file) => (

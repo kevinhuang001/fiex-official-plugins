@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>数据预览</title>
+    <title data-i18n="数据预览">数据预览</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -87,27 +87,26 @@
   </head>
   <body>
     <aside>
-      <div class="search"><input id="filter" type="search" placeholder="筛选数据集…" aria-label="筛选数据集" /></div>
-      <div class="datasets" id="datasets"><div class="loading-side"><span class="spinner" aria-hidden="true"></span><span>正在读取数据集…</span></div></div>
+      <div class="search"><input id="filter" type="search" placeholder="筛选数据集…" aria-label="筛选数据集"  data-i18n-placeholder="筛选数据集…" data-i18n-aria-label="筛选数据集"/></div>
+      <div class="datasets" id="datasets"><div class="loading-side"><span class="spinner" aria-hidden="true"></span><span><span data-i18n="正在读取数据集…">正在读取数据集…</span></span></div></div>
     </aside>
     <main>
       <div class="head">
         <div class="tabs">
-          <button id="data-tab" type="button" aria-selected="true">数据</button>
-          <button id="schema-tab" type="button" aria-selected="false">结构</button>
+          <button id="data-tab" type="button" aria-selected="true"><span data-i18n="数据">数据</span></button>
+          <button id="schema-tab" type="button" aria-selected="false"><span data-i18n="结构">结构</span></button>
         </div>
       </div>
       <div class="note" id="note" hidden></div>
-      <div class="grid-host" id="content"><p class="hint">选择左侧的数据集查看内容。</p></div>
+      <div class="grid-host" id="content"><p class="hint"><span data-i18n="选择左侧的数据集查看内容。">选择左侧的数据集查看内容。</span></p></div>
       <div class="pager" id="pager" hidden>
-        <button id="first" type="button" aria-label="第一页">«</button>
-        <button id="prev" type="button">上一页</button>
+        <button id="first" type="button" aria-label="第一页" data-i18n-aria-label="第一页">«</button>
+        <button id="prev" type="button"><span data-i18n="上一页">上一页</span></button>
         <span id="page-info"></span>
-        <button id="next" type="button">下一页</button>
-        <button id="last" type="button" aria-label="最后一页">»</button>
+        <button id="next" type="button"><span data-i18n="下一页">下一页</span></button>
+        <button id="last" type="button" aria-label="最后一页" data-i18n-aria-label="最后一页">»</button>
         <span class="grow"></span>
-        <label>每页
-          <select id="page-size">
+        <label><span data-i18n="每页">每页</span><select id="page-size">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="200">200</option>
@@ -116,7 +115,9 @@
         </label>
       </div>
     </main>
-    <script>
+    <script type="module">
+import { client, i18n, t, ready as localeReady } from "../../../support/ui/i18n";
+import { localizeDocument } from "../../../support/ui/dom";
       (() => {
         const datasetsHost = document.getElementById('datasets')
         const content = document.getElementById('content')
@@ -131,11 +132,9 @@
         const dataTab = document.getElementById('data-tab')
         const schemaTab = document.getElementById('schema-tab')
         const note = document.getElementById('note')
-        let port = null, sessionId = '', nonce = '', seq = 0
         let path = '', datasets = [], selected = '', tab = 'data'
         let rows = [], columns = [], total = 0, offset = 0, limit = 100, order = null, descending = false
         let current = {}
-        const pending = new Map()
 
         const setToken = (tokens) => {
           for (const [key, value] of Object.entries(tokens || {})) {
@@ -143,13 +142,7 @@
             document.documentElement.style.setProperty(`--${key}`, value)
           }
         }
-        const invoke = (method, params) => new Promise((resolve, reject) => {
-          if (!port) return reject(new Error('bridge not ready'))
-          const requestId = `data-${++seq}`
-          const timer = setTimeout(() => { pending.delete(requestId); reject(new Error('请求超时')) }, 30000)
-          pending.set(requestId, { resolve, reject, timer })
-          port.postMessage({ type: 'request', bridgeVersion: '1.0', sessionId, requestId, method, params })
-        })
+        const invoke = (method, params) => client.invoke(method, params)
         let readySent = false
         const ready = () => { if (readySent) return; readySent = true; void invoke('preview.ready').catch(() => {}) }
         const fail = (error) => {
@@ -162,7 +155,7 @@
           const query = filter.value.trim().toLowerCase()
           const visible = datasets.filter((item) => item.name.toLowerCase().includes(query))
           datasetsHost.innerHTML = ''
-          if (!visible.length) { datasetsHost.innerHTML = '<p class="empty-side">没有匹配的数据集。</p>'; return }
+          if (!visible.length) { datasetsHost.innerHTML = `<p class="empty-side">${t("没有匹配的数据集。")}</p>`; return }
           for (const item of visible) {
             const button = document.createElement('button')
             button.type = 'button'
@@ -189,8 +182,8 @@
 
         const renderData = () => {
           content.innerHTML = ''
-          if (!selected) { content.innerHTML = '<p class="hint">选择左侧的数据集查看内容。</p>'; return }
-          if (!rows.length) { content.innerHTML = '<div class="empty"><strong>没有数据</strong><span>这张表是空的。</span></div>'; return }
+          if (!selected) { content.innerHTML = `<p class="hint">${t("选择左侧的数据集查看内容。")}</p>`; return }
+          if (!rows.length) { content.innerHTML = `<div class="empty"><strong>${t("没有数据")}</strong><span>${t("这张表是空的。")}</span></div>`; return }
           const table = document.createElement('table')
           const head = document.createElement('thead')
           const headRow = document.createElement('tr')
@@ -230,26 +223,26 @@
 
         const schemaSections = () => {
           const sections = [{
-            title: '字段',
-            columns: ['名称', '类型', '非空', '默认值', '主键'],
+            title: t("字段"),
+            columns: [t("名称"), t("类型"), t("非空"), t("默认值"), t("主键")],
             rows: columns.map((column) => [
               column.name,
               column.kind || 'text',
-              column.notNull === undefined ? '—' : column.notNull ? '是' : '否',
+              column.notNull === undefined ? '—' : column.notNull ? t("是") : t("否"),
               column.default,
               column.primaryKey,
             ]),
           }]
           if (current.indexes?.length)
             sections.push({
-              title: '索引',
-              columns: ['名称', '唯一', '来源', '字段'],
-              rows: current.indexes.map((index) => [index.name, index.unique ? '是' : '否', index.origin || '', (index.columns || []).join(', ')]),
+              title: t("索引"),
+              columns: [t("名称"), t("唯一"), t("来源"), t("字段")],
+              rows: current.indexes.map((index) => [index.name, index.unique ? t("是") : t("否"), index.origin || '', (index.columns || []).join(', ')]),
             })
           if (current.foreignKeys?.length)
             sections.push({
-              title: '外键',
-              columns: ['字段', '引用表', '引用字段'],
+              title: t("外键"),
+              columns: [t("字段"), t("引用表"), t("引用字段")],
               rows: current.foreignKeys.map((key) => [key.from, key.table, key.to || '']),
             })
           return sections
@@ -288,7 +281,7 @@
           schemaTab.setAttribute('aria-selected', String(tab === 'schema'))
           pager.hidden = tab !== 'data' || !selected
           const pages = Math.max(1, Math.ceil(total / limit))
-          pageInfo.textContent = `第 ${Math.floor(offset / limit) + 1} / ${pages} 页`
+          pageInfo.textContent = t("第 {0} / {1} 页", Math.floor(offset / limit) + 1, pages)
           prev.disabled = offset <= 0
           next.disabled = offset + limit >= total
           first.disabled = offset <= 0
@@ -321,14 +314,14 @@
           try {
             setToken((await invoke('theme.get')).tokens)
             const context = await invoke('context.get')
-            path = context.resource?.metadata?.name || context.preview?.name || ''
-            if (!path) return fail(new Error('没有文件上下文'))
+            path = context.targets?.[0]?.ref || null
+            if (!path) return fail(new Error(t("没有文件上下文")))
             const value = await invoke('plugin.invoke', { method: 'data.open', params: { path } })
             datasets = value.datasets || []
             const single = datasets.length <= 1
             document.body.classList.toggle('single', single)
             renderDatasets()
-            if (!datasets.length) { content.innerHTML = '<p class="hint">没有可显示的数据集。</p>'; ready(); return }
+            if (!datasets.length) { content.innerHTML = `<p class="hint">${t("没有可显示的数据集。")}</p>`; ready(); return }
             selected = datasets[0].id
             renderDatasets()
             if (value.page) {
@@ -356,39 +349,12 @@
         })
         pageSize.addEventListener('change', () => { limit = Number(pageSize.value) || 100; offset = 0; void loadPage() })
 
-        window.addEventListener('message', (event) => {
-          if (event.source !== window.parent) return
-          const data = event.data
-          if (!data || data.type !== 'fiex.bridge.init' || event.ports.length !== 1) return
-          port = event.ports[0]; sessionId = data.sessionId; nonce = data.nonce
-          port.onmessage = (message) => {
-            const payload = message.data
-            if (payload?.type === 'response' && payload.requestId) {
-              const entry = pending.get(payload.requestId)
-              if (!entry) return
-              pending.delete(payload.requestId); clearTimeout(entry.timer)
-              if (payload.error) entry.reject(new Error(payload.error.message || '请求失败'))
-              else entry.resolve(payload.result)
-              return
-            }
-            if (payload?.type === 'event' && payload.name === 'theme.changed') setToken(payload.payload?.tokens)
-          }
-          port.start()
-          port.postMessage({ type: 'fiex.bridge.ready', sessionId, nonce, bridgeVersion: '1.0' })
-          start()
+        client.on('theme.changed', value => setToken(value?.tokens))
+        void localeReady.then(() => {
+          localizeDocument();
+          i18n.subscribe(() => { localizeDocument(); renderDatasets(); paint() });
+          void start();
         })
-        const announce = () =>
-          window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
-        announce()
-        // A srcDoc iframe can execute this script before the host has attached
-        // its message listener. Keep announcing until the host answers.
-        const announceTimer = setInterval(() => {
-          if (port) {
-            clearInterval(announceTimer)
-            return
-          }
-          announce()
-        }, 250)
       })()
     </script>
   </body>

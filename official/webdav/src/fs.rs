@@ -256,7 +256,7 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
             !child.path.is_empty() && child.path.trim_matches('/') != node.trim_matches('/')
         });
         if non_empty {
-            return Err(RpcError::internal("目录不为空，无法删除"));
+            return Err(RpcError::internal(crate::i18n::t("目录不为空，无法删除")));
         }
     }
     let mut delete = client::request(&http, &cfg, "DELETE", &client::webdav_url(&cfg, node));
@@ -357,7 +357,7 @@ pub(crate) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
         .ok_or_else(|| RpcError::internal("missing revision"))?
         .to_string();
     if before != revision {
-        return Err(RpcError::internal("同步冲突：远端已修改"));
+        return Err(RpcError::internal(crate::i18n::t("同步冲突：远端已修改")));
     }
     let url = client::webdav_url(&cfg, &node);
     let size = request.size().unwrap_or(0);

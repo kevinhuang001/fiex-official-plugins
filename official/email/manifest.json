@@ -58,5 +58,23 @@
         }
       ]
     }
+  },
+  "locales": {
+    "en": {
+      "IMAP 服务器": "IMAP server",
+      "IMAP/SMTP 授权码": "IMAP/SMTP app password",
+      "SMTP 服务器": "SMTP server",
+      "通过 IMAP/SMTP 连接邮箱，在 Fiex 中收发邮件。": "Connect to email via IMAP/SMTP and send or receive messages in Fiex.",
+      "邮箱": "Mail",
+      "邮箱地址": "Email address"
+    },
+    "zh-TW": {
+      "IMAP 服务器": "IMAP 伺服器",
+      "IMAP/SMTP 授权码": "IMAP/SMTP 授權碼",
+      "SMTP 服务器": "SMTP 伺服器",
+      "通过 IMAP/SMTP 连接邮箱，在 Fiex 中收发邮件。": "透過 IMAP/SMTP 連線至信箱，在 Fiex 中收發郵件。",
+      "邮箱": "信箱",
+      "邮箱地址": "電子郵件地址"
+    }
   }
 }

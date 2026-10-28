@@ -1,0 +1,15 @@
+{
+  "name": "fiex-official-plugin-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:static": "node scripts/build-static-panels.mjs",
+    "check:i18n": "python scripts/check-manifest-i18n.py && node scripts/check-ui-i18n.mjs && python scripts/check-native-i18n.py",
+    "test:i18n": "node --test scripts/i18n.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^7.1.12",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}

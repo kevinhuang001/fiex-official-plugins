@@ -1,7 +1,7 @@
-import { FiexUiClient } from "../../../../sdk/ui/src/index";
-import type { Account, Body, Header } from "./types";
+import { client } from "../../../../support/ui/i18n";
+export { client };
 
-export const client = new FiexUiClient();
+import type { Account, Body, Header } from "./types";
 
 function params(account: Account) {
   return {
@@ -24,7 +24,12 @@ export function read(account: Account, seq: number) {
   return invoke<Body>("email.read", { ...params(account), seq });
 }
 
-export function send(account: Account, to: string, subject: string, body: string) {
+export function send(
+  account: Account,
+  to: string,
+  subject: string,
+  body: string,
+) {
   return invoke<{ ok: boolean }>("email.send", {
     ...params(account),
     to,

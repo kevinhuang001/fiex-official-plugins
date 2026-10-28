@@ -44,7 +44,7 @@ pub(crate) fn rename(request: &FsRequest<'_>, session: &Session) -> Result<FsEnt
     let before = fs::stat_node(host, &cfg, session, node)?;
     if let Some(revision) = request.if_revision() {
         if before.revision.as_deref() != Some(revision) {
-            return Err(fail("同步冲突：远端已修改"));
+            return Err(fail(crate::i18n::t("同步冲突：远端已修改")));
         }
     }
     let (old_parent, old_name) = fs::split_path(node);
@@ -93,7 +93,7 @@ pub(crate) fn remove(request: &FsRequest<'_>, session: &Session) -> Result<(), R
     let entry = fs::stat_node(host, &cfg, session, node)?;
     if let Some(revision) = request.if_revision() {
         if entry.revision.as_deref() != Some(revision) {
-            return Err(fail("同步冲突：远端已修改"));
+            return Err(fail(crate::i18n::t("同步冲突：远端已修改")));
         }
     }
     // AList removes a directory recursively; refuse a non-empty tree instead
@@ -117,7 +117,7 @@ pub(crate) fn remove(request: &FsRequest<'_>, session: &Session) -> Result<(), R
             .and_then(Value::as_array)
             .is_some_and(|items| !items.is_empty());
         if non_empty {
-            return Err(fail("目录不为空，无法删除"));
+            return Err(fail(crate::i18n::t("目录不为空，无法删除")));
         }
     }
     let (parent, name) = fs::split_path(node);

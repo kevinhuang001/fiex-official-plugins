@@ -3,18 +3,18 @@ use serde_json::{json, Value};
 
 fn badge(code: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
     if code == "??" {
-        return Some(("U", "neutral", "Git：未跟踪", "#6f7c88"));
+        return Some(("U", "neutral", crate::i18n::t("Git：未跟踪"), "#6f7c88"));
     }
     let index = code.chars().next().unwrap_or(' ');
     let work = code.chars().nth(1).unwrap_or(' ');
     let letter = if work != ' ' { work } else { index };
     match letter {
-        'M' => Some(("M", "orange", "Git：已修改", "#c2710c")),
-        'A' => Some(("A", "green", "Git：新增", "#2f7d42")),
-        'D' => Some(("D", "red", "Git：删除", "#b4443d")),
-        'R' => Some(("R", "blue", "Git：重命名", "#2f6f9f")),
-        'T' => Some(("T", "purple", "Git：类型变更", "#7d4fa8")),
-        'U' => Some(("U", "red", "Git：冲突", "#b4443d")),
+        'M' => Some(("M", "orange", crate::i18n::t("Git：已修改"), "#c2710c")),
+        'A' => Some(("A", "green", crate::i18n::t("Git：新增"), "#2f7d42")),
+        'D' => Some(("D", "red", crate::i18n::t("Git：删除"), "#b4443d")),
+        'R' => Some(("R", "blue", crate::i18n::t("Git：重命名"), "#2f6f9f")),
+        'T' => Some(("T", "purple", crate::i18n::t("Git：类型变更"), "#7d4fa8")),
+        'U' => Some(("U", "red", crate::i18n::t("Git：冲突"), "#b4443d")),
         _ => None,
     }
 }

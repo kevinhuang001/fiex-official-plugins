@@ -3,6 +3,8 @@ mod decorations;
 mod files;
 mod git_host;
 mod history_host;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod ignores;
 mod remote_host;
 

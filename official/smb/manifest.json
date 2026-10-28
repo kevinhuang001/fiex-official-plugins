@@ -116,5 +116,29 @@
     "vfs": {
       "title": "SMB / NAS"
     }
+  },
+  "locales": {
+    "en": {
+      "SMB 网络共享": "SMB Network Share",
+      "主机": "Host",
+      "共享名": "Share name",
+      "子路径": "Subpath",
+      "密码": "Password",
+      "用户名": "Username",
+      "目录扫描间隔（秒）": "Directory scan interval (seconds)",
+      "端口": "Port",
+      "通过独立进程连接 SMB / NAS 共享。": "Connect to SMB/NAS shares through an isolated process."
+    },
+    "zh-TW": {
+      "SMB 网络共享": "SMB 網路分享",
+      "主机": "主機",
+      "共享名": "分享名稱",
+      "子路径": "子路徑",
+      "密码": "密碼",
+      "用户名": "使用者名稱",
+      "目录扫描间隔（秒）": "目錄掃描間隔（秒）",
+      "端口": "連接埠",
+      "通过独立进程连接 SMB / NAS 共享。": "透過獨立程序連線至 SMB / NAS 分享。"
+    }
   }
 }

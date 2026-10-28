@@ -54,7 +54,7 @@ pub(super) fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let (file, _) = metadata(&ctx.http(), &token, id)?;
     if let Some(revision) = request.if_revision() {
         if file["version"].as_str() != Some(revision) {
-            return Err(error("同步冲突：云端版本已改变"));
+            return Err(error(crate::i18n::t("同步冲突：云端版本已改变")));
         }
     }
     let mut body = Map::new();
@@ -119,7 +119,7 @@ pub(super) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     let (file, _) = metadata(&ctx.http(), &token, id)?;
     if let Some(revision) = request.if_revision() {
         if file["version"].as_str() != Some(revision) {
-            return Err(error("同步冲突：云端版本已改变"));
+            return Err(error(crate::i18n::t("同步冲突：云端版本已改变")));
         }
     }
     if file["mimeType"].as_str() == Some(FOLDER) {
@@ -138,7 +138,7 @@ pub(super) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
             .as_array()
             .is_some_and(|items| !items.is_empty())
         {
-            return Err(error("文件夹不为空，无法删除"));
+            return Err(error(crate::i18n::t("文件夹不为空，无法删除")));
         }
     }
     http_request(

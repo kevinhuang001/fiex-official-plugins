@@ -45,12 +45,15 @@ fn number(value: Option<&Value>, fallback: u64) -> u64 {
 /// The connection owns the server address, the account and the timeout, so
 /// Core approves exactly the resources that connection was created for.
 pub(crate) fn config(connection: Option<&Value>) -> Result<Config, RpcError> {
-    let connection = connection.ok_or_else(|| RpcError::internal("缺少连接配置"))?;
+    let connection =
+        connection.ok_or_else(|| RpcError::internal(crate::i18n::t("缺少连接配置")))?;
     let url = text(connection.get("url"))
         .trim_end_matches('/')
         .to_string();
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(RpcError::internal("请在连接设置中填写 http(s) 服务器地址"));
+        return Err(RpcError::internal(crate::i18n::t(
+            "请在连接设置中填写 http(s) 服务器地址",
+        )));
     }
     Ok(Config {
         url,
@@ -82,27 +85,36 @@ pub(crate) fn post_http(
     if let Some(token) = token.filter(|value| !value.is_empty()) {
         request = request.header("Authorization", token);
     }
-    let response = request
-        .body(body.to_string())
-        .send()
-        .map_err(|error| RpcError::internal(format!("OpenList 请求失败: {error}")))?;
+    let response = request.body(body.to_string()).send().map_err(|error| {
+        RpcError::internal(fiex_plugin_sdk::i18n::format(
+            crate::i18n::t("OpenList 请求失败: {error}"),
+            &[("error", format!("{}", error))],
+        ))
+    })?;
     if response.status >= 400 {
         return Err(RpcError::internal(format!(
             "OpenList HTTP {}",
             response.status
         )));
     }
-    let text = response
-        .text()
-        .map_err(|error| RpcError::internal(format!("OpenList 读取响应失败: {error}")))?;
-    let parsed: Value = serde_json::from_str(&text)
-        .map_err(|error| RpcError::internal(format!("OpenList 返回非 JSON: {error}")))?;
+    let text = response.text().map_err(|error| {
+        RpcError::internal(fiex_plugin_sdk::i18n::format(
+            crate::i18n::t("OpenList 读取响应失败: {error}"),
+            &[("error", format!("{}", error))],
+        ))
+    })?;
+    let parsed: Value = serde_json::from_str(&text).map_err(|error| {
+        RpcError::internal(fiex_plugin_sdk::i18n::format(
+            crate::i18n::t("OpenList 返回非 JSON: {error}"),
+            &[("error", format!("{}", error))],
+        ))
+    })?;
     let code = parsed.get("code").and_then(Value::as_i64).unwrap_or(0);
     if code != 200 {
         let message = parsed
             .get("message")
             .and_then(Value::as_str)
-            .unwrap_or("未知错误");
+            .unwrap_or(crate::i18n::t("未知错误"));
         return Err(RpcError::internal(format!("OpenList: {message}")));
     }
     Ok(parsed)
@@ -131,7 +143,7 @@ fn login(host: &sdk::RequestContext, cfg: &Config) -> Result<String, RpcError> {
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
-        .ok_or_else(|| RpcError::internal("登录失败：服务器未返回 token"))
+        .ok_or_else(|| RpcError::internal(crate::i18n::t("登录失败：服务器未返回 token")))
 }
 
 pub(crate) fn token(

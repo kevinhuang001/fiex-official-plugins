@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ResourceContext } from "../../../../../sdk/ui/src/index";
 import { FileList } from "./FileList";
 import { KeyPicker } from "./KeyPicker";
@@ -59,20 +60,22 @@ export function EncryptForm({
       />
       <div className="gpg-options">
         <Toggle
-          label="ASCII 装甲输出"
+          label={t("ASCII 装甲输出")}
           checked={armor}
           onChange={onArmor}
           disabled={busy}
         />
         <Toggle
-          label="允许未验证的收件人密钥"
+          label={t("允许未验证的收件人密钥")}
           checked={trust}
           onChange={onTrust}
           disabled={busy}
         />
       </div>
       {selectedKey && (
-        <p className="gpg-hint">收件人指纹 {selectedKey.fingerprint}</p>
+        <p className="gpg-hint">
+          {t("收件人指纹")} {selectedKey.fingerprint}
+        </p>
       )}
     </>
   );

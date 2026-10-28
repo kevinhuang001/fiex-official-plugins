@@ -66,5 +66,15 @@
       "icon": "magnifying-glass",
       "scope": "global"
     }
+  },
+  "locales": {
+    "en": {
+      "Everything 搜索": "Everything Search",
+      "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。": "Search the Everything index through the ES executable on the host PATH; Everything and ES must be installed and running."
+    },
+    "zh-TW": {
+      "Everything 搜索": "Everything 搜尋",
+      "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。": "透過主程式呼叫 PATH 中的 ES 指令查詢 Everything 索引；須安裝並執行 Everything 和 ES。"
+    }
   }
 }

@@ -233,13 +233,13 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             if result.code != Some(0) {
                 let reason =
                     if gpg::status_lines(&result.stderr).any(|line| line.starts_with("BADSIG")) {
-                        "签名无效"
+                        crate::i18n::t("签名无效")
                     } else if gpg::status_lines(&result.stderr)
                         .any(|line| line.starts_with("NO_PUBKEY") || line.starts_with("ERRSIG"))
                     {
-                        "缺少对应的公钥，或签名无法校验"
+                        crate::i18n::t("缺少对应的公钥，或签名无法校验")
                     } else {
-                        "签名校验失败"
+                        crate::i18n::t("签名校验失败")
                     };
                 return Err(RpcError::internal(format!(
                     "{reason}：{}",
@@ -288,12 +288,12 @@ impl sdk::ContextMenuProvider for GpgMenu {
             ]),
             Some("gpg.menu") => {
                 let mut items = vec![
-                    json!({"id":"gpg.encrypt","title":"加密…","kind":"action"}),
-                    json!({"id":"gpg.decrypt","title":"解密…","kind":"action"}),
-                    json!({"id":"gpg.sign","title":"签名…","kind":"action"}),
+                    json!({"id":"gpg.encrypt","title":crate::i18n::t("加密…"),"kind":"action"}),
+                    json!({"id":"gpg.decrypt","title":crate::i18n::t("解密…"),"kind":"action"}),
+                    json!({"id":"gpg.sign","title":crate::i18n::t("签名…"),"kind":"action"}),
                 ];
                 if count == 1 {
-                    items.push(json!({"id":"gpg.verify","title":"验证签名…","kind":"action"}));
+                    items.push(json!({"id":"gpg.verify","title":crate::i18n::t("验证签名…"),"kind":"action"}));
                 }
                 Ok(items)
             }
@@ -307,10 +307,10 @@ impl sdk::ContextMenuProvider for GpgMenu {
             .as_str()
             .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
         let (title, width, height) = match item {
-            "gpg.encrypt" => ("GPG 加密", 560, 520),
-            "gpg.decrypt" => ("GPG 解密", 520, 400),
-            "gpg.sign" => ("GPG 签名", 540, 470),
-            "gpg.verify" if ctx.targets().len() == 1 => ("验证签名", 520, 420),
+            "gpg.encrypt" => (crate::i18n::t("GPG 加密"), 560, 520),
+            "gpg.decrypt" => (crate::i18n::t("GPG 解密"), 520, 400),
+            "gpg.sign" => (crate::i18n::t("GPG 签名"), 540, 470),
+            "gpg.verify" if ctx.targets().len() == 1 => (crate::i18n::t("验证签名"), 520, 420),
             _ => {
                 return Err(RpcError::invalid_params(
                     "unknown or invalid GPG menu action",

@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ResourceRef } from "../../../../../sdk/ui/src/index";
 import { FileCode2, Minus, Plus } from "lucide-react";
 import { baseName } from "../lib/changes";
@@ -22,8 +23,8 @@ export function StatusList({
     <div className="git-panel-scroll">
       {!changes.length && <CleanState />}
       {[
-        { title: "已暂存", items: staged, staged: true },
-        { title: "更改", items: unstaged, staged: false },
+        { title: t("已暂存"), items: staged, staged: true },
+        { title: t("更改"), items: unstaged, staged: false },
       ]
         .filter((section) => section.items.length)
         .map((section) => (
@@ -37,7 +38,7 @@ export function StatusList({
                 onClick={() => onToggle(section.items, section.staged)}
               >
                 {section.staged ? <Minus size={12} /> : <Plus size={12} />}
-                {section.staged ? "全部取消暂存" : "暂存全部"}
+                {section.staged ? t("全部取消暂存") : t("暂存全部")}
               </button>
             </h2>
             {section.items.map((item) => (
@@ -65,16 +66,12 @@ export function StatusList({
                 </span>
                 <button
                   className="git-file-action"
-                  aria-label={`${section.staged ? "取消暂存" : "暂存"} ${baseName(item.path)}`}
-                  title={section.staged ? "取消暂存" : "暂存"}
+                  aria-label={`${section.staged ? t("取消暂存") : t("暂存")} ${baseName(item.path)}`}
+                  title={section.staged ? t("取消暂存") : t("暂存")}
                   disabled={busy}
                   onClick={() => onToggle([item], section.staged)}
                 >
-                  {section.staged ? (
-                    <Minus size={14} />
-                  ) : (
-                    <Plus size={14} />
-                  )}
+                  {section.staged ? <Minus size={14} /> : <Plus size={14} />}
                 </button>
               </div>
             ))}

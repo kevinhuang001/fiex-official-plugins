@@ -1,4 +1,6 @@
 mod checksums;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 #[path = "../../../support/resources.rs"]
 mod resources;
 use fiex_plugin_sdk::{self as sdk, RpcError};
@@ -77,7 +79,7 @@ impl sdk::InfoProvider for Presentation {
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
         provider_results::section(
             "checksum",
-            "校验和",
+            crate::i18n::t("校验和"),
             serde_json::to_value(checksum_rows(ctx, &target.reference)?)
                 .map_err(|error| RpcError::internal(error.to_string()))?,
         )

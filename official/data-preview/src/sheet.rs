@@ -27,7 +27,10 @@ fn sheet_table(range: &calamine::Range<Data>) -> Table {
     for (index, cell) in header.iter().enumerate() {
         let mut name = cell.to_string().trim().to_string();
         if name.is_empty() {
-            name = format!("列 {}", index + 1);
+            name = fiex_plugin_sdk::i18n::format(
+                crate::i18n::t("列 {0}"),
+                &[("0", format!("{}", index + 1))],
+            );
         }
         while names.contains(&name) {
             name.push('_');
@@ -94,7 +97,7 @@ pub fn sheet(bytes: &[u8], extension: &str, name: &str) -> Result<Table, String>
 pub fn sheet_names(bytes: &[u8], extension: &str) -> Result<Vec<String>, String> {
     let names = names_of(bytes, extension)?;
     if names.is_empty() {
-        return Err("工作簿没有可见的工作表".into());
+        return Err(crate::i18n::t("工作簿没有可见的工作表").into());
     }
     Ok(names)
 }

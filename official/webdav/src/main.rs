@@ -3,6 +3,8 @@
 mod client;
 mod discovery;
 mod fs;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 
 use fiex_plugin_sdk::{
     self as sdk,

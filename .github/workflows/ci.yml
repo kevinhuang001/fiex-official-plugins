@@ -24,6 +24,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r scripts/requirements-i18n.txt
+      - run: npm ci
+      - run: npm run check:i18n
+      - run: npm run test:i18n
       - name: Typecheck and rebuild self-contained panels
         run: |
           set -euo pipefail
@@ -31,6 +38,7 @@ jobs:
             npm --prefix "official/$slug/ui" ci
             npm --prefix "official/$slug/ui" run build
           done
+          npm run build:static
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-panels

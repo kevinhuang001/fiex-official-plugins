@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { useCallback } from "react";
 import type { FiexUiClient } from "../../../../../sdk/ui/src/index";
 import type { StatusEntry } from "../types";
@@ -70,8 +71,8 @@ export function useGitActions(client: FiexUiClient, repository: GitRepository) {
   const commit = useCallback(
     (message: string, onCommitted: () => void) => {
       if (!message.trim()) return;
-      void runTask("提交更改", message.split("\n")[0], async (taskId) => {
-        await client.tasks.update(taskId, { step: "写入提交" });
+      void runTask(t("提交更改"), message.split("\n")[0], async (taskId) => {
+        await client.tasks.update(taskId, { step: t("写入提交") });
         const hash = await invokeGit<string>(client, "git.commit", {
           root,
           message,
@@ -79,7 +80,7 @@ export function useGitActions(client: FiexUiClient, repository: GitRepository) {
           email: identity.email,
         });
         onCommitted();
-        return `已提交 ${hash}`;
+        return t("已提交 {0}", hash);
       });
     },
     [client, identity, root, runTask],
@@ -87,10 +88,10 @@ export function useGitActions(client: FiexUiClient, repository: GitRepository) {
 
   const init = useCallback(
     () =>
-      void runTask("初始化 Git 仓库", repository.name, async (taskId) => {
-        await client.tasks.update(taskId, { step: "创建 .git" });
+      void runTask(t("初始化 Git 仓库"), repository.name, async (taskId) => {
+        await client.tasks.update(taskId, { step: t("创建 .git") });
         await invokeGit(client, "git.init", { root });
-        return "仓库已创建";
+        return t("仓库已创建");
       }),
     [client, root, runTask],
   );

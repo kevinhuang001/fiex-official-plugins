@@ -5,6 +5,8 @@
 mod client;
 mod discovery;
 mod fs;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod mutate;
 mod sync;
 

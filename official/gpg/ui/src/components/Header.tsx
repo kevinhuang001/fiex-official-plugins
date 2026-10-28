@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import type { ActionMeta } from "../types";
 
 export function Header({
@@ -20,7 +21,7 @@ export function Header({
           <p>{meta.heading}</p>
         </div>
       </div>
-      {showCount && <span className="gpg-count">{count} 个文件</span>}
+      {showCount && <span className="gpg-count">{t("{0} 个文件", count)}</span>}
     </header>
   );
 }

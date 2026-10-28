@@ -1,3 +1,5 @@
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod sessions;
 mod transport;
 use fiex_plugin_sdk::{self as sdk, RpcError};

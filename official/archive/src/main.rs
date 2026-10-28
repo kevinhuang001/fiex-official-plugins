@@ -1,4 +1,6 @@
 mod archives;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 mod ignores;
 mod listing;
 #[path = "../../../support/resources.rs"]
@@ -95,7 +97,7 @@ fn archive_error(error: String) -> RpcError {
 /// actions that can carry a password.
 fn hook_error_message(error: &str) -> String {
     if listing::looks_encrypted(error) {
-        "压缩包已加密，请使用右键“解压缩”或预览面板输入密码".into()
+        crate::i18n::t("压缩包已加密，请使用右键“解压缩”或预览面板输入密码").into()
     } else {
         error.to_string()
     }
@@ -132,7 +134,7 @@ fn before_open(
     let task_destination = destination.clone();
     let task_ignores = ignores.clone();
     let task_password = password.map(str::to_owned);
-    match host.spawn_task_with_label("正在解压", move |task| {
+    match host.spawn_task_with_label(crate::i18n::t("正在解压"), move |task| {
         hook_extract(
             &task_path,
             &task_destination,
@@ -190,7 +192,7 @@ fn archive_menu(params: &Value) -> Value {
             ("archive.tar.gz", "TAR.GZ"),
             ("archive.tar.bz2", "TAR.BZ2"),
             ("archive.tar.xz", "TAR.XZ"),
-            ("archive.advanced", "高级压缩…"),
+            ("archive.advanced", crate::i18n::t("高级压缩…")),
         ];
         return json!({"items":formats.into_iter().map(|(id, title)| {
             json!({"id":id,"title":title,"kind":"action"})
@@ -217,10 +219,10 @@ fn archive_menu(params: &Value) -> Value {
             .is_some_and(archive);
     if only_archive {
         return json!({"items":[
-            {"id":"archive.extract","title":"解压缩","kind":"action"}
+            {"id":"archive.extract","title":crate::i18n::t("解压缩"),"kind":"action"}
         ]});
     }
-    json!({"items":[{"id":"archive.compress","title":"压缩","kind":"submenu"}]})
+    json!({"items":[{"id":"archive.compress","title":crate::i18n::t("压缩"),"kind":"submenu"}]})
 }
 
 fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
@@ -248,25 +250,27 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
         .map(|(_, extension)| extension.to_ascii_uppercase())
         .unwrap_or_else(|| "UNKNOWN".into());
     let mut rows = vec![
-        json!({"label":"格式","value":format}),
-        json!({"label":"压缩后大小","value":format_size(compressed)}),
-        json!({"label":"解压后大小","value":format_size(uncompressed)}),
-        json!({"label":"文件数","value":count.to_string()}),
+        json!({"label":crate::i18n::t("格式"),"value":format}),
+        json!({"label":crate::i18n::t("压缩后大小"),"value":format_size(compressed)}),
+        json!({"label":crate::i18n::t("解压后大小"),"value":format_size(uncompressed)}),
+        json!({"label":crate::i18n::t("文件数"),"value":count.to_string()}),
     ];
     if uncompressed > 0 {
         let saved = 1.0 - compressed as f64 / uncompressed as f64;
-        rows.push(json!({"label":"压缩率","value":format!("{:.1}%", saved * 100.0)}));
+        rows.push(
+            json!({"label":crate::i18n::t("压缩率"),"value":format!("{:.1}%", saved * 100.0)}),
+        );
     }
     if listing
         .get("encrypted")
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        rows.push(json!({"label":"加密","value":"是"}));
+        rows.push(json!({"label":crate::i18n::t("加密"),"value":crate::i18n::t("是")}));
     }
     if listing.get("supported").and_then(Value::as_bool) == Some(false) {
         if let Some(message) = listing.get("message").and_then(Value::as_str) {
-            rows.push(json!({"label":"说明","value":message}));
+            rows.push(json!({"label":crate::i18n::t("说明"),"value":message}));
         }
     }
     Ok(json!({"rows": rows}))
@@ -318,7 +322,7 @@ fn run_operation(
             };
             let level = p.get("level").and_then(Value::as_u64).map(|n| n as u32);
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
-            let task = ctx.spawn_task_with_label("正在压缩", move |task| {
+            let task = ctx.spawn_task_with_label(crate::i18n::t("正在压缩"), move |task| {
                 let result = archives::compress(
                     &paths,
                     &destination,
@@ -334,12 +338,17 @@ fn run_operation(
             Ok(json!({"taskId": task.id()}))
         }
         "archive.info" => archive_info(p, host),
-        "archive.list" => Ok(listing::list(
+        "archive.list" => match listing::list(
             &resources::input(host, "path")?.reference,
             p.get("password").and_then(Value::as_str),
             host,
-        )
-        .map_err(RpcError::internal)?),
+        ) {
+            Ok(value) => Ok(value),
+            Err(message) if listing::looks_encrypted(&message) => Ok(json!({
+                "supported": true, "encrypted": true, "passwordRequired": true, "entries": []
+            })),
+            Err(message) => Err(RpcError::internal(message)),
+        },
         // Runs before Core opens the file: consume the open and extract into
         // the archive's folder. Never fall through for a matching archive, and
         // never mistake this event's response for a menu/task result.
@@ -358,7 +367,7 @@ fn run_operation(
                 };
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
             let max_total = max_total_bytes(host, p);
-            let task = ctx.spawn_task_with_label("正在解压", move |task| {
+            let task = ctx.spawn_task_with_label(crate::i18n::t("正在解压"), move |task| {
                 let result = archives::extract(
                     &path,
                     &destination,
@@ -457,12 +466,12 @@ impl sdk::InfoProvider for Archive {
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
         let rows = archive_info(&json!({"path":target.reference}), ctx)?;
-        provider_results::section("archive", "压缩包", rows["rows"].clone())
+        provider_results::section("archive", crate::i18n::t("压缩包"), rows["rows"].clone())
     }
 }
 impl sdk::PreviewProvider for Archive {
     fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
-        Ok(sdk::PreviewView::html("ui/preview.html"))
+        Ok(sdk::PreviewView::html("ui/dist/preview.html"))
     }
 }
 impl sdk::DecorationProvider for Archive {
@@ -498,7 +507,7 @@ impl sdk::DecorationProvider for Archive {
                 };
                 decorations.push(json!({
                     "name": name,
-                    "badge": {"text": label, "color": "neutral", "tooltip": "压缩包"}
+                    "badge": {"text": label, "color": "neutral", "tooltip": crate::i18n::t("压缩包")}
                 }));
             }
         }
@@ -519,7 +528,7 @@ impl sdk::ContextMenuProvider for Archive {
             if item == "archive.advanced" {
                 return Ok(json!({
                     "kind": "panel", "entry": "ui/dist/index.html",
-                    "panelId": item, "title": "高级压缩",
+                    "panelId": item, "title": crate::i18n::t("高级压缩"),
                     "size": {"width":400,"height":420}
                 }));
             }

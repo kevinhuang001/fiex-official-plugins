@@ -1,3 +1,4 @@
+import { t } from "../../../../../support/ui/i18n";
 import { CheckCircle2, FolderGit2, LoaderCircle } from "lucide-react";
 
 /** First paint while the host hands over the panel context. */
@@ -14,7 +15,7 @@ export function CleanState() {
   return (
     <div className="git-clean">
       <CheckCircle2 size={28} />
-      <strong>工作区干净</strong>
+      <strong>{t("工作区干净")}</strong>
     </div>
   );
 }
@@ -26,7 +27,7 @@ export function EmptyFolderState() {
       <span className="git-welcome-icon">
         <FolderGit2 size={30} />
       </span>
-      <p>当前没有可用的文件夹。</p>
+      <p>{t("当前没有可用的文件夹。")}</p>
     </div>
   );
 }
@@ -44,9 +45,9 @@ export function NotRepositoryState({
       <span className="git-welcome-icon">
         <FolderGit2 size={30} />
       </span>
-      <h2>此文件夹还不是 Git 仓库</h2>
+      <h2>{t("此文件夹还不是 Git 仓库")}</h2>
       <button className="primary" disabled={busy} onClick={onInit}>
-        初始化仓库
+        {t("初始化仓库")}{" "}
       </button>
     </div>
   );
@@ -71,7 +72,7 @@ export function FormError({ message }: { message: string }) {
 export function BusyIndicator() {
   return (
     <div className="git-progress" role="status">
-      <LoaderCircle size={13} className="spin" /> 处理中…
+      <LoaderCircle size={13} className="spin" /> {t("处理中…")}{" "}
     </div>
   );
 }

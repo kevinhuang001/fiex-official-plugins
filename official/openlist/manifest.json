@@ -94,5 +94,21 @@
     "vfs": {
       "title": "OpenList"
     }
+  },
+  "locales": {
+    "en": {
+      "密码": "Password",
+      "服务器地址": "Server URL",
+      "用户名": "Username",
+      "连接超时（秒）": "Connection timeout (seconds)",
+      "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。": "Connect using the OpenList API, browse directories and read files."
+    },
+    "zh-TW": {
+      "密码": "密碼",
+      "服务器地址": "伺服器位址",
+      "用户名": "使用者名稱",
+      "连接超时（秒）": "連線逾時（秒）",
+      "通过 OpenList 原生 API 连接服务器，支持目录浏览与文件读取。": "透過 OpenList 原生 API 連線至伺服器，支援目錄瀏覽與檔案讀取。"
+    }
   }
 }

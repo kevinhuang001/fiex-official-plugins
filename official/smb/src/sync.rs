@@ -98,7 +98,7 @@ pub(crate) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
         let _ = tree.disconnect();
         let _ = session.logoff();
         let _ = connection.close();
-        return Err(fail("同步冲突：远端已修改"));
+        return Err(fail(crate::i18n::t("同步冲突：远端已修改")));
     }
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -136,7 +136,7 @@ pub(crate) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
             .map_err(|_| fail("SMB upload state unavailable"))?;
         upload.file.flush().map_err(fail)?;
         if revision(&upload.original)? != upload.before {
-            return Err(fail("同步冲突：上传期间远端已修改"));
+            return Err(fail(crate::i18n::t("同步冲突：上传期间远端已修改")));
         }
         // SMB rename with replace_if_exists needs exclusive delete access to the
         // target; close the revision-check handle before renaming.

@@ -1,5 +1,7 @@
 //! Optional Windows search adapter. The authorized ES command runs in Host;
 //! the plugin never contacts Everything's native IPC endpoint itself.
+#[path = "../../../support/i18n.rs"]
+mod i18n;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]
@@ -32,9 +34,11 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
         args.push(query.into());
         let output = host.process_run("es", &args, None)?;
         if output.code != Some(0) || output.truncated {
-            return Err(RpcError::internal(format!(
-                "Everything ES 查询失败，请确认 Everything 正在运行且 es.exe 位于 PATH：{}",
-                output.stderr
+            return Err(RpcError::internal(fiex_plugin_sdk::i18n::format(
+                crate::i18n::t(
+                    "Everything ES 查询失败，请确认 Everything 正在运行且 es.exe 位于 PATH：{0}",
+                ),
+                &[("0", format!("{}", output.stderr))],
             )));
         }
         for line in output.stdout.lines() {
@@ -60,7 +64,9 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
 }
 #[cfg(not(windows))]
 fn query(_p: &Value, _host: &sdk::RequestContext) -> Result<Value, RpcError> {
-    Ok(json!({"entries":[],"truncated":false,"warning":"Everything 搜索只在 Windows 上可用"}))
+    Ok(
+        json!({"entries":[],"truncated":false,"warning":crate::i18n::t("Everything 搜索只在 Windows 上可用")}),
+    )
 }
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
@@ -68,7 +74,9 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
         "search.status" => Ok(
             json!({"available":cfg!(windows),"provider":"everything","indexOwner":"Everything","requires":"Everything and ES command in PATH"}),
         ),
-        "search.rebuild" => Err(RpcError::invalid_params("索引由 Everything 管理")),
+        "search.rebuild" => Err(RpcError::invalid_params(crate::i18n::t(
+            "索引由 Everything 管理",
+        ))),
         _ => Err(RpcError::method_not_found(method)),
     }
 }

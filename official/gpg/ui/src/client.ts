@@ -1,3 +1,2 @@
-import { FiexUiClient } from "../../../../sdk/ui/src/index";
-
-export const client = new FiexUiClient();
+import { client } from "../../../../support/ui/i18n";
+export { client };

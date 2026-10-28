@@ -89,7 +89,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             let connection = sqlite::open(bytes)?;
             let datasets = sqlite::datasets(&connection)?;
             if datasets.is_empty() {
-                return Err("数据库里没有表".into());
+                return Err(crate::i18n::t("数据库里没有表").into());
             }
             let summary = sqlite::summary(&connection)?;
             let cache = Cache {
@@ -113,7 +113,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             Ok((
                 json!({
                     "format": extension,
-                    "datasets": [dataset("data", "数据", "table")],
+                    "datasets": [dataset("data", crate::i18n::t("数据"), "table")],
                     "page": page,
                 }),
                 cache,
@@ -150,7 +150,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             let table = columnar::parquet(bytes)?;
             let page = table::page(&table, 0, 100, None, false);
             Ok((
-                json!({ "format": "parquet", "datasets": [dataset("data", "数据", "table")], "page": page }),
+                json!({ "format": "parquet", "datasets": [dataset("data", crate::i18n::t("数据"), "table")], "page": page }),
                 Cache {
                     path: path.to_string(),
                     source: Source::Single(table),
@@ -162,7 +162,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             let table = columnar::arrow(bytes)?;
             let page = table::page(&table, 0, 100, None, false);
             Ok((
-                json!({ "format": extension, "datasets": [dataset("data", "数据", "table")], "page": page }),
+                json!({ "format": extension, "datasets": [dataset("data", crate::i18n::t("数据"), "table")], "page": page }),
                 Cache {
                     path: path.to_string(),
                     source: Source::Single(table),
@@ -174,7 +174,7 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
             let table = columnar::avro(bytes)?;
             let page = table::page(&table, 0, 100, None, false);
             Ok((
-                json!({ "format": "avro", "datasets": [dataset("data", "数据", "table")], "page": page }),
+                json!({ "format": "avro", "datasets": [dataset("data", crate::i18n::t("数据"), "table")], "page": page }),
                 Cache {
                     path: path.to_string(),
                     source: Source::Single(table),
@@ -182,6 +182,6 @@ pub(crate) fn open(path: &str, bytes: Vec<u8>) -> Result<(Value, Cache), String>
                 },
             ))
         }
-        _ => Err("暂不支持预览此格式".into()),
+        _ => Err(crate::i18n::t("暂不支持预览此格式").into()),
     }
 }

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FiexUiClient } from "../../../../../sdk/ui/src/index";
-import type { Commit, Context, Identity, Refs, RemoteStatus, Status } from "../types";
+import type {
+  Commit,
+  Context,
+  Identity,
+  Refs,
+  RemoteStatus,
+  Status,
+} from "../types";
 import { invokeGit } from "./useGitClient";
 
 /**
@@ -27,7 +34,9 @@ export function useGitRepository(client: FiexUiClient) {
     setBusy(true);
     setError("");
     try {
-      const next = await invokeGit<Status | null>(client, "git.status", { root });
+      const next = await invokeGit<Status | null>(client, "git.status", {
+        root,
+      });
       setStatus(next);
       if (next) {
         const [nextRefs, nextHistory, nextIdentity, nextRemote] =

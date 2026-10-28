@@ -1,3 +1,6 @@
+import { useSyncExternalStore } from "react";
+import { i18n } from "../../../../support/ui/i18n";
+import { t } from "../../../../support/ui/i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Mail, RefreshCw, Search } from "lucide-react";
 import * as api from "./api";
@@ -8,6 +11,7 @@ import { Sidebar } from "./components/Sidebar";
 import type { Account, Body, Context, Header, Status } from "./types";
 
 export function App() {
+  useSyncExternalStore(i18n.subscribe, i18n.getLocale, i18n.getLocale);
   const [account, setAccount] = useState<Account | null>(null);
   const [messages, setMessages] = useState<Header[]>([]);
   const [selected, setSelected] = useState<Header | null>(null);
@@ -27,7 +31,9 @@ export function App() {
       setMessages(next);
       setStatus({
         kind: "ok",
-        text: next.length ? `已同步 ${next.length} 封邮件` : "收件箱是空的",
+        text: next.length
+          ? t("已同步 {0} 封邮件", next.length)
+          : t("收件箱是空的"),
       });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
@@ -44,7 +50,7 @@ export function App() {
         if (cancelled) return;
         const state = context.state;
         if (!state?.email || !state.connectionId) {
-          setStatus({ kind: "error", text: "请从“连接”中打开邮箱" });
+          setStatus({ kind: "error", text: t("请从“连接”中打开邮箱") });
           return;
         }
         const target: Account = {
@@ -92,7 +98,7 @@ export function App() {
     try {
       await api.send(account, to.trim(), subject.trim(), body);
       setComposing(false);
-      setStatus({ kind: "ok", text: "邮件已发送" });
+      setStatus({ kind: "ok", text: t("邮件已发送") });
     } catch (error) {
       setStatus({ kind: "error", text: String(error) });
     } finally {
@@ -113,7 +119,9 @@ export function App() {
       ) : (
         <aside className="mail-sidebar mail-sidebar-empty">
           <div className="mail-brand">
-            <span className="mail-brand-mark"><Mail size={17} /></span>
+            <span className="mail-brand-mark">
+              <Mail size={17} />
+            </span>
             <span>Fiex Mail</span>
           </div>
         </aside>
@@ -125,7 +133,7 @@ export function App() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索邮件"
+              placeholder={t("搜索邮件")}
               disabled={!account}
             />
           </label>
@@ -134,11 +142,16 @@ export function App() {
             className="mail-icon-button"
             onClick={() => account && void load(account)}
             disabled={!account || loading}
-            aria-label="刷新"
+            aria-label={t("刷新")}
           >
-            <RefreshCw size={15} className={loading ? "is-spinning" : undefined} />
+            <RefreshCw
+              size={15}
+              className={loading ? "is-spinning" : undefined}
+            />
           </button>
-          <span className="mail-topbar-account">{account?.email || "未连接"}</span>
+          <span className="mail-topbar-account">
+            {account?.email || t("未连接")}
+          </span>
         </header>
         {status.kind === "error" && (
           <div className="mail-error" role="alert">

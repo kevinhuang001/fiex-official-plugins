@@ -121,10 +121,10 @@ pub fn list(
             "entries": [],
             "encrypted": false,
             "supported": false,
-            "message": "RAR 暂不支持列目录，可直接解压",
+            "message": crate::i18n::t("RAR 暂不支持列目录，可直接解压"),
         }))
     } else {
-        Err("暂不支持预览此格式".into())
+        Err(crate::i18n::t("暂不支持预览此格式").into())
     }
 }
 

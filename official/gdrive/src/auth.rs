@@ -39,10 +39,15 @@ pub(super) fn token(http: &sdk::HttpClient, cfg: &Value) -> Result<String, RpcEr
             value["error"].as_str(),
             Some("invalid_grant" | "invalid_client")
         ) {
-            return Err(error("Google authorization expired or application credentials changed; save the connection to authorize again"));
+            let mut failure = error(crate::i18n::t(
+                "Google 授权已过期或应用凭据已更改，请保存连接以重新授权",
+            ));
+            failure.data = Some(serde_json::json!({"reason":"reauthorization_required"}));
+            return Err(failure);
         }
-        return Err(error(format!(
-            "Google token request failed (HTTP {status})"
+        return Err(error(sdk::i18n::format(
+            crate::i18n::t("Google 令牌请求失败（HTTP {status}）"),
+            &[("status", status.to_string())],
         )));
     }
     let token = text(&value, "access_token")?.to_string();
@@ -91,13 +96,15 @@ fn browser_authorization(
     let status = response.status;
     let tokens: Value = response.json().map_err(error)?;
     if status >= 400 {
-        return Err(error(format!("Google OAuth exchange failed (HTTP {status}); verify the Desktop app client ID/secret and Drive API configuration")));
+        return Err(error(sdk::i18n::format(crate::i18n::t("Google OAuth 交换失败（HTTP {status}），请检查桌面应用的 Client ID、Secret 和 Drive API 配置"), &[("status", status.to_string())])));
     }
     let refresh = tokens["refresh_token"]
         .as_str()
         .filter(|v| !v.is_empty())
         .ok_or_else(|| {
-            error("Google did not issue an offline refresh token; authorize again with consent")
+            error(crate::i18n::t(
+                "Google 未签发离线刷新令牌，请重新授权并同意访问",
+            ))
         })?;
     let access = text(&tokens, "access_token")?;
     Ok((refresh.into(), access.into()))
@@ -112,9 +119,8 @@ pub(super) fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
         match token(&ctx.http(), cfg) {
             Ok(access) => (None, access),
             Err(error)
-                if error
-                    .message
-                    .contains("save the connection to authorize again") =>
+                if error.data.as_ref().and_then(|data| data["reason"].as_str())
+                    == Some("reauthorization_required") =>
             {
                 let (refresh, access) = browser_authorization(ctx, cfg)?;
                 (Some(refresh), access)

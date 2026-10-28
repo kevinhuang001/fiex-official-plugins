@@ -40,5 +40,17 @@
         }
       }
     }
+  },
+  "locales": {
+    "en": {
+      "GPG 钥匙串": "GPG Keyring",
+      "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。": "Encrypt, decrypt, sign, verify and manage public keys using local GnuPG.",
+      "钥匙串": "Keyring"
+    },
+    "zh-TW": {
+      "GPG 钥匙串": "GPG 鑰匙圈",
+      "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。": "使用本機 GnuPG 加密、解密、簽章、驗章及管理公開金鑰。",
+      "钥匙串": "鑰匙圈"
+    }
   }
 }

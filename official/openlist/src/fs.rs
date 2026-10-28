@@ -70,7 +70,7 @@ fn raw_url(
         .and_then(Value::as_str)
         .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
         .map(str::to_string)
-        .ok_or_else(|| RpcError::internal("服务器未返回下载地址"))
+        .ok_or_else(|| RpcError::internal(crate::i18n::t("服务器未返回下载地址")))
 }
 
 /// Revision string used for `ifRevision`; changes with content or metadata.

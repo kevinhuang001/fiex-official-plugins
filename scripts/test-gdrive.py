@@ -28,25 +28,52 @@ class Fixture:
         self.readers = {}
         self.change_before_commit = False
         self.offline = False
+        # Core authorizes every host call with the request that made it and
+        # revokes it when that request returns; only a running background task
+        # keeps its authorization. The fixture enforces the same rule so a
+        # stream that outlives its `fs.openRead`/`fs.beginWrite` request is
+        # caught here instead of only in the app.
+        self.request = None
+        self.tasks = set()
         self.call('plugin.initialize', {'protocolVersion':'5.0'})
+
+    def authorize(self, p):
+        authorization = p.get('authorization') or {}
+        if 'taskId' in authorization:
+            assert authorization['taskId'] in self.tasks, (
+                f'host call from an expired task: {authorization}')
+            return
+        assert authorization.get('operationId') == self.request, (
+            f'host call from an expired request: {authorization}')
 
     def call(self, method, params):
         self.sequence += 1
         ident = self.sequence
-        send(self.child.stdin, {'jsonrpc':'2.0','id':ident,'method':method,'params':params})
-        while True:
-            message = receive(self.child.stdout)
-            if 'method' not in message:
-                assert message['id'] == ident, message
-                return message
-            try:
-                result = self.host(message['method'], message.get('params', {}))
-                reply = {'result':result}
-            except RuntimeError as exc:
-                reply = {'error':{'code':-32000,'message':str(exc)}}
-            send(self.child.stdin, {'jsonrpc':'2.0','id':message['id'],**reply})
+        self.request = ident
+        try:
+            send(self.child.stdin, {'jsonrpc':'2.0','id':ident,'method':method,'params':params})
+            while True:
+                message = receive(self.child.stdout)
+                if 'method' not in message:
+                    assert message['id'] == ident, message
+                    return message
+                try:
+                    result = self.host(message['method'], message.get('params', {}))
+                    reply = {'result':result}
+                except RuntimeError as exc:
+                    reply = {'error':{'code':-32000,'message':str(exc)}}
+                send(self.child.stdin, {'jsonrpc':'2.0','id':message['id'],**reply})
+        finally:
+            self.request = None
 
     def host(self, method, p):
+        self.authorize(p)
+        if method == 'host.task.start':
+            self.tasks.add(p['taskId'])
+            return None
+        if method == 'host.task.finish':
+            self.tasks.discard(p['taskId'])
+            return None
         if method == 'host.fs.openRead':
             assert p['ref'] == SOURCE_REF
             self.readers['source-reader'] = self.source

@@ -19,6 +19,7 @@ class Connection(module.Fixture):
         self.source=b'edited while offline\n'
         super().__init__(binary)
     def host(self,method,p):
+        self.authorize(p)
         if method=='host.net.http.open' and p.get('bodyStream'):
             if self.offline: raise RuntimeError('network disconnected')
             handle=f'body-{len(self.pending)}'
@@ -63,12 +64,16 @@ class Connection(module.Fixture):
                   f'<d:getlastmodified>Mon, 01 Jan 2024 00:00:00 GMT</d:getlastmodified>'
                   f'<d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status>'
                   f'</d:propstat></d:response></d:multistatus>').encode()
+        elif p['method']=='GET':
+            headers={'content-length':str(len(self.content))}
+            body=self.content
         elif p['method']=='MKCOL' or p['method']=='MOVE' or p['method']=='DELETE':
             status=201 if p['method']=='MKCOL' else 204
         elif url.endswith('/api/auth/login'):
             body=b'{"code":200,"data":{"token":"fixture"}}'
         elif url.endswith('/api/fs/get'):
-            body=json.dumps({'code':200,'data':{'modified':self.version,'size':len(self.content)}}).encode()
+            body=json.dumps({'code':200,'data':{'modified':self.version,'size':len(self.content),
+                'raw_url':'https://fixture.invalid/hello.txt'}}).encode()
         elif url.endswith('/api/fs/list'):
             body=json.dumps({'code':200,'data':{'content':[{'name':'hello.txt','size':len(self.content),'is_dir':False,'modified':'2024-01-01T00:00:00Z'}]}}).encode()
         elif p['method']=='PUT':
@@ -121,6 +126,20 @@ def main():
                 offset+=len(chunk)
             return call('fs.commit',streamId=stream)
         before=call('fs.stat')['result']['revision']
+        # Opening a file streams it through openRead/readStream: the plugin's
+        # HTTP body outlives the request that opened it.
+        stream=call('fs.openRead')['result']['streamId']
+        parts=[]
+        offset=0
+        while True:
+            result=call('fs.readStream',streamId=stream,offset=offset,maxBytes=CHUNK)['result']
+            chunk=base64.b64decode(result['base64'])
+            parts.append(chunk)
+            offset+=len(chunk)
+            if result['eof']: break
+        assert b''.join(parts)==f.content and offset==len(f.content)
+        call('fs.closeRead',streamId=stream)
+        assert not f.streams, f.streams
         assert 'error' in upload(f.source,'stale')
         f.offline=True
         assert 'error' in upload(f.source,before)

@@ -26,6 +26,7 @@ class Git:
         self.root = root
         self.views = {}
         self.sequence = 0
+        self.tasks = set()
         self.child = subprocess.Popen([str(Path(binary).resolve())], stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.watchdog = threading.Timer(120, self.child.kill)
@@ -42,7 +43,15 @@ class Git:
                 assert message['id'] == ident
                 return message
             p = message.get('params', {})
-            if message['method'] == 'host.process.run':
+            # File streams run under a background task so the host handles they
+            # opened stay authorized past the `fs.openRead` request.
+            if message['method'] == 'host.task.start':
+                self.tasks.add(p['taskId'])
+                value = None
+            elif message['method'] == 'host.task.finish':
+                self.tasks.discard(p['taskId'])
+                value = None
+            elif message['method'] == 'host.process.run':
                 assert p['command'] == 'git'
                 assert p.get('cwd') == REF
                 result = subprocess.run(['git', '-C', self.root, *p['args']],

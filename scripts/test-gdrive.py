@@ -37,7 +37,7 @@ class Fixture:
         # caught here instead of only in the app.
         self.request = None
         self.tasks = set()
-        self.call('plugin.initialize', {'protocolVersion':'5.0'})
+        self.call('plugin.initialize', {'protocolVersion':'6.0'})
 
     def authorize(self, p):
         authorization = p.get('authorization') or {}
@@ -84,16 +84,16 @@ class Fixture:
         if method == 'host.task.finish':
             self.tasks.discard(p['taskId'])
             return None
-        if method == 'host.fs.openRead':
+        if method == 'fs.openRead':
             assert p['ref'] == SOURCE_REF
             self.readers['source-reader'] = self.source
             return {'handle':'source-reader','size':len(self.source)}
-        if method == 'host.fs.readOpen':
+        if method == 'fs.readOpen':
             assert p['handle'] in self.readers
             data = self.readers[p['handle']]
             chunk = data[p['offset']:p['offset']+p['length']]
             return {'base64':base64.b64encode(chunk).decode(),'size':len(chunk),'eof':p['offset']+len(chunk)>=len(data)}
-        if method == 'host.fs.closeRead':
+        if method == 'fs.closeRead':
             self.readers.pop(p['handle'], None)
             return None
         if method == 'host.buffer.create':

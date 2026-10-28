@@ -9,7 +9,7 @@ mod writes;
 use auth::token;
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
 use serde_json::{json, Value};
@@ -88,16 +88,16 @@ fn entry(file: &Value) -> FsEntry {
 
 struct Drive;
 
-impl FSProvider for Drive {
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+impl VfsProvider for Drive {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] {
         &[
-            sdk::filesystem::FsOp::List,
-            sdk::filesystem::FsOp::Stat,
-            sdk::filesystem::FsOp::Read,
-            sdk::filesystem::FsOp::Write,
-            sdk::filesystem::FsOp::Mkdir,
-            sdk::filesystem::FsOp::Rename,
-            sdk::filesystem::FsOp::Remove,
+            sdk::filesystem::FsOperation::List,
+            sdk::filesystem::FsOperation::Stat,
+            sdk::filesystem::FsOperation::Read,
+            sdk::filesystem::FsOperation::Write,
+            sdk::filesystem::FsOperation::Mkdir,
+            sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Remove,
         ]
     }
 

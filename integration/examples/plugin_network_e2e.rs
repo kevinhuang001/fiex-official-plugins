@@ -65,72 +65,85 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     plugin_host::global()
         .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
         .unwrap();
-    let source_dir = tempfile::tempdir().unwrap();
-    let source = source_dir.path().join("source.dat");
-    let edited = b"offline edit".repeat(50000);
-    for contents in [edited.as_slice(), expected] {
-        std::fs::write(&source, contents).unwrap();
-        let baseline = plugin_host::global()
-            .invoke(
-                id,
-                "vfs.stat",
-                json!({"connection":config,"nodeId":"hello.txt"}),
-            )
+    // The anonymous WebDAV fixture does not expose RFC 3744 grants; Core
+    // must not infer write permission from the server accepting PUT.
+    if id == "org.fiex.webdav" {
+        let discovered = plugin_host::global()
+            .invoke(id, "vfs.discover", json!({"connection":config,"nodeId":"hello.txt"}))
             .unwrap();
-        let begin = plugin_host::global()
-            .invoke(
-                id,
-                "vfs.beginWrite",
-                json!({"connection":config,"nodeId":"hello.txt","size":contents.len(),"ifRevision":baseline["revision"]}),
-            )
-            .unwrap();
-        let stream = begin["streamId"].as_str().unwrap().to_string();
-        let mut offset = 0usize;
-        for chunk in contents.chunks(256 * 1024) {
-            plugin_host::global()
+        assert!(!discovered["operations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|op| op == "write"));
+    } else {
+        let source_dir = tempfile::tempdir().unwrap();
+        let source = source_dir.path().join("source.dat");
+        let edited = b"offline edit".repeat(50000);
+        for contents in [edited.as_slice(), expected] {
+            std::fs::write(&source, contents).unwrap();
+            let baseline = plugin_host::global()
                 .invoke(
                     id,
-                    "vfs.writeStream",
-                    json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
+                    "vfs.stat",
+                    json!({"connection":config,"nodeId":"hello.txt"}),
                 )
                 .unwrap();
-            offset += chunk.len();
+            let begin = plugin_host::global()
+                .invoke(
+                    id,
+                    "vfs.beginWrite",
+                    json!({"connection":config,"nodeId":"hello.txt","size":contents.len(),"ifRevision":baseline["revision"]}),
+                )
+                .unwrap();
+            let stream = begin["streamId"].as_str().unwrap().to_string();
+            let mut offset = 0usize;
+            for chunk in contents.chunks(256 * 1024) {
+                plugin_host::global()
+                    .invoke(
+                        id,
+                        "vfs.writeStream",
+                        json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
+                    )
+                    .unwrap();
+                offset += chunk.len();
+            }
+            let committed = plugin_host::global()
+                .invoke(id, "vfs.commit", json!({"streamId":stream}))
+                .unwrap();
+            assert_ne!(committed["revision"], baseline["revision"]);
+            assert!(plugin_host::global()
+                .invoke(
+                    id,
+                    "vfs.beginWrite",
+                    json!({"connection":config,"nodeId":"hello.txt","size":1,"ifRevision":baseline["revision"]}),
+                )
+                .is_err());
+            let opened = plugin_host::global()
+                .invoke(
+                    id,
+                    "vfs.openRead",
+                    json!({"connection":config,"nodeId":"hello.txt"}),
+                )
+                .unwrap();
+            let stream = opened["streamId"].as_str().unwrap();
+            let readback = plugin_host::global()
+                .invoke(
+                    id,
+                    "vfs.readStream",
+                    json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
+                )
+                .unwrap();
+            assert_eq!(
+                STANDARD
+                    .decode(readback["base64"].as_str().unwrap())
+                    .unwrap(),
+                contents
+            );
+            plugin_host::global()
+                .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
+                .unwrap();
         }
-        let committed = plugin_host::global()
-            .invoke(id, "vfs.commit", json!({"streamId":stream}))
-            .unwrap();
-        assert_ne!(committed["revision"], baseline["revision"]);
-        assert!(plugin_host::global()
-            .invoke(
-                id,
-                "vfs.beginWrite",
-                json!({"connection":config,"nodeId":"hello.txt","size":1,"ifRevision":baseline["revision"]}),
-            )
-            .is_err());
-        let opened = plugin_host::global()
-            .invoke(
-                id,
-                "vfs.openRead",
-                json!({"connection":config,"nodeId":"hello.txt"}),
-            )
-            .unwrap();
-        let stream = opened["streamId"].as_str().unwrap();
-        let readback = plugin_host::global()
-            .invoke(
-                id,
-                "vfs.readStream",
-                json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
-            )
-            .unwrap();
-        assert_eq!(
-            STANDARD
-                .decode(readback["base64"].as_str().unwrap())
-                .unwrap(),
-            contents
-        );
-        plugin_host::global()
-            .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
-            .unwrap();
     }
     if id == "org.fiex.webdav" {
         let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {

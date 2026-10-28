@@ -10,7 +10,7 @@ mod remote_host;
 
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest},
+    filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest},
     RpcError,
 };
 use serde_json::{json, Value};
@@ -124,13 +124,13 @@ fn search(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
 /// declared, so Core never offers write, rename or remove.
 struct GitView;
 
-impl FSProvider for GitView {
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+impl VfsProvider for GitView {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] {
         &[
-            sdk::filesystem::FsOp::List,
-            sdk::filesystem::FsOp::Stat,
-            sdk::filesystem::FsOp::Read,
-            sdk::filesystem::FsOp::Search,
+            sdk::filesystem::FsOperation::List,
+            sdk::filesystem::FsOperation::Stat,
+            sdk::filesystem::FsOperation::Read,
+            sdk::filesystem::FsOperation::Search,
         ]
     }
 

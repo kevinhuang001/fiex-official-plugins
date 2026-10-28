@@ -54,7 +54,7 @@ class Plugin:
         self.serial = 0
         self.resources = {}
         self.next_resource = 0
-        info = self.rpc("plugin.initialize", {"protocolVersion": "5.0"})
+        info = self.rpc("plugin.initialize", {"protocolVersion": "6.0"})
         assert info["pluginId"] == plugin_id and info["ready"] is True, info
 
     def rpc(self, method, params):
@@ -70,7 +70,7 @@ class Plugin:
     def response(self):
         while True:
             value = read_frame(self.child.stdout)
-            if not str(value.get("method", "")).startswith("host."):
+            if not str(value.get("method", "")).startswith(("host.", "fs.")):
                 return value
             try:
                 result = self.host_call(value["method"], value.get("params", {}))
@@ -84,14 +84,14 @@ class Plugin:
         # through the actual Core host in the core-integration job.
         if method in {"host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
             return None
-        if method == "host.fs.openRead":
+        if method == "fs.openRead":
             assert params["ref"] == SOURCE_REF
             return {"handle":"snapshot", "size":len(self.upload_source)}
-        if method == "host.fs.readOpen":
+        if method == "fs.readOpen":
             assert params["handle"] == "snapshot"
             data=self.upload_source[params["offset"]:params["offset"]+params["length"]]
             return {"base64":base64.b64encode(data).decode(),"size":len(data),"eof":params["offset"]+len(data)>=len(self.upload_source)}
-        if method == "host.fs.closeRead": return None
+        if method == "fs.closeRead": return None
         if method == "host.net.http.open":
             url = params["url"]
             assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}
@@ -233,13 +233,10 @@ def main():
             assert base64.b64decode(reply["base64"]) == b"hello webdav\n"
             assert reply["eof"] is True
             plugin.rpc("vfs.closeRead", {"streamId": stream_id})
-            baseline=plugin.rpc("vfs.stat", {"connection":cfg,"nodeId":"hello.txt"})["revision"]
-            uploaded=write_all(plugin, cfg, "hello.txt", plugin.upload_source, baseline)
-            assert uploaded["revision"] != baseline
-            verified=read_all(plugin, cfg, "hello.txt")
-            assert verified == plugin.upload_source
-            plugin.upload_source=result
-            write_all(plugin, cfg, "hello.txt", plugin.upload_source, uploaded["revision"])
+            # WsgiDAV does not expose RFC 3744 ACL privileges. The adapter
+            # correctly keeps this mount read-only until grants are known.
+            discovered=plugin.rpc("vfs.discover", {"connection":cfg,"nodeId":"hello.txt"})
+            assert "write" not in discovered.get("operations", []), discovered
             plugin.invalid("vfs.openRead", {"connection": cfg, "nodeId": "../escape"})
             plugin.invalid("vfs.readStream", {"streamId": "missing", "offset": 0,
                                              "maxBytes": 1024})

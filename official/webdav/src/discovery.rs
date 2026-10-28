@@ -1,10 +1,10 @@
 //! RFC 3744 current-user-privilege-set. OPTIONS/Allow only describes methods,
 //! so it must never be treated as the current account's write authorization.
 use crate::{client, fs};
-use fiex_plugin_sdk::{self as sdk, filesystem::FsOp, RpcError};
+use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use quick_xml::events::Event;
 
-pub fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOp>, RpcError> {
+pub fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOperation>, RpcError> {
     let cfg: client::StoredConnection = serde_json::from_value(ctx.params()["connection"].clone())
         .map_err(|e| RpcError::invalid_params(e.to_string()))?;
     let node = ctx.params()["nodeId"]
@@ -13,7 +13,7 @@ pub fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOp>, RpcError> {
         .unwrap_or("");
     fs::safe_relative(node)?;
     let mut ops = resource_privileges(ctx, &cfg, node)?;
-    ops.retain(|op| !matches!(op, FsOp::Rename | FsOp::Remove));
+    ops.retain(|op| !matches!(op, FsOperation::Rename | FsOperation::Remove));
     if !node.is_empty() {
         let parent = node
             .rsplit_once('/')
@@ -21,8 +21,8 @@ pub fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOp>, RpcError> {
             .unwrap_or("");
         let parent_ops = resource_privileges(ctx, &cfg, parent)?;
         // RFC 3744: bind/unbind are checked on the containing collection.
-        if parent_ops.contains(&FsOp::Rename) {
-            ops.extend([FsOp::Rename, FsOp::Remove]);
+        if parent_ops.contains(&FsOperation::Rename) {
+            ops.extend([FsOperation::Rename, FsOperation::Remove]);
         }
     }
     Ok(ops)
@@ -32,7 +32,7 @@ fn resource_privileges(
     ctx: &sdk::RequestContext,
     cfg: &client::StoredConnection,
     node: &str,
-) -> Result<Vec<FsOp>, RpcError> {
+) -> Result<Vec<FsOperation>, RpcError> {
     let url = client::webdav_url(cfg, node);
     let response = client::request(&ctx.http(), cfg, "PROPFIND", &url)
         .header("Depth", "0")
@@ -45,7 +45,7 @@ fn resource_privileges(
     // Servers without ACL support remain usable for reading. No speculative
     // write probes or optimistic write grants on an absent property.
     if matches!(response.status, 400 | 404 | 405 | 501) {
-        return Ok(vec![FsOp::List, FsOp::Stat, FsOp::Read]);
+        return Ok(vec![FsOperation::List, FsOperation::Stat, FsOperation::Read]);
     }
     let xml = response
         .error_for_status()
@@ -54,7 +54,7 @@ fn resource_privileges(
     privileges(&xml)
 }
 
-fn privileges(xml: &str) -> Result<Vec<FsOp>, RpcError> {
+fn privileges(xml: &str) -> Result<Vec<FsOperation>, RpcError> {
     let mut reader = quick_xml::Reader::from_str(xml);
     reader.config_mut().trim_text(true);
     let mut in_privileges = false;
@@ -99,23 +99,23 @@ fn privileges(xml: &str) -> Result<Vec<FsOp>, RpcError> {
         }
     }
     if !present {
-        return Ok(vec![FsOp::List, FsOp::Stat, FsOp::Read]);
+        return Ok(vec![FsOperation::List, FsOperation::Stat, FsOperation::Read]);
     }
     let has = |name| granted.iter().any(|p| p == name || p == "all");
-    let mut ops = vec![FsOp::Stat];
+    let mut ops = vec![FsOperation::Stat];
     if has("read") {
-        ops.extend([FsOp::List, FsOp::Read]);
+        ops.extend([FsOperation::List, FsOperation::Read]);
     }
     if has("write") || has("write-content") {
-        ops.push(FsOp::Write);
+        ops.push(FsOperation::Write);
     }
     if has("write") || has("bind") {
-        ops.push(FsOp::Mkdir);
+        ops.push(FsOperation::Mkdir);
     }
     // Deletion/renaming require privileges on the parent as well; server
     // enforcement remains authoritative for each mutation.
     if has("write") || (has("bind") && has("unbind")) {
-        ops.extend([FsOp::Rename, FsOp::Remove]);
+        ops.extend([FsOperation::Rename, FsOperation::Remove]);
     }
     Ok(ops)
 }
@@ -126,8 +126,8 @@ mod tests {
     #[test]
     fn failed_propstat_never_grants_writes() {
         let xml = r#"<d:multistatus xmlns:d="DAV:"><d:response><d:propstat><d:prop><d:current-user-privilege-set><d:privilege><d:all/></d:privilege></d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 403 Forbidden</d:status></d:propstat></d:response></d:multistatus>"#;
-        assert_eq!(privileges(xml).unwrap(), vec![FsOp::Stat]);
+        assert_eq!(privileges(xml).unwrap(), vec![FsOperation::Stat]);
         let success = xml.replace("403 Forbidden", "200 OK");
-        assert!(privileges(&success).unwrap().contains(&FsOp::Write));
+        assert!(privileges(&success).unwrap().contains(&FsOperation::Write));
     }
 }

@@ -54,7 +54,7 @@ org.example.hello/
   "name": "示例插件",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "4.0",
+    "protocolVersion": "6.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-example.exe",
       "macos-aarch64": "fiex-plugin-example",
@@ -153,7 +153,7 @@ Provider 就不会注册该事件。
 | `HookProvider` | `hooks.invoke` |
 | `ToolbarProvider` | `toolbar.invoke` |
 | `ConnectionProvider` | `connection.validate/open/create`（生命周期） |
-| `FSProvider` | `vfs.list/stat/read/write/mkdir/rename/remove/search`；`operations()` 显式声明实现范围，`discover(ctx)` 按服务器权限收窄能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
+| `VfsProvider` | `vfs.list/stat/read/write/mkdir/rename/remove/search`；`operations()` 显式声明实现范围，`discover(ctx)` 按服务器权限收窄能力。`read` 覆盖 `openRead/readStream/closeRead`，`write` 覆盖 `beginWrite/writeStream/commit/abort`，SDK 管理 stream ID、offset 和关闭 |
 
 `RequestContext` 常用方法（协议 4.0 只接受 `ResourceRef`）：
 

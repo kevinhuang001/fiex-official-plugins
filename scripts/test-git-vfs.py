@@ -31,7 +31,7 @@ class Git:
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.watchdog = threading.Timer(120, self.child.kill)
         self.watchdog.start()
-        self.call('plugin.initialize', {'protocolVersion': '5.0'})
+        self.call('plugin.initialize', {'protocolVersion': '6.0'})
 
     def call(self, method, params):
         self.sequence += 1

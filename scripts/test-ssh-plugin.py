@@ -100,7 +100,7 @@ def main():
 
     try:
         send(child.stdin, lock, {"jsonrpc": "2.0", "id": 1, "method": "plugin.initialize",
-                                 "params": {"protocolVersion": "5.0"}})
+                                 "params": {"protocolVersion": "6.0"}})
         initialized = receive(child.stdout)
         assert initialized.get("result", {}).get("pluginId") == "org.fiex.ssh", initialized
         send(child.stdin, lock, {"jsonrpc":"2.0", "id":2, "method":"connection.open",

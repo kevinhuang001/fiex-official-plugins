@@ -181,11 +181,11 @@ jobs:
           mkdir -p "$FIEX_PLUGIN_DIR"
           python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64
           for id in org.fiex.ssh org.fiex.git org.fiex.webdav org.fiex.gdrive org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg org.fiex.email; do
-            cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
+            cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --features usbfs --example plugin_smoke -- "$id"
           done
           # Every declared panel must resolve through the real host, including
           # the advanced-compression panel nested in a context submenu.
-          cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
+          cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --features usbfs --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
           cargo run --manifest-path integration/Cargo.toml --example plugin_connection_view_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e

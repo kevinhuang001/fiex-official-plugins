@@ -484,9 +484,6 @@ impl sdk::DecorationProvider for Archive {
                 };
                 let entry = serde_json::to_value(metadata)
                     .map_err(|e| RpcError::internal(e.to_string()))?;
-                let Some(name) = entry.get("name").and_then(Value::as_str) else {
-                    continue;
-                };
                 if entry["kind"] == "directory" {
                     continue;
                 }
@@ -506,7 +503,7 @@ impl sdk::DecorationProvider for Archive {
                     _ => continue,
                 };
                 decorations.push(json!({
-                    "name": name,
+                    "ref": target.reference,
                     "badge": {"text": label, "color": "neutral", "tooltip": crate::i18n::t("压缩包")}
                 }));
             }

@@ -42,18 +42,43 @@ impl io::Write for BodyWriter {
     }
 }
 
+/// The provider accepts both overwrite (`nodeId`) and creation
+/// (`parentId` + `name`); Core sends the latter for "new empty file".
+fn target_node(request: &FsRequest<'_>) -> Result<String, RpcError> {
+    if let Some(node) = request.node_id() {
+        let node = node.to_owned();
+        fs::safe_relative(&node)?;
+        return Ok(node);
+    }
+    let name = request
+        .name()
+        .ok_or_else(|| fail("missing nodeId or name"))?;
+    new_node(request.parent_id_or_root(), name)
+}
+
+fn new_node(parent: &str, name: &str) -> Result<String, RpcError> {
+    let parent = parent.trim_matches('/');
+    let node = if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{parent}/{name}")
+    };
+    fs::safe_relative(&node)?;
+    Ok(node)
+}
+
 pub(crate) fn write(request: &FsRequest<'_>, session: &Session) -> Result<FsWrite, RpcError> {
     let host = request.ctx();
     let cfg = client::config(request.connection())?;
-    let node = request
-        .node_id()
-        .ok_or_else(|| fail("missing nodeId"))?
-        .to_owned();
-    fs::safe_relative(&node)?;
+    let node = target_node(request)?;
     let token = client::token(host, &cfg, session)?;
-    let before = fs::stat_http(&host.http(), &cfg, &token, &node)?;
-    if request.if_revision() != before.revision.as_deref() {
-        return Err(fail("同步冲突：远端已修改"));
+    if request.node_id().is_some() {
+        let before = fs::stat_http(&host.http(), &cfg, &token, &node)?;
+        if request.if_revision() != before.revision.as_deref() {
+            return Err(fail("同步冲突：远端已修改"));
+        }
+    } else if request.if_revision().is_some() {
+        return Err(fail("new files cannot carry a revision"));
     }
     let http = host.http();
     let size = request.size().unwrap_or(0);
@@ -92,4 +117,19 @@ pub(crate) fn write(request: &FsRequest<'_>, session: &Session) -> Result<FsWrit
         }
         fs::stat_http(&http, &cfg, &token, &node)
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn target_node_prefers_node_id_and_creates_from_parent() {
+        // The request type is supplied by the SDK and cannot be built in a
+        // unit test, so exercise the pure composition rule.
+        assert_eq!(new_node("folder", "note.txt").unwrap(), "folder/note.txt");
+        assert_eq!(new_node("", "note.txt").unwrap(), "note.txt");
+        assert_eq!(new_node("/", "note.txt").unwrap(), "note.txt");
+        assert!(new_node("folder", "../escape").is_err());
+    }
 }

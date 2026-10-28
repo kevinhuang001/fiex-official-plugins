@@ -71,7 +71,7 @@
           "label": "服务器地址",
           "type": "url",
           "required": true,
-          "placeholder": "https://openlist.example.com"
+          "placeholder": "http://localhost:5244"
         },
         {
           "id": "username",

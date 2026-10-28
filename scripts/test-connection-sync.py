@@ -60,6 +60,7 @@ class Connection(module.Fixture):
             body=(f'<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response>'
                   f'<d:href>/hello.txt</d:href><d:propstat><d:prop>'
                   f'<d:getcontentlength>{len(self.content)}</d:getcontentlength>'
+                  f'<d:current-user-privilege-set><d:privilege><d:all/></d:privilege></d:current-user-privilege-set>'
                   f'<d:getetag>"{self.version}"</d:getetag>'
                   f'<d:getlastmodified>Mon, 01 Jan 2024 00:00:00 GMT</d:getlastmodified>'
                   f'<d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status>'
@@ -150,7 +151,9 @@ def main():
         f.offline=True
         assert 'error' in upload(f.source,before)
         f.offline=False
-        after=upload(f.source,before)['result']['revision']
+        uploaded=upload(f.source,before)
+        assert 'result' in uploaded, uploaded
+        after=uploaded['result']['revision']
         assert after!=before and f.content==f.source
         assert 'error' in upload(f.source,before)
         assert not f.files and not f.streams and not f.pending

@@ -38,7 +38,7 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
                 crate::i18n::t(
                     "Everything ES 查询失败，请确认 Everything 正在运行且 es.exe 位于 PATH：{0}",
                 ),
-                &[("0", format!("{}", output.stderr))],
+                &[("0", output.stderr)],
             )));
         }
         for line in output.stdout.lines() {

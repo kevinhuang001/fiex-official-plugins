@@ -85,7 +85,10 @@ mod tests {
     use super::*;
     #[test]
     fn read_only_share_and_parent_delete_rights() {
-        assert_eq!(operations(1, 0, false, false), vec![FsOperation::Stat, FsOperation::Read]);
+        assert_eq!(
+            operations(1, 0, false, false),
+            vec![FsOperation::Stat, FsOperation::Read]
+        );
         assert!(!operations(0x10003, 0, false, false).contains(&FsOperation::Rename));
         assert!(operations(1, 0x42, false, false).contains(&FsOperation::Rename));
         assert!(!operations(u32::MAX, u32::MAX, true, true).contains(&FsOperation::Remove));

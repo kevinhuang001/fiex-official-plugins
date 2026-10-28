@@ -14,6 +14,27 @@ env:
   PYTHONUTF8: '1'
   PYTHONIOENCODING: utf-8
 jobs:
+  format:
+    name: Format all Rust plugins and example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check all crates before long platform builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
+            cargo fmt --manifest-path "official/$slug/Cargo.toml" --check || status=1
+          done
+          cargo fmt --manifest-path example/hello/Cargo.toml --check || status=1
+          exit "$status"
+
   ui:
     name: Standalone plugin panels
     runs-on: ubuntu-latest
@@ -45,7 +66,7 @@ jobs:
           path: official/*/ui/dist
 
   build:
-    needs: ui
+    needs: [ui, format]
     name: Plugin build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 80

@@ -81,6 +81,9 @@ import { localizeDocument } from "../../../support/ui/dom";
             })
             if (!value.html) {
               content.innerHTML = `<p class="hint">${t("文档没有可提取的内容。")}</p>`
+              // Nothing to render still counts as the preview being ready;
+              // otherwise the Core loading document would cover this hint.
+              ready()
               return
             }
             const documentView = document.createElement('div')

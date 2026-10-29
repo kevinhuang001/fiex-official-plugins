@@ -7,7 +7,6 @@ import "./style.css";
 type Settings = {
   fontFamily?: string;
   fontSize?: number;
-  foreground?: string;
 };
 type ThemeSnapshot = {
   mode?: "light" | "dark";
@@ -44,28 +43,53 @@ const invoke = <T>(method: string, params: Record<string, unknown>) =>
   client.invoke<T>("plugin.invoke", { method, params });
 
 /**
- * Terminal colors follow the host theme by default. A per-plugin text color
- * overrides only the foreground; the background always belongs to the theme so
- * the full-height view stays part of the window in both light and dark mode.
+ * Terminal colors belong to the host theme: chrome colors come from the theme
+ * tokens, and the fixed 16-color ANSI palette comes from the host tokens when
+ * present (Core forwards `--terminal-ansi-*`) or this panel's stylesheet
+ * otherwise. There is no per-plugin color setting to keep in sync.
  */
 function applyTheme(snapshot: ThemeSnapshot | null) {
   const tokens = snapshot?.tokens || {};
-  const dark = snapshot?.mode === "dark";
+  const dark = snapshot
+    ? snapshot.mode === "dark"
+    : matchMedia("(prefers-color-scheme: dark)").matches;
   const background = tokens.surface || tokens.canvas || (dark ? "#141820" : "#ffffff");
-  const foreground = settings.foreground || tokens.text || (dark ? "#e6edf3" : "#1f2328");
+  const foreground = tokens.text || (dark ? "#e6edf3" : "#1f2328");
   const cursor = tokens.accent || foreground;
   const selection = tokens.selected || tokens.accent || foreground;
+  document.documentElement.classList.toggle("dark", dark);
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
   document.documentElement.style.setProperty("--terminal-bg", background);
   document.documentElement.style.setProperty("--terminal-fg", foreground);
   document.documentElement.style.setProperty("--terminal-muted", tokens.muted || foreground);
   document.documentElement.style.setProperty("--terminal-line", tokens.line || "transparent");
+  const style = getComputedStyle(document.documentElement);
+  const ansi = (name: string) =>
+    tokens[`terminal-ansi-${name}`]?.trim() ||
+    style.getPropertyValue(`--terminal-ansi-${name}`).trim() ||
+    undefined;
   terminal.options.theme = {
     background,
     foreground,
     cursor,
     cursorAccent: background,
     selectionBackground: selection,
+    black: ansi("black"),
+    red: ansi("red"),
+    green: ansi("green"),
+    yellow: ansi("yellow"),
+    blue: ansi("blue"),
+    magenta: ansi("magenta"),
+    cyan: ansi("cyan"),
+    white: ansi("white"),
+    brightBlack: ansi("bright-black"),
+    brightRed: ansi("bright-red"),
+    brightGreen: ansi("bright-green"),
+    brightYellow: ansi("bright-yellow"),
+    brightBlue: ansi("bright-blue"),
+    brightMagenta: ansi("bright-magenta"),
+    brightCyan: ansi("bright-cyan"),
+    brightWhite: ansi("bright-white"),
   };
   const family = settings.fontFamily?.trim() || tokens["font-family"] || "Menlo, Consolas, monospace";
   const size = Math.min(32, Math.max(10, Number(settings.fontSize) || 14));

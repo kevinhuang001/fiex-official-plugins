@@ -89,8 +89,7 @@ pub(crate) fn render_pdf_pages(
     extension: &str,
     limit: usize,
 ) -> Result<Value, RpcError> {
-    let (ir, format, _, _) = parse_limited(bytes, extension, limit)?;
-    crate::pdf::images(&ir, format, limit)
+    crate::pdf::images(&bytes, extension, limit)
 }
 
 pub(crate) fn render(bytes: Vec<u8>, extension: &str, limit: usize) -> Result<Value, RpcError> {

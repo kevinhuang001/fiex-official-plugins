@@ -1,110 +1,61 @@
-//! Plugin-owned Office preview rendering.
+//! Plugin-owned Office-to-PDF preview.
 //!
-//! `office_oxide` parses the document into its HTML representation, `printpdf`'s
-//! HTML layout engine turns that into PDF pages, and `hayro` rasterizes only the
-//! requested first pages for the plugin viewer. Core never sees the document or
-//! the PDF bytes.
+//! `office2pdf` converts DOCX/PPTX into a real PDF using pure Rust. The plugin
+//! then rasterizes only the requested first pages with `hayro` for its own
+//! viewer. Core never parses the document or renders the PDF.
 use base64::Engine;
 use fiex_plugin_sdk::RpcError;
 use hayro::hayro_interpret::InterpreterSettings;
 use hayro::hayro_syntax::Pdf;
 use hayro::vello_cpu::color::palette::css::WHITE;
 use hayro::{render as render_page, PixmapSettings, RenderCache, RenderSettings};
-use office_oxide::ir::DocumentIR;
-use office_oxide::DocumentFormat;
-use printpdf::*;
-use std::collections::BTreeMap;
+use office2pdf::config::{ConvertOptions, Format, SlideRange};
+use office2pdf::pdf_ops::{self, PageRange};
 
-const FONT: &[u8] = include_bytes!("../assets/NotoSansSC-Subset.otf");
 const MAX_PDF: usize = 32 * 1024 * 1024;
+const MAX_ENCODED: usize = 2_500_000;
 
-fn page_size(ir: &DocumentIR, format: DocumentFormat) -> (f32, f32) {
-    if let Some(page) = ir
-        .sections
-        .first()
-        .and_then(|section| section.page_setup.as_ref())
-    {
-        return (
-            page.width_twips as f32 * 25.4 / 1440.0,
-            page.height_twips as f32 * 25.4 / 1440.0,
-        );
-    }
-    if format == DocumentFormat::Pptx {
-        (338.7, 190.5)
-    } else {
-        (210.0, 297.0)
-    }
+fn format(extension: &str) -> Result<Format, RpcError> {
+    Format::from_extension(extension)
+        .ok_or_else(|| RpcError::invalid_params("only docx and pptx can be converted to PDF"))
 }
 
-fn html(ir: &DocumentIR) -> String {
-    format!(
-        "<style>
-         html,body{{margin:0;padding:0;font-family:'Noto Sans SC',sans-serif;font-size:11pt;line-height:1.5;color:#1d2430}}
-         h1{{font-size:20pt;line-height:1.25;margin:14pt 0 8pt}}
-         h2{{font-size:15pt;line-height:1.3;margin:13pt 0 7pt}}
-         h3{{font-size:13pt;line-height:1.35;margin:11pt 0 6pt}}
-         p{{margin:0 0 7pt}}
-         ul,ol{{margin:0 0 8pt;padding-left:20pt}}
-         li{{margin:2pt 0}}
-         table{{border-collapse:collapse;width:100%;margin:6pt 0 10pt;font-size:9.5pt}}
-         th,td{{border:1px solid #c8d0da;padding:4pt 6pt;text-align:left;vertical-align:top}}
-         th{{background:#f1f4f8;font-weight:600}}
-         img{{max-width:100%;height:auto}}
-         hr{{border:0;border-top:1px solid #c8d0da;margin:12pt 0}}
-         </style>{}",
-        ir.to_html()
-    )
-}
-
-/// Generate a real PDF document containing at most `limit` pages.
-pub(crate) fn render(
-    ir: &DocumentIR,
-    format: DocumentFormat,
-    limit: usize,
-) -> Result<Vec<u8>, RpcError> {
-    let limit = limit.clamp(1, 30);
-    let (width, height) = page_size(ir, format);
-    let mut fonts = BTreeMap::new();
-    fonts.insert("Noto Sans SC".to_string(), Base64OrRaw::Raw(FONT.to_vec()));
-    let options = GeneratePdfOptions {
-        page_width: Some(width),
-        page_height: Some(height),
-        margin_top: Some(14.0),
-        margin_bottom: Some(14.0),
-        margin_left: Some(16.0),
-        margin_right: Some(16.0),
-        font_embedding: Some(true),
-        ..Default::default()
-    };
-    let mut warnings = Vec::new();
-    let mut document =
-        PdfDocument::from_html(&html(ir), &BTreeMap::new(), &fonts, &options, &mut warnings)
-            .map_err(|error| {
-                RpcError::internal(format!("cannot lay out Office preview: {error}"))
-            })?;
-    if document.pages.is_empty() {
-        return Err(RpcError::internal("Office preview produced no pages"));
+/// Convert the document and keep at most `limit` PDF pages.
+fn convert(bytes: &[u8], extension: &str, limit: usize) -> Result<Vec<u8>, RpcError> {
+    let format = format(extension)?;
+    let limit = limit.clamp(1, 30) as u32;
+    let mut options = ConvertOptions::default();
+    if format == Format::Pptx {
+        options.slide_range = Some(SlideRange::new(1, limit));
     }
-    if document.pages.len() > limit {
-        document.pages.truncate(limit);
+    let result = office2pdf::convert_bytes(bytes, format, &options)
+        .map_err(|error| RpcError::internal(format!("Office conversion failed: {error}")))?;
+    let mut pdf = result.pdf;
+    if format == Format::Docx {
+        let pages = pdf_ops::page_count(&pdf)
+            .map_err(|error| RpcError::internal(format!("cannot count PDF pages: {error}")))?;
+        if pages > limit {
+            let mut parts = pdf_ops::split(&pdf, &[PageRange::new(1, limit)])
+                .map_err(|error| RpcError::internal(format!("cannot trim PDF pages: {error}")))?;
+            pdf = parts
+                .pop()
+                .ok_or_else(|| RpcError::internal("cannot trim PDF pages"))?;
+        }
     }
-    let mut save_warnings = Vec::new();
-    let bytes = document.save(&PdfSaveOptions::default(), &mut save_warnings);
-    if bytes.len() > MAX_PDF {
+    if pdf.len() > MAX_PDF {
         return Err(RpcError::internal("generated PDF is too large"));
     }
-    Ok(bytes)
+    Ok(pdf)
 }
 
-/// Render the requested pages to PNG images for the plugin-owned viewer.
+/// Render the requested PDF pages to PNG images for the plugin-owned viewer.
 pub(crate) fn images(
-    ir: &DocumentIR,
-    format: DocumentFormat,
+    bytes: &[u8],
+    extension: &str,
     limit: usize,
 ) -> Result<serde_json::Value, RpcError> {
-    const MAX_ENCODED: usize = 2_500_000;
-    let bytes = render(ir, format, limit)?;
-    let pdf = Pdf::new(bytes).map_err(|error| RpcError::internal(format!("{error:?}")))?;
+    let pdf_bytes = convert(bytes, extension, limit)?;
+    let pdf = Pdf::new(pdf_bytes).map_err(|error| RpcError::internal(format!("{error:?}")))?;
     let cache = RenderCache::new();
     let settings = InterpreterSettings::default();
     let render_settings = RenderSettings::default();

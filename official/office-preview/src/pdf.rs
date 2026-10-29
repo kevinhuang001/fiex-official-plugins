@@ -66,14 +66,16 @@ pub(crate) fn render(
     let (width, height) = page_size(ir, format);
     let mut fonts = BTreeMap::new();
     fonts.insert("Noto Sans SC".to_string(), Base64OrRaw::Raw(FONT.to_vec()));
-    let mut options = GeneratePdfOptions::default();
-    options.page_width = Some(width);
-    options.page_height = Some(height);
-    options.margin_top = Some(14.0);
-    options.margin_bottom = Some(14.0);
-    options.margin_left = Some(16.0);
-    options.margin_right = Some(16.0);
-    options.font_embedding = Some(true);
+    let options = GeneratePdfOptions {
+        page_width: Some(width),
+        page_height: Some(height),
+        margin_top: Some(14.0),
+        margin_bottom: Some(14.0),
+        margin_left: Some(16.0),
+        margin_right: Some(16.0),
+        font_embedding: Some(true),
+        ..Default::default()
+    };
     let mut warnings = Vec::new();
     let mut document =
         PdfDocument::from_html(&html(ir), &BTreeMap::new(), &fonts, &options, &mut warnings)

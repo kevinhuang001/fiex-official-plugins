@@ -14,7 +14,7 @@ use office_oxide::ir::{Element, InlineContent, List, Section, Table};
 use office_oxide::{DocumentFormat, DocumentIR};
 use printpdf::*;
 
-const FONT: &[u8] = include_bytes!("../assets/DroidSansFallbackFull.ttf");
+const FONT: &[u8] = include_bytes!("../assets/NotoSansSC-Subset.otf");
 const MAX_PDF: usize = 32 * 1024 * 1024;
 const TWIP_MM: f32 = 25.4 / 1440.0;
 const POINT_MM: f32 = 25.4 / 72.0;

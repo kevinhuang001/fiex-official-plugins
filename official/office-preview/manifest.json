@@ -65,7 +65,7 @@
   "extensions": {
     "preview": {
       "priority": 100,
-      "maxBytes": 33554432,
+      "maxBytes": 536870912,
       "match": {
         "extensions": [
           "docx",

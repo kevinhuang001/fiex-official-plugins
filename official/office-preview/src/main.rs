@@ -14,6 +14,7 @@ mod resources;
 mod sanitize;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};
+use std::io::Read;
 use serde_json::Value;
 use std::sync::{Mutex, OnceLock};
 
@@ -72,10 +73,17 @@ fn pdf_pages(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result
             "PDF pages are only used for docx/pptx",
         ));
     }
-    let bytes = ctx
+    let mut file = ctx
         .files()
-        .read(&target.reference)
+        .open_read(&target.reference)
         .map_err(|error| RpcError::internal(error.to_string()))?;
+    let mut bytes = Vec::new();
+    std::io::Read::take(&mut file, 256 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    if bytes.len() > 256 * 1024 * 1024 {
+        return Err(RpcError::invalid_params("Office file is too large"));
+    }
     render::render_pdf_pages(bytes, &extension, page_limit(ctx)?)
 }
 

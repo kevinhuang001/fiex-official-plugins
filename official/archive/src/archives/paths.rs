@@ -72,9 +72,13 @@ pub(crate) fn entry_ref(
             .child(&current, name)
             .map_err(|error| error.to_string())?;
         if directory || index + 1 < components.len() {
-            files
-                .create_dir(&current)
-                .map_err(|error| error.to_string())?;
+            match files.metadata(&current) {
+                Ok(metadata) if metadata.kind == "directory" => {}
+                Ok(_) => return Err(crate::i18n::t("压缩包包含不安全路径").into()),
+                Err(_) => files
+                    .create_dir(&current)
+                    .map_err(|error| error.to_string())?,
+            }
         }
     }
     Ok(current)

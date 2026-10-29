@@ -109,6 +109,9 @@
           "tbz2",
           "xz",
           "txz"
+        ],
+        "requiredOps": [
+          "read"
         ]
       }
     },
@@ -126,6 +129,9 @@
           "tbz2",
           "xz",
           "txz"
+        ],
+        "requiredOps": [
+          "read"
         ]
       },
       "loading": {
@@ -146,6 +152,9 @@
           "tbz2",
           "xz",
           "txz"
+        ],
+        "requiredOps": [
+          "read"
         ]
       }
     },

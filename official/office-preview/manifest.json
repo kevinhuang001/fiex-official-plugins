@@ -71,6 +71,9 @@
           "docx",
           "xlsx",
           "pptx"
+        ],
+        "requiredOps": [
+          "read"
         ]
       },
       "loading": {
@@ -84,6 +87,9 @@
           "docx",
           "xlsx",
           "pptx"
+        ],
+        "requiredOps": [
+          "read"
         ]
       }
     },

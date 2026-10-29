@@ -436,4 +436,4 @@ jobs:
             echo "$FIEX_RELEASE_TAG is already published; do not overwrite packages."
             exit 0
           fi
-          gh release create "$FIEX_RELEASE_TAG" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$FIEX_RELEASE_TAG" --notes "Protocol-5 official plugins for Fiex Core v0.7.5 and SDK v0.1.1. Typed Provider APIs, scoped resource refs, plugin-owned SSH PluginView, SDK Tokio transport and real-host integration checks. Installation and permission approval are required."
+          gh release create "$FIEX_RELEASE_TAG" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$FIEX_RELEASE_TAG" --notes-file RELEASE.md

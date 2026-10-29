@@ -80,6 +80,9 @@
           "feather",
           "ipc",
           "avro"
+        ],
+        "requiredOps": [
+          "read"
         ]
       },
       "loading": {
@@ -102,6 +105,9 @@
           "feather",
           "ipc",
           "avro"
+        ],
+        "requiredOps": [
+          "read"
         ]
       }
     }

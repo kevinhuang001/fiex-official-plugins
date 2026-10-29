@@ -27,7 +27,7 @@ pub(crate) fn sources(
         if ignore.is_ignored(name) {
             return Ok(());
         }
-        if out.len() >= MAX_ENTRIES {
+        if out.len() >= MAX_ENTRIES || name.components().count() > 128 {
             return Err(crate::i18n::t("文件数量超过限制").into());
         }
         let meta = files.metadata(path).map_err(err)?;

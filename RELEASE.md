@@ -9,7 +9,8 @@ operation. Archive menus use content capabilities and file kind, never source or
 mount identity; extraction reuses existing directories and rejects a file where
 a directory is needed. Compression bounds both entry count and traversal depth.
 
-Core integration covers installed plugin processes and network fixtures. Physical
+Core integration covers installed plugin processes and network fixtures. Google Drive now reports independent server capabilities and creates new files
+through resumable upload; existing writes retain revision/ETag protection. Physical
 USB hotplug and external drag/drop still require supported-platform validation.
 
 # Previous plugin release notes

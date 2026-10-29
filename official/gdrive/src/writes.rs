@@ -1,4 +1,5 @@
 use super::*;
+mod session;
 use sdk::filesystem::{FsEntry, FsRequest, FsWrite};
 use std::{
     io,
@@ -23,6 +24,8 @@ struct Upload {
     sent: u64,
     pending: Vec<u8>,
     failure: Option<String>,
+    creating: bool,
+    completed: Option<Value>,
 }
 
 fn check_version(
@@ -49,20 +52,20 @@ fn send(
     sent: u64,
     chunk: &[u8],
     final_chunk: bool,
-) -> Result<(), RpcError> {
+) -> Result<Option<Value>, RpcError> {
     let len = chunk.len() as u64;
     let range = if size == 0 {
         "bytes */0".to_string()
     } else {
         format!("bytes {}-{}/{}", sent, sent + len - 1, size)
     };
-    let response = http_request(http, token, "PUT", url)
+    let mut request = http_request(http, token, "PUT", url)
         .header("Content-Type", "application/octet-stream")
-        .header("Content-Range", range)
-        .header("If-Match", etag)
-        .body(chunk)
-        .send()
-        .map_err(error)?;
+        .header("Content-Range", range);
+    if !etag.is_empty() {
+        request = request.header("If-Match", etag);
+    }
+    let response = request.body(chunk).send().map_err(error)?;
     if final_chunk {
         if !(200..300).contains(&response.status) {
             return Err(error(format!("Drive commit HTTP {}", response.status)));
@@ -70,7 +73,10 @@ fn send(
     } else if response.status != 308 {
         return Err(error(format!("Drive upload HTTP {}", response.status)));
     }
-    Ok(())
+    if final_chunk {
+        return response.json::<Value>().map(Some).map_err(error);
+    }
+    Ok(None)
 }
 
 fn io_failure(message: impl Into<String>) -> io::Error {
@@ -127,7 +133,7 @@ impl Upload {
 
     fn flush_chunk(&mut self, final_chunk: bool) -> Result<(), RpcError> {
         let chunk = std::mem::take(&mut self.pending);
-        send(
+        let completed = send(
             &self.http,
             &self.token,
             &self.url,
@@ -137,6 +143,9 @@ impl Upload {
             &chunk,
             final_chunk,
         )?;
+        if final_chunk {
+            self.completed = completed;
+        }
         self.sent += chunk.len() as u64;
         Ok(())
     }
@@ -148,14 +157,22 @@ impl Upload {
         if self.sent + self.pending.len() as u64 != self.size {
             return Err(error("upload source size changed"));
         }
-        check_version(
-            &self.http,
-            &self.token,
-            &self.node,
-            &self.revision,
-            &self.etag,
-        )?;
+        if !self.creating {
+            check_version(
+                &self.http,
+                &self.token,
+                &self.node,
+                &self.revision,
+                &self.etag,
+            )?;
+        }
         self.flush_chunk(true)?;
+        if let Some(file) = self.completed.filter(|file| file["id"].is_string()) {
+            return Ok(entry(&file));
+        }
+        if self.creating {
+            return Err(error("Drive create response omitted file identity"));
+        }
         let (file, _) = metadata(&self.http, &self.token, &self.node)?;
         Ok(entry(&file))
     }
@@ -190,56 +207,18 @@ pub(super) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
         .connection()
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
     let size = request.size().ok_or_else(|| error("missing size"))?;
-    let id = request
-        .node_id()
-        .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?;
-    node(id)?;
-    let revision = request
-        .if_revision()
-        .ok_or_else(|| RpcError::invalid_params("missing ifRevision"))?;
     let http = ctx.http();
     let token = token(&http, cfg)?;
-    let (file, etag) = metadata(&http, &token, id)?;
-    if file["version"].as_str() != Some(revision) {
-        return Err(error(crate::i18n::t("同步冲突：云端版本已改变")));
-    }
-    if etag.is_empty() {
-        return Err(error(
-            "Drive did not return an ETag; refusing unsafe overwrite",
-        ));
-    }
-    if file["capabilities"]["canEdit"] != true {
-        return Err(error("Drive file is read-only"));
-    }
-    let response = http_request(
-        &http,
-        &token,
-        "PATCH",
-        &format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=resumable&supportsAllDrives=true"),
-    )
-    .header("If-Match", &etag)
-    .header("X-Upload-Content-Length", size.to_string())
-    .header("X-Upload-Content-Type", "application/octet-stream")
-    .header("Content-Type", "application/json")
-    .body("{}")
-    .send()
-    .and_then(|r| r.error_for_status())
-    .map_err(error)?;
-    let url = response
-        .headers
-        .get("location")
-        .ok_or_else(|| error("missing session URL"))?
-        .clone();
-    if !url.starts_with("https://www.googleapis.com/upload/drive/") {
-        return Err(error("invalid upload session host"));
-    }
+    let started = session::start(request, &http, &token, size)?;
     let upload = Arc::new(Mutex::new(Some(Upload {
         http,
         token,
-        node: id.to_string(),
-        url,
-        revision: revision.to_string(),
-        etag,
+        node: started.id,
+        url: started.url,
+        revision: started.revision,
+        etag: started.etag,
+        creating: started.creating,
+        completed: None,
         size,
         sent: 0,
         pending: Vec::with_capacity(CHUNK),

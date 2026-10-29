@@ -37,7 +37,7 @@ class Fixture:
         # caught here instead of only in the app.
         self.request = None
         self.tasks = set()
-        self.call('plugin.initialize', {'protocolVersion':'5.0'})
+        self.call('plugin.initialize', {'protocolVersion':'6.0'})
 
     def authorize(self, p):
         authorization = p.get('authorization') or {}
@@ -84,16 +84,16 @@ class Fixture:
         if method == 'host.task.finish':
             self.tasks.discard(p['taskId'])
             return None
-        if method == 'host.fs.openRead':
+        if method == 'fs.openRead':
             assert p['ref'] == SOURCE_REF
             self.readers['source-reader'] = self.source
             return {'handle':'source-reader','size':len(self.source)}
-        if method == 'host.fs.readOpen':
+        if method == 'fs.readOpen':
             assert p['handle'] in self.readers
             data = self.readers[p['handle']]
             chunk = data[p['offset']:p['offset']+p['length']]
             return {'base64':base64.b64encode(chunk).decode(),'size':len(chunk),'eof':p['offset']+len(chunk)>=len(data)}
-        if method == 'host.fs.closeRead':
+        if method == 'fs.closeRead':
             self.readers.pop(p['handle'], None)
             return None
         if method == 'host.buffer.create':
@@ -124,8 +124,10 @@ class Fixture:
             body = json.dumps(tokens).encode()
         elif '/about?' in url:
             body = b'{"user":{"displayName":"fixture"}}'
+        elif '/files/root?' in url:
+            body = json.dumps({'id':'root','name':'My Drive','mimeType':'application/vnd.google-apps.folder','capabilities':{'canListChildren':True,'canAddChildren':True}}).encode()
         elif '/files?q=' in url:
-            body = json.dumps({'files':[{'id':'file1','name':'data.bin','mimeType':'application/octet-stream','size':str(len(self.content)),'version':self.version}]}).encode()
+            body = json.dumps({'files':[{'id':'file1','name':'data.bin','mimeType':'application/octet-stream','size':str(len(self.content)),'version':self.version,'capabilities':{'canDownload':True,'canModifyContent':getattr(self,'can_modify',True),'canRename':True,'canDelete':True}}]}).encode()
         elif 'alt=media' in url:
             if 'Range' in p['headers']:
                 value = p['headers']['Range'].removeprefix('bytes=')
@@ -142,7 +144,13 @@ class Fixture:
             self.content = b''
             self.version = str(int(self.version)+1)
         elif 'uploadType=resumable' in url:
-            assert p['headers']['If-Match'] == f'"{self.version}"'
+            self.creating = p['method'] == 'POST'
+            if self.creating:
+                data = json.loads(base64.b64decode(p['bodyBase64']))
+                assert data['name'] == 'new.bin' and data['parents'] == ['root']
+                assert 'If-Match' not in p['headers']
+            else:
+                assert p['headers']['If-Match'] == f'"{self.version}"'
             headers['location'] = 'https://www.googleapis.com/upload/drive/session1'
             self.uploaded = bytearray()
             if self.change_before_commit:
@@ -156,13 +164,14 @@ class Fixture:
             if len(self.uploaded) == total:
                 self.content = bytes(self.uploaded)
                 self.version = str(int(self.version)+1)
+                body = json.dumps({'id':'file2' if getattr(self,'creating',False) else 'file1','name':'new.bin','mimeType':'application/octet-stream','size':str(len(self.content)),'version':self.version,'capabilities':{'canDownload':True,'canModifyContent':True}}).encode()
             else:
                 status = 308
                 headers['range'] = f'bytes=0-{len(self.uploaded)-1}'
         else:
             assert '/files/file1?' in url, url
             headers['etag'] = f'"{self.version}"'
-            body = json.dumps({'id':'file1','size':str(len(self.content)),'mimeType':'application/octet-stream','version':self.version,'capabilities':{'canEdit':True}}).encode()
+            body = json.dumps({'id':'file1','size':str(len(self.content)),'mimeType':'application/octet-stream','version':self.version,'capabilities':{'canEdit':True,'canModifyContent':getattr(self,'can_modify',True),'canDownload':True,'canRename':True,'canDelete':True}}).encode()
         stream = f'http-{len(self.streams)}'
         self.streams[stream] = body
         return {'stream':stream,'status':status,'headers':headers}
@@ -201,6 +210,11 @@ def main():
         assert 'error' in denied and 'result' not in denied
         f.oauth_denied = False
 
+        f.can_modify = False
+        operations = call('vfs.discover',nodeId='file1')['result']['operations']
+        assert 'read' in operations and 'write' not in operations
+        assert 'error' in call('vfs.beginWrite',nodeId='file1',size=1,ifRevision='1')
+        f.can_modify = True
         entries = call('vfs.list',nodeId='',cursor='0')['result']['entries']
         assert entries[0]['nodeId'] == 'file1' and entries[0]['revision'] == '1'
         stream = call('vfs.openRead',nodeId='file1')['result']['streamId']
@@ -238,6 +252,12 @@ def main():
         f.source = b''
         assert upload(f.source,'3')['result']['revision'] == '4'
         assert f.content == b''
+        opened = call('vfs.beginWrite',parentId='',name='new.bin',size=3)
+        stream = opened['result']['streamId']
+        call('vfs.writeStream',streamId=stream,offset=0,base64=base64.b64encode(b'new').decode())
+        created = call('vfs.commit',streamId=stream)
+        assert created['result']['nodeId'] == 'file2', created
+        assert f.content == b'new'
         assert not f.readers
         assert not f.streams
         print('PASS Drive ranges, offline retry, bounded upload, stale revisions and commit conflicts')

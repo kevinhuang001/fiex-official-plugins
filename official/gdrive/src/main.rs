@@ -1,6 +1,7 @@
 //! Google Drive v3 adapter. All HTTP goes through Core's authorized network
 //! transport; the plugin has no filesystem, subprocess or socket permission.
 mod auth;
+mod discovery;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod mutate;
@@ -9,12 +10,13 @@ mod writes;
 use auth::token;
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
     RpcError,
 };
 use serde_json::{json, Value};
 
 const API: &str = "https://www.googleapis.com/drive/v3";
+const FILE_FIELDS: &str = "id,name,mimeType,size,version,trashed,capabilities(canEdit,canModifyContent,canDownload,canListChildren,canAddChildren,canRename,canDelete)";
 
 fn error(e: impl std::fmt::Display) -> RpcError {
     RpcError::internal(e.to_string())
@@ -49,8 +51,18 @@ fn http_request(
 }
 
 fn metadata(http: &sdk::HttpClient, token: &str, id: &str) -> Result<(Value, String), RpcError> {
-    let response = http_request(http, token, "GET", &format!("{API}/files/{}?fields=id,name,mimeType,size,version,trashed,capabilities(canEdit)&supportsAllDrives=true", node(id)?))
-        .send().and_then(|r| r.error_for_status()).map_err(error)?;
+    let response = http_request(
+        http,
+        token,
+        "GET",
+        &format!(
+            "{API}/files/{}?fields={FILE_FIELDS}&supportsAllDrives=true",
+            node(id)?
+        ),
+    )
+    .send()
+    .and_then(|r| r.error_for_status())
+    .map_err(error)?;
     let etag = response.headers.get("etag").cloned().unwrap_or_default();
     let value: Value = response.json().map_err(error)?;
     if value["trashed"].as_bool() == Some(true) {
@@ -74,6 +86,7 @@ fn entry(file: &Value) -> FsEntry {
     } else {
         FsEntry::file(id, name.clone())
     };
+    entry.allowed_ops = Some(discovery::operations(file, false));
     entry.size = Some(size);
     entry.modified = Some(0);
     entry.revision = file["version"].as_str().map(str::to_owned);
@@ -88,16 +101,22 @@ fn entry(file: &Value) -> FsEntry {
 
 struct Drive;
 
-impl FSProvider for Drive {
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+impl VfsProvider for Drive {
+    fn discover(
+        &self,
+        ctx: &sdk::RequestContext,
+    ) -> Result<Vec<sdk::filesystem::FsOperation>, RpcError> {
+        discovery::discover(ctx)
+    }
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] {
         &[
-            sdk::filesystem::FsOp::List,
-            sdk::filesystem::FsOp::Stat,
-            sdk::filesystem::FsOp::Read,
-            sdk::filesystem::FsOp::Write,
-            sdk::filesystem::FsOp::Mkdir,
-            sdk::filesystem::FsOp::Rename,
-            sdk::filesystem::FsOp::Remove,
+            sdk::filesystem::FsOperation::List,
+            sdk::filesystem::FsOperation::Stat,
+            sdk::filesystem::FsOperation::Read,
+            sdk::filesystem::FsOperation::Write,
+            sdk::filesystem::FsOperation::Mkdir,
+            sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Remove,
         ]
     }
 

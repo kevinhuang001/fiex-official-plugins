@@ -210,5 +210,25 @@
   "Windows 11 视觉主题": {
     "en": "Windows 11 visual theme",
     "zh-TW": "Windows 11 視覺主題"
+  },
+  "终端字体": {
+    "en": "Terminal font",
+    "zh-TW": "終端字體"
+  },
+  "终端字号": {
+    "en": "Terminal font size",
+    "zh-TW": "終端字號"
+  },
+  "字体颜色": {
+    "en": "Text color",
+    "zh-TW": "字體顏色"
+  },
+  "留空跟随系统主题字体": {
+    "en": "Leave blank to follow the system theme font",
+    "zh-TW": "留空跟隨系統主題字體"
+  },
+  "留空跟随主题": {
+    "en": "Leave blank to follow the theme",
+    "zh-TW": "留空跟隨主題"
   }
 }

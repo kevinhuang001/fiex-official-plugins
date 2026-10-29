@@ -179,6 +179,24 @@ fn before_open(
     }
 }
 fn archive_menu(params: &Value) -> Value {
+    // Source semantics and capabilities alone decide applicability. A
+    // launch-only object or unreadable file cannot be archived.
+    let readable = params["targets"].as_array().is_some_and(|targets| {
+        !targets.is_empty()
+            && targets.iter().all(|target| {
+                let metadata = &target["metadata"];
+                let operation = if metadata["kind"] == "directory" {
+                    "list"
+                } else {
+                    "read"
+                };
+                metadata["kind"] != "symlink" && metadata["operations"][operation] == true
+            })
+    });
+    if !readable {
+        return json!({"items":[]});
+    }
+
     let parent = params.get("parentId").and_then(Value::as_str);
     if let Some(parent) = parent {
         if parent != "archive.compress" {
@@ -406,7 +424,7 @@ mod context_menu_tests {
 
     #[test]
     fn compression_options_are_resolved_only_after_expanding() {
-        let targets = json!({"targets":[{"metadata":{"name":"notes.txt"}}]});
+        let targets = json!({"targets":[{"metadata":{"name":"notes.txt","kind":"file","operations":{"read":true}}}]});
         let root = archive_menu(&targets);
         let items = root["items"].as_array().unwrap();
         assert_eq!(items.len(), 1);
@@ -420,6 +438,26 @@ mod context_menu_tests {
         assert!(items.len() >= 2);
         assert!(items.iter().all(|item| item.get("parentId").is_none()));
         assert!(items.iter().any(|item| item["id"] == "archive.zip"));
+    }
+
+    #[test]
+    fn menus_require_content_capabilities_without_source_predicates() {
+        for metadata in [
+            json!({"name":"system.zip","kind":"file","operations":{"stat":true,"read":false}}),
+            json!({"name":"link.zip","kind":"symlink","operations":{"read":true}}),
+            json!({"name":"opaque.zip","kind":"file"}),
+        ] {
+            assert!(
+                archive_menu(&json!({"targets":[{"metadata":metadata}]}))["items"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        let root = archive_menu(
+            &json!({"targets":[{"metadata":{"name":"folder","kind":"directory","operations":{"list":true}}}]}),
+        );
+        assert_eq!(root["items"][0]["id"], "archive.compress");
     }
 
     #[test]
@@ -443,7 +481,9 @@ mod context_menu_tests {
 
     #[test]
     fn extracting_archive_stays_a_single_action() {
-        let root = archive_menu(&json!({"targets":[{"metadata":{"name":"sample.zip"}}]}));
+        let root = archive_menu(
+            &json!({"targets":[{"metadata":{"name":"sample.zip","kind":"file","operations":{"read":true}}}]}),
+        );
         assert_eq!(root["items"][0]["id"], "archive.extract");
         assert_eq!(root["items"].as_array().unwrap().len(), 1);
         assert!(archive_menu(&json!({"targets":[]}))["items"]
@@ -484,9 +524,6 @@ impl sdk::DecorationProvider for Archive {
                 };
                 let entry = serde_json::to_value(metadata)
                     .map_err(|e| RpcError::internal(e.to_string()))?;
-                let Some(name) = entry.get("name").and_then(Value::as_str) else {
-                    continue;
-                };
                 if entry["kind"] == "directory" {
                     continue;
                 }
@@ -506,7 +543,7 @@ impl sdk::DecorationProvider for Archive {
                     _ => continue,
                 };
                 decorations.push(json!({
-                    "name": name,
+                    "ref": target.reference,
                     "badge": {"text": label, "color": "neutral", "tooltip": crate::i18n::t("压缩包")}
                 }));
             }

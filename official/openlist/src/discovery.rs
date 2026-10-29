@@ -2,10 +2,13 @@ use crate::{
     client::{self, Session},
     fs,
 };
-use fiex_plugin_sdk::{self as sdk, filesystem::FsOp, RpcError};
+use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use serde_json::{json, Value};
 
-pub fn discover(ctx: &sdk::RequestContext, session: &Session) -> Result<Vec<FsOp>, RpcError> {
+pub fn discover(
+    ctx: &sdk::RequestContext,
+    session: &Session,
+) -> Result<Vec<FsOperation>, RpcError> {
     let cfg = client::config(ctx.params().get("connection"))?;
     let node = ctx.params()["nodeId"]
         .as_str()
@@ -40,8 +43,8 @@ pub fn discover(ctx: &sdk::RequestContext, session: &Session) -> Result<Vec<FsOp
     let user = client::current_user(ctx, &cfg, session)?;
     Ok(operations(&user, &listing["data"]))
 }
-fn operations(user: &Value, directory: &Value) -> Vec<FsOp> {
-    let mut ops = vec![FsOp::List, FsOp::Stat, FsOp::Read];
+fn operations(user: &Value, directory: &Value) -> Vec<FsOperation> {
+    let mut ops = vec![FsOperation::List, FsOperation::Stat, FsOperation::Read];
     if directory["write"].as_bool() != Some(true) {
         return ops;
     }
@@ -49,14 +52,14 @@ fn operations(user: &Value, directory: &Value) -> Vec<FsOp> {
     let permission = user["permission"].as_u64().unwrap_or(0);
     let has = |bit| admin || permission & (1u64 << bit) != 0u64;
     if has(3) || directory["write_content_bypass"].as_bool() == Some(true) {
-        ops.extend([FsOp::Write, FsOp::Mkdir]);
+        ops.extend([FsOperation::Write, FsOperation::Mkdir]);
     }
     // rename also implements cross-directory moves; require both bits.
     if has(4) && has(5) {
-        ops.push(FsOp::Rename);
+        ops.push(FsOperation::Rename);
     }
     if has(7) {
-        ops.push(FsOp::Remove);
+        ops.push(FsOperation::Remove);
     }
     ops
 }
@@ -66,12 +69,12 @@ mod tests {
     #[test]
     fn user_bits_and_path_gate_are_intersected() {
         let admin = json!({"role":2});
-        assert!(!operations(&admin, &json!({"write":false})).contains(&FsOp::Write));
-        assert!(operations(&admin, &json!({"write":true})).contains(&FsOp::Remove));
+        assert!(!operations(&admin, &json!({"write":false})).contains(&FsOperation::Write));
+        assert!(operations(&admin, &json!({"write":true})).contains(&FsOperation::Remove));
         let uploader = json!({"permission":8});
         let ops = operations(&uploader, &json!({"write":true}));
-        assert!(ops.contains(&FsOp::Mkdir));
-        assert!(!ops.contains(&FsOp::Rename));
-        assert!(!ops.contains(&FsOp::Remove));
+        assert!(ops.contains(&FsOperation::Mkdir));
+        assert!(!ops.contains(&FsOperation::Rename));
+        assert!(!ops.contains(&FsOperation::Remove));
     }
 }

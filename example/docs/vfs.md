@@ -15,7 +15,7 @@ Core 调 vfs.list / vfs.stat / vfs.search / vfs.openRead/readStream/closeRead
 插件返回节点、revision、内容
 ```
 
-协议 5 只有一套 `FSProvider`：连接挂载和独立视图使用相同的方法、
+协议 6 的存储提供者使用 `VfsProvider`：连接挂载和独立视图使用相同的方法、
 DTO 和流语义，差别只在请求携带的身份块（`connection` 或
 `contributionId`/`viewContext`）。
 
@@ -34,14 +34,14 @@ DTO 和流语义，差别只在请求携带的身份块（`connection` 或
 ```rust
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest},
+    filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest},
     RpcError,
 };
 
 struct ExampleFs;
 
-impl FSProvider for ExampleFs {
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] { &[sdk::filesystem::FsOp::List, sdk::filesystem::FsOp::Stat, sdk::filesystem::FsOp::Read, sdk::filesystem::FsOp::Search] }
+impl VfsProvider for ExampleFs {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] { &[sdk::filesystem::FsOperation::List, sdk::filesystem::FsOperation::Stat, sdk::filesystem::FsOperation::Read, sdk::filesystem::FsOperation::Search] }
 
     fn list(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         Ok(FsListing::new([
@@ -72,7 +72,7 @@ impl FSProvider for ExampleFs {
 能力必须由 `operations()` 显式报告；`discover(ctx)` 可以按服务器权限进一步收窄。
 只读插件仅报告读取相关操作。
 
-普通 SDK 分发器按 `FSProvider::operations()` 与 `discover(ctx)` 的交集调用方法，SDK 自动管理
+普通 SDK 分发器按 `VfsProvider::operations()` 与 `discover(ctx)` 的交集调用方法，SDK 自动管理
 `vfs.openRead/readStream/closeRead` 的 offset、分块和 `vfs.closeRead`，以及
 `vfs.beginWrite/writeStream/commit/abort` 的顺序写入。不要手写 stream ID 表。
 

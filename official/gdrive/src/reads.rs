@@ -21,7 +21,7 @@ pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         .and_then(Value::as_u64)
         .unwrap_or(500)
         .clamp(1, 500);
-    let url = format!("{API}/files?q={}&fields=nextPageToken,files(id,name,mimeType,size,version,capabilities(canEdit))&pageSize={limit}&pageToken={}&supportsAllDrives=true&includeItemsFromAllDrives=true",
+    let url = format!("{API}/files?q={}&fields=nextPageToken,files({FILE_FIELDS})&pageSize={limit}&pageToken={}&supportsAllDrives=true&includeItemsFromAllDrives=true",
         urlencoding::encode(&query), urlencoding::encode(cursor));
     let page: Value = http_request(&ctx.http(), &token, "GET", &url)
         .send()

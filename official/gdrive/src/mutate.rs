@@ -3,7 +3,7 @@ use sdk::filesystem::{FsEntry, FsRequest};
 use serde_json::{json, Map};
 
 const FOLDER: &str = "application/vnd.google-apps.folder";
-const FIELDS: &str = "id,name,mimeType,size,version,trashed,capabilities(canEdit)";
+const FIELDS: &str = FILE_FIELDS;
 
 fn valid_name(name: &str) -> Result<(), RpcError> {
     if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', ':', '\0']) {

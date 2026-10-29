@@ -7,6 +7,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   SCCACHE_GHA_ENABLED: 'true'
   SCCACHE_CACHE_SIZE: '10G'
@@ -14,6 +17,27 @@ env:
   PYTHONUTF8: '1'
   PYTHONIOENCODING: utf-8
 jobs:
+  format:
+    name: Format all Rust plugins and example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check all crates before long platform builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
+            cargo fmt --manifest-path "official/$slug/Cargo.toml" --check || status=1
+          done
+          cargo fmt --manifest-path example/hello/Cargo.toml --check || status=1
+          exit "$status"
+
   ui:
     name: Standalone plugin panels
     runs-on: ubuntu-latest
@@ -45,7 +69,7 @@ jobs:
           path: official/*/ui/dist
 
   build:
-    needs: ui
+    needs: [ui, format]
     name: Plugin build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 80
@@ -59,7 +83,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             platform: windows-x86_64
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
             platform: macos-aarch64
     steps:
@@ -152,7 +176,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 599f8fa93708ff61367a9f1c4a3bc18533b878d4
+          ref: refactor/unified-fs-broker
           path: core
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -181,11 +205,11 @@ jobs:
           mkdir -p "$FIEX_PLUGIN_DIR"
           python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64
           for id in org.fiex.ssh org.fiex.git org.fiex.webdav org.fiex.gdrive org.fiex.smb org.fiex.openlist org.fiex.office-preview org.fiex.data-preview org.fiex.archive org.fiex.checksum org.fiex.gpg org.fiex.email; do
-            cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_smoke -- "$id"
+            cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --features usbfs --example plugin_smoke -- "$id"
           done
           # Every declared panel must resolve through the real host, including
           # the advanced-compression panel nested in a context submenu.
-          cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
+          cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --features usbfs --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
           cargo run --manifest-path integration/Cargo.toml --example plugin_connection_view_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
           cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
@@ -239,7 +263,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kevinhuang001/fiex
-          ref: 599f8fa93708ff61367a9f1c4a3bc18533b878d4
+          ref: refactor/unified-fs-broker
           path: core
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk
@@ -412,4 +436,4 @@ jobs:
             echo "$FIEX_RELEASE_TAG is already published; do not overwrite packages."
             exit 0
           fi
-          gh release create "$FIEX_RELEASE_TAG" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$FIEX_RELEASE_TAG" --notes "Protocol-5 official plugins for Fiex Core v0.7.5 and SDK v0.1.1. Typed Provider APIs, scoped resource refs, plugin-owned SSH PluginView, SDK Tokio transport and real-host integration checks. Installation and permission approval are required."
+          gh release create "$FIEX_RELEASE_TAG" dist/plugins/*.fiexplugin dist/plugins/fiex-catalog.json dist/plugins/plugin-descriptions.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$FIEX_RELEASE_TAG" --notes-file RELEASE.md

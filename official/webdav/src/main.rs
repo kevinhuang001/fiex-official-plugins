@@ -8,28 +8,28 @@ mod i18n;
 
 use fiex_plugin_sdk::{
     self as sdk,
-    filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest, FsWrite},
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
 };
 
 struct WebDav;
 
-impl FSProvider for WebDav {
+impl VfsProvider for WebDav {
     fn discover(
         &self,
         ctx: &sdk::RequestContext,
-    ) -> Result<Vec<sdk::filesystem::FsOp>, sdk::RpcError> {
+    ) -> Result<Vec<sdk::filesystem::FsOperation>, sdk::RpcError> {
         discovery::discover(ctx)
     }
 
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] {
         &[
-            sdk::filesystem::FsOp::List,
-            sdk::filesystem::FsOp::Stat,
-            sdk::filesystem::FsOp::Read,
-            sdk::filesystem::FsOp::Write,
-            sdk::filesystem::FsOp::Mkdir,
-            sdk::filesystem::FsOp::Rename,
-            sdk::filesystem::FsOp::Remove,
+            sdk::filesystem::FsOperation::List,
+            sdk::filesystem::FsOperation::Stat,
+            sdk::filesystem::FsOperation::Read,
+            sdk::filesystem::FsOperation::Write,
+            sdk::filesystem::FsOperation::Mkdir,
+            sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Remove,
         ]
     }
 

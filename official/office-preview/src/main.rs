@@ -14,8 +14,8 @@ mod resources;
 mod sanitize;
 
 use fiex_plugin_sdk::{self as sdk, RpcError};
-use std::io::Read;
 use serde_json::Value;
+use std::io::Read;
 use std::sync::{Mutex, OnceLock};
 
 fn cache() -> &'static Mutex<Option<(String, Value)>> {

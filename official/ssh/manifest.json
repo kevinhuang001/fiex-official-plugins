@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.ssh",
   "name": "SSH",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。",
   "icon": "terminal",
   "author": {
@@ -72,7 +72,28 @@
           "type": "secret"
         }
       ]
-    }
+    },
+    "settings": [
+      {
+        "id": "fontFamily",
+        "label": "终端字体",
+        "type": "font",
+        "placeholder": "留空跟随系统主题字体"
+      },
+      {
+        "id": "fontSize",
+        "label": "终端字号",
+        "type": "number",
+        "defaultValue": 14,
+        "placeholder": "14"
+      },
+      {
+        "id": "foreground",
+        "label": "字体颜色",
+        "type": "color",
+        "placeholder": "留空跟随主题"
+      }
+    ]
   },
   "locales": {
     "en": {
@@ -83,7 +104,12 @@
       "私钥内容（可选）": "Private key (optional)",
       "私钥口令（可选）": "Private key passphrase (optional)",
       "端口": "Port",
-      "终端类型": "Terminal type"
+      "终端类型": "Terminal type",
+      "终端字体": "Terminal font",
+      "终端字号": "Terminal font size",
+      "字体颜色": "Text color",
+      "留空跟随系统主题字体": "Leave blank to follow the system theme font",
+      "留空跟随主题": "Leave blank to follow the theme"
     },
     "zh-TW": {
       "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。": "SSH 連線外掛：透過 SDK TCP Broker 建立連線，在獨立 PluginView 中顯示終端機。",
@@ -93,7 +119,12 @@
       "私钥内容（可选）": "私鑰內容（選填）",
       "私钥口令（可选）": "私鑰密碼（選填）",
       "端口": "連接埠",
-      "终端类型": "終端機類型"
+      "终端类型": "終端機類型",
+      "终端字体": "終端字體",
+      "终端字号": "終端字號",
+      "字体颜色": "字體顏色",
+      "留空跟随系统主题字体": "留空跟隨系統主題字體",
+      "留空跟随主题": "留空跟隨主題"
     }
   }
 }

@@ -4,6 +4,16 @@ import { client, i18n, t, ready } from "../../../../support/ui/i18n";
 import "@xterm/xterm/css/xterm.css";
 import "./style.css";
 
+type Settings = {
+  fontFamily?: string;
+  fontSize?: number;
+  foreground?: string;
+};
+type ThemeSnapshot = {
+  mode?: "light" | "dark";
+  tokens?: Record<string, string>;
+};
+
 const root = document.getElementById("root")!;
 const status = document.createElement("div");
 status.role = "status";
@@ -28,7 +38,42 @@ terminal.open(host);
 let sessionId = "";
 let stopped = false;
 let pending: number[] = [];
+let settings: Settings = {};
 const encoder = new TextEncoder();
+const invoke = <T>(method: string, params: Record<string, unknown>) =>
+  client.invoke<T>("plugin.invoke", { method, params });
+
+/**
+ * Terminal colors follow the host theme by default. A per-plugin text color
+ * overrides only the foreground; the background always belongs to the theme so
+ * the full-height view stays part of the window in both light and dark mode.
+ */
+function applyTheme(snapshot: ThemeSnapshot | null) {
+  const tokens = snapshot?.tokens || {};
+  const dark = snapshot?.mode === "dark";
+  const background = tokens.surface || tokens.canvas || (dark ? "#141820" : "#ffffff");
+  const foreground = settings.foreground || tokens.text || (dark ? "#e6edf3" : "#1f2328");
+  const cursor = tokens.accent || foreground;
+  const selection = tokens.selected || tokens.accent || foreground;
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  document.documentElement.style.setProperty("--terminal-bg", background);
+  document.documentElement.style.setProperty("--terminal-fg", foreground);
+  document.documentElement.style.setProperty("--terminal-muted", tokens.muted || foreground);
+  document.documentElement.style.setProperty("--terminal-line", tokens.line || "transparent");
+  terminal.options.theme = {
+    background,
+    foreground,
+    cursor,
+    cursorAccent: background,
+    selectionBackground: selection,
+  };
+  const family = settings.fontFamily?.trim() || tokens["font-family"] || "Menlo, Consolas, monospace";
+  const size = Math.min(32, Math.max(10, Number(settings.fontSize) || 14));
+  terminal.options.fontFamily = family;
+  terminal.options.fontSize = size;
+  if (host.clientWidth && host.clientHeight) fit.fit();
+}
+
 const input = terminal.onData((text) => {
   const bytes = Array.from(encoder.encode(text));
   if (pending.length + bytes.length <= 65536) pending.push(...bytes);
@@ -37,8 +82,6 @@ const resize = new ResizeObserver(() => {
   if (host.clientWidth && host.clientHeight) fit.fit();
 });
 resize.observe(host);
-const invoke = <T>(method: string, params: Record<string, unknown>) =>
-  client.invoke<T>("plugin.invoke", { method, params });
 function close() {
   if (stopped) return;
   stopped = true;
@@ -48,10 +91,12 @@ function close() {
   terminal.dispose();
 }
 window.addEventListener("pagehide", close, { once: true });
-async function run() {
-  const context = await client.invoke<{ state?: { sessionId?: string } }>(
-    "context.get",
-  );
+type ConnectionContext = {
+  state?: { sessionId?: string };
+  settings?: Settings;
+};
+async function run(initial?: ConnectionContext) {
+  const context = initial ?? (await client.invoke<ConnectionContext>("context.get"));
   sessionId = context.state?.sessionId || "";
   if (!sessionId) throw new Error(t("请从连接中打开 SSH"));
   if (stopped) {
@@ -82,12 +127,9 @@ async function run() {
     });
     if (stopped) return;
     if (value.dataBase64)
-      terminal.write(
-        Uint8Array.from(atob(value.dataBase64), (char) => char.charCodeAt(0)),
-      );
+      terminal.write(Uint8Array.from(atob(value.dataBase64), (char) => char.charCodeAt(0)));
     statusSource =
-      value.error ||
-      (value.ended ? "已断开连接" : value.ready ? "" : "正在连接…");
+      value.error || (value.ended ? "已断开连接" : value.ready ? "" : "正在连接…");
     paintStatus();
     if (value.ended) {
       await invoke("ssh.close", { sessionId });
@@ -96,8 +138,19 @@ async function run() {
     await new Promise((resolve) => setTimeout(resolve, 24));
   }
 }
-void ready.then(run).catch((error) => {
-  statusSource = String(error);
-  paintStatus();
-  if (sessionId) void invoke("ssh.close", { sessionId }).catch(() => {});
-});
+void ready
+  .then(async () => {
+    const [rawTheme, context] = await Promise.all([
+      client.theme.get().catch(() => null),
+      client.invoke<ConnectionContext>("context.get"),
+    ]);
+    settings = context.settings || {};
+    applyTheme(rawTheme as ThemeSnapshot | null);
+    client.theme.subscribe((next) => applyTheme(next as ThemeSnapshot));
+    await run(context);
+  })
+  .catch((error) => {
+    statusSource = String(error);
+    paintStatus();
+    if (sessionId) void invoke("ssh.close", { sessionId }).catch(() => {});
+  });

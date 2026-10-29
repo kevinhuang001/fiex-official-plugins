@@ -87,6 +87,8 @@ import { localizeDocument } from "../../../support/ui/dom";
         const status = document.getElementById('status')
         let requestTimeoutMs = 20000
         let allEntries = []
+        let path = null
+        let passwordValue = ''
         const expanded = new Set()
 
         const setToken = (tokens) => {

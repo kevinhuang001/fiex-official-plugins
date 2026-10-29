@@ -230,5 +230,9 @@
   "留空跟随主题": {
     "en": "Leave blank to follow the theme",
     "zh-TW": "留空跟隨主題"
+  },
+  "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": {
+    "en": "Read-only Word, Excel and PowerPoint preview. DOCX/PPTX are rendered to the first pages as PDF entirely inside the plugin with pure Rust, with no Office or external converter dependency.",
+    "zh-TW": "Word、Excel、PowerPoint 的唯讀預覽。Word/PowerPoint 由外掛內純 Rust 渲染為前幾頁 PDF，不依賴 Office 或外部轉換器。"
   }
 }

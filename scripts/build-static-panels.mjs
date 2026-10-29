@@ -7,7 +7,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 for (const [slug, entries] of [
   ["archive", ["preview.html", "loading.html"]],
   ["data-preview", ["index.html", "loading.html"]],
-  ["office-preview", ["index.html"]],
+  ["office-preview", ["index.html", "pdf.html"]],
 ]) {
   for (const entry of entries) {
     const ui = path.join(root, "official", slug, "ui");

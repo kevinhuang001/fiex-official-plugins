@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "id": "org.fiex.office-preview",
   "name": "Office 预览",
-  "version": "0.2.13",
-  "description": "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。",
+  "version": "0.3.0",
+  "description": "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。",
   "icon": "file-text",
   "author": {
     "name": "Fiex Contributors",
@@ -106,13 +106,13 @@
   "locales": {
     "en": {
       "Office 预览": "Office Preview",
-      "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": "Read-only Word, Excel and PowerPoint preview. Complex layouts are simplified.",
-      "预览页数": "Preview page limit"
+      "预览页数": "Preview page limit",
+      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Read-only Word, Excel and PowerPoint preview. DOCX/PPTX are rendered to the first pages as PDF entirely inside the plugin with pure Rust, with no Office or external converter dependency."
     },
     "zh-TW": {
       "Office 预览": "Office 預覽",
-      "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": "Word、Excel、PowerPoint 的唯讀預覽。文字層級渲染，複雜版面會簡化。",
-      "预览页数": "預覽頁數"
+      "预览页数": "預覽頁數",
+      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Word、Excel、PowerPoint 的唯讀預覽。Word/PowerPoint 由外掛內純 Rust 渲染為前幾頁 PDF，不依賴 Office 或外部轉換器。"
     }
   }
 }

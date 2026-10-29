@@ -7,6 +7,7 @@
 //! legacy `.doc/.xls/.ppt` remain out of scope.
 #[path = "../../../support/i18n.rs"]
 mod i18n;
+mod pdf;
 mod render;
 #[path = "../../../support/resources.rs"]
 mod resources;
@@ -20,11 +21,8 @@ fn cache() -> &'static Mutex<Option<(String, Value)>> {
     static CACHE: OnceLock<Mutex<Option<(String, Value)>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(None))
 }
-fn cached_render(
-    ctx: &sdk::RequestContext,
-    target: &sdk::ResourceContext,
-) -> Result<Value, RpcError> {
-    let pages = ctx
+fn page_limit(ctx: &sdk::RequestContext) -> Result<usize, RpcError> {
+    Ok(ctx
         .storage()
         .scoped("global")
         .get::<Value>("previewPages")?
@@ -34,7 +32,14 @@ fn cached_render(
                 .or_else(|| value.as_f64().map(|number| number as u64))
         })
         .unwrap_or(6)
-        .clamp(1, 30) as usize;
+        .clamp(1, 30) as usize)
+}
+
+fn cached_render(
+    ctx: &sdk::RequestContext,
+    target: &sdk::ResourceContext,
+) -> Result<Value, RpcError> {
+    let pages = page_limit(ctx)?;
     let metadata = ctx
         .files()
         .metadata(&target.reference)
@@ -58,6 +63,20 @@ fn cached_render(
         .lock()
         .map_err(|_| RpcError::internal("preview cache unavailable"))? = Some((key, value.clone()));
     Ok(value)
+}
+
+fn pdf_pages(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
+    let extension = render::extension(resources::name(target)?);
+    if extension != "docx" && extension != "pptx" {
+        return Err(RpcError::invalid_params(
+            "PDF pages are only used for docx/pptx",
+        ));
+    }
+    let bytes = ctx
+        .files()
+        .read(&target.reference)
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    render::render_pdf_pages(bytes, &extension, page_limit(ctx)?)
 }
 
 fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
@@ -86,6 +105,10 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             let target = resources::input(&ctx, "path")?;
             cached_render(&ctx, &target)
         }
+        "office.pdfPages" => {
+            let target = resources::input(&ctx, "path")?;
+            pdf_pages(&ctx, &target)
+        }
         _ => Err(RpcError::method_not_found(method)),
     }
 }
@@ -112,7 +135,12 @@ impl sdk::InfoProvider for Presentation {
     }
 }
 impl sdk::PreviewProvider for Presentation {
-    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+        let target = resources::input(ctx, "path")?;
+        let extension = render::extension(resources::name(&target)?);
+        if extension == "docx" || extension == "pptx" {
+            return Ok(sdk::PreviewView::html("ui/dist/pdf.html"));
+        }
         Ok(sdk::PreviewView::html("ui/dist/index.html"))
     }
 }

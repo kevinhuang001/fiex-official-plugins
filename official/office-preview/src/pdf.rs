@@ -230,7 +230,7 @@ impl Renderer {
                 number += 1;
                 value
             } else {
-                "• ".to_string()
+                "- ".to_string()
             };
             self.line(&marker, 11.0, indent, [0.12, 0.14, 0.18]);
             self.block(&item.content, indent + 5.0, depth + 1);

@@ -66,7 +66,23 @@
               root.append(page)
             }
             ready()
-          } catch (error) { fail(error) }
+          } catch (error) {
+            // A file can use features the PDF path cannot represent. Keep the
+            // preview usable by falling back to the plugin's HTML renderer.
+            try {
+              const context = await client.invoke('context.get')
+              const resource = context.targets?.[0]?.ref
+              const value = await client.invoke('plugin.invoke', {
+                method: 'office.render',
+                params: { path: resource },
+              })
+              if (!value.html) throw error
+              root.innerHTML = value.html
+              ready()
+            } catch {
+              fail(error)
+            }
+          }
         }
         void localeReady.then(start).catch(fail)
         i18n.subscribe(() => {})

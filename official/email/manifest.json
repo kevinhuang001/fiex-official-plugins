@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.email",
   "name": "Email",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "通过 IMAP/SMTP 连接邮箱，在 Fiex 中收发邮件。",
   "icon": "mail",
   "author": {

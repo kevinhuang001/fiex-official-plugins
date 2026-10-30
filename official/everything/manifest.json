@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.everything",
   "name": "Everything 搜索",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "description": "通过宿主调用 PATH 中的 ES 命令查询 Everything 索引；需要安装并运行 Everything 和 ES。",
   "icon": "magnifying-glass",
   "author": {
@@ -66,7 +66,9 @@
       "icon": "magnifying-glass",
       "scope": "local",
       "priority": 80,
-      "modes": ["name"]
+      "modes": [
+        "name"
+      ]
     }
   },
   "locales": {

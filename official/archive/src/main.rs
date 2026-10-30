@@ -145,7 +145,10 @@ fn before_open(
         )
         .map(|destination| json!({ "destination": destination }))
         .map_err(|error| {
-            let _ = task.report_error("archive.hook.extract", &hook_error_message(&error), None);
+            if error != archives::CANCELLED {
+                let _ =
+                    task.report_error("archive.hook.extract", &hook_error_message(&error), None);
+            }
             archive_error(error)
         })
     }) {
@@ -161,17 +164,23 @@ fn before_open(
             Ok(json!({ "handled": true }))
         }
         Err(error) => {
-            let _ = host.report_error("archive.hook.start", &error.message, None);
+            let _ = host.log(
+                "warn",
+                "Background extraction unavailable; trying inline extraction",
+            );
+            let _ = error;
             // The task registry is exhausted or unavailable. Extract inline so
             // the user's open is still consumed, then report any real failure.
             match hook_extract(path, &destination, password, &ignores, max_total, host) {
                 Ok(_) => Ok(json!({ "handled": true })),
                 Err(error) => {
-                    let _ = host.report_error(
-                        "archive.hook.extract",
-                        &hook_error_message(&error),
-                        None,
-                    );
+                    if error != archives::CANCELLED {
+                        let _ = host.report_error(
+                            "archive.hook.extract",
+                            &hook_error_message(&error),
+                            None,
+                        );
+                    }
                     Ok(json!({ "handled": true }))
                 }
             }
@@ -404,6 +413,7 @@ fn run_operation(
 }
 fn main() {
     if let Err(e) = sdk::Providers::new()
+        .diagnostics()
         .info(Archive)
         .preview(Archive)
         .decorations(Archive)
@@ -413,7 +423,7 @@ fn main() {
             run_operation(&ctx, ctx.params().clone(), ctx.method())
         })
     {
-        eprintln!("Archive plugin failed: {e}");
+        eprintln!("Archive plugin failed: transport closed ({:?})", e.kind());
         std::process::exit(1);
     }
 }

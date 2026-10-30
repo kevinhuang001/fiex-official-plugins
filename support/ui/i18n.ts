@@ -13,3 +13,14 @@ i18n.subscribe(() => {
 void ready.then(() => {
   document.documentElement.lang = getLocale();
 });
+
+// All native official backends register SDK diagnostics endpoints. There is no
+// direct Tauri/Host call, plugin identity parameter or second local log store.
+void ready.then(() => client.logs.write("debug", "Plugin UI ready")).catch(() => {});
+window.addEventListener("error", (event) => {
+  if (!event.error) return; // Resource download events have no render exception.
+  void client.errors.report(t("插件界面发生错误"), String(event.error));
+});
+window.addEventListener("unhandledrejection", (event) => {
+  void client.errors.report(t("插件界面操作未完成"), String(event.reason));
+});

@@ -155,7 +155,9 @@ async function run(initial?: ConnectionContext) {
     statusSource =
       value.error || (value.ended ? "已断开连接" : value.ready ? "" : "正在连接…");
     paintStatus();
+    if (value.error) await client.logs.write("warn", "SSH session failed");
     if (value.ended) {
+      await client.logs.write("info", "SSH session ended");
       await invoke("ssh.close", { sessionId });
       break;
     }
@@ -171,6 +173,7 @@ void ready
     settings = context.settings || {};
     applyTheme(rawTheme as ThemeSnapshot | null);
     client.theme.subscribe((next) => applyTheme(next as ThemeSnapshot));
+    await client.logs.write("info", "SSH session starting");
     await run(context);
   })
   .catch((error) => {

@@ -1501,7 +1501,7 @@ checksum = "629c9d6b6f30b5604089e0980f4d924a013aacb1654a6cdf5d3d852224f68651"
 
 [[package]]
 name = "fiex-plugin-archive"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "bzip2",
  "fiex-plugin-sdk",
@@ -1518,7 +1518,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-checksum"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "crc32fast",
  "fiex-plugin-sdk",
@@ -1532,7 +1532,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-data-preview"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "apache-avro",
  "arrow",
@@ -1548,7 +1548,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-email"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1562,7 +1562,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-everything"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "fiex-plugin-sdk",
  "mime_guess",
@@ -1573,7 +1573,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gdrive"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-git"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1596,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gpg"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "fiex-plugin-sdk",
  "serde_json",
@@ -1604,7 +1604,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-office-preview"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1616,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-openlist"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-webdav"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",

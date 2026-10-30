@@ -61,10 +61,11 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 }
 fn main() {
     if let Err(e) = sdk::Providers::new()
+        .diagnostics()
         .info(Presentation)
         .serve_with("org.fiex.checksum", run)
     {
-        eprintln!("Checksum plugin failed: {e}");
+        eprintln!("Checksum plugin failed: transport closed ({:?})", e.kind());
         std::process::exit(1);
     }
 }

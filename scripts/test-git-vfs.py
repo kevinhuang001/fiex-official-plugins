@@ -45,7 +45,9 @@ class Git:
             p = message.get('params', {})
             # File streams run under a background task so the host handles they
             # opened stay authorized past the `vfs.openRead` request.
-            if message['method'] == 'host.task.start':
+            if message['method'] in {'host.log.report', 'host.error.report'}:
+                value = None
+            elif message['method'] == 'host.task.start':
                 self.tasks.add(p['taskId'])
                 value = None
             elif message['method'] == 'host.task.finish':

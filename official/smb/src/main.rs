@@ -612,10 +612,16 @@ impl sdk::ConnectionProvider for Smb {
 }
 
 fn main() {
-    let providers = sdk::Providers::new().filesystem(Smb).connection(Smb);
+    let providers = sdk::Providers::new()
+        .diagnostics()
+        .filesystem(Smb)
+        .connection(Smb);
     let result = providers.serve("org.fiex.smb");
     if let Err(error) = result {
-        eprintln!("SMB plugin IPC failed: {error}");
+        eprintln!(
+            "SMB plugin IPC failed: transport closed ({:?})",
+            error.kind()
+        );
         std::process::exit(1);
     }
 }

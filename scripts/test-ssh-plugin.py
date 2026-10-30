@@ -107,6 +107,9 @@ def main():
             "params":{"connectionId":"ssh-test", "connection":{"host":args.host,"port":args.port,
             "username":args.user,"privateKey":Path(args.identity).read_text(encoding="utf-8")}}})
         view = receive(child.stdout)
+        while view.get("method") == "host.log.report":
+            reply(view["id"], None)
+            view = receive(child.stdout)
         assert view.get("result", {}).get("kind") == "pluginView", view
         state = view["result"]["state"]
         assert set(state) == {"sessionId"}, "credentials must never enter PluginView state"
@@ -156,10 +159,12 @@ def main():
                         exit_sent = True
                 continue
             task_id = params.get("authorization", {}).get("taskId")
-            if method != "host.task.start":
+            if method not in {"host.task.start", "host.log.report", "host.error.report"}:
                 assert task_id in tasks, ("expired or non-task authorization", message)
             result = None
-            if method == "host.task.start":
+            if method in {"host.log.report", "host.error.report"}:
+                pass
+            elif method == "host.task.start":
                 tasks.add(params["taskId"])
             elif method == "host.task.finish":
                 tasks.discard(task_id)

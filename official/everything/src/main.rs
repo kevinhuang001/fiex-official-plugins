@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 #[cfg(windows)]
 fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     if p.get("mode").and_then(Value::as_str).unwrap_or("name") != "name" {
-        return Err(RpcError::invalid_params("Everything only supports filename search"));
+        return Err(RpcError::invalid_params(
+            "Everything only supports filename search",
+        ));
     }
     let query = p.get("query").and_then(Value::as_str).unwrap_or("").trim();
     // Core now sends the search root as an opaque ref. The ES adapter must
@@ -86,10 +88,11 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 }
 fn main() {
     if let Err(e) = sdk::Providers::new()
+        .diagnostics()
         .search(Everything)
         .serve_with("org.fiex.everything", dispatch)
     {
-        eprintln!("Everything IPC failed: {e}");
+        eprintln!("Everything IPC failed: transport closed ({:?})", e.kind());
         std::process::exit(1);
     }
 }

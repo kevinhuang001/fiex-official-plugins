@@ -1,0 +1,49 @@
+name: Assemble platform plugins
+on:
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-panels
+          path: official
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-${{ inputs.target }}-*
+          path: binaries
+      - name: Assemble tested binaries and shared panels
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "target/$TARGET/release"
+          for shard in office data services; do
+            tar -xzf "binaries/native-$TARGET-$shard/native.tar.gz" -C "target/$TARGET/release"
+          done
+          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email vista win11; do
+            python scripts/package-fiex-plugin.py --slug "$slug" --target "$TARGET"
+          done
+          python scripts/test-catalog.py
+          python scripts/generate-catalog.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fiex-plugins-${{ inputs.target }}
+          if-no-files-found: error
+          compression-level: 0
+          path: |
+            dist/plugins/*.fiexplugin
+            dist/plugins/fiex-catalog.json
+            dist/plugins/plugin-descriptions.json

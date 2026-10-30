@@ -134,6 +134,18 @@ impl VfsProvider for GitView {
         ]
     }
 
+    fn search_capabilities(
+        &self,
+        _ctx: &sdk::RequestContext,
+    ) -> sdk::filesystem::SearchCapabilities {
+        // History search matches path names only; commit contents are never
+        // indexed.
+        sdk::filesystem::SearchCapabilities {
+            name: true,
+            content: false,
+        }
+    }
+
     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         list(request)
     }

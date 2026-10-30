@@ -270,27 +270,10 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn aria2_read(host: &sdk::RequestContext, cfg: &StoredConnection, path: &str) -> Option<FsRead> {
-    let mut request = host
-        .aria2()
-        .get(&client::webdav_url(cfg, path))
-        .timeout(std::time::Duration::from_secs(3600));
-    if cfg.allow_invalid_certs {
-        request = request.allow_invalid_certs(true);
-    }
-    if !cfg.username.is_empty() || !cfg.password.is_empty() {
-        use base64::{engine::general_purpose::STANDARD, Engine};
-        request = request.header(
-            "authorization",
-            format!(
-                "Basic {}",
-                STANDARD.encode(format!("{}:{}", cfg.username, cfg.password))
-            ),
-        );
-    }
-    request.send().ok().map(|reader| FsRead::new(reader, None))
-}
-
+// WebDAV does not expose a reliable length in openRead. Launching a
+// multi-connection staging engine for every document slows previews and small
+// reads. Use the host HTTP response stream directly until Core can supply a
+// trusted length for adaptive segmented downloads.
 pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let host = request.ctx();
     let cfg = connection(request)?;
@@ -298,9 +281,6 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .node_id()
         .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
     safe_relative(path)?;
-    if let Some(reader) = aria2_read(host, &cfg, path) {
-        return Ok(reader);
-    }
     let response = client::request(&host.http(), &cfg, "GET", &client::webdav_url(&cfg, path))
         .timeout(std::time::Duration::from_secs(3600))
         .send()

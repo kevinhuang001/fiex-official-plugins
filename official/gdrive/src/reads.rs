@@ -107,16 +107,20 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     // The SDK owns chunk offsets and seek-forward; a plain response body is the
     // read stream. Core never sees Drive paths, only the file ID.
     let media = format!("{API}/files/{id}?alt=media&supportsAllDrives=true");
-    let mut request = ctx
-        .aria2()
-        .get(&media)
-        .bearer_auth(&token)
-        .timeout(std::time::Duration::from_secs(300));
-    if let Some(size) = size {
-        request = request.size(size);
-    }
-    if let Ok(reader) = request.send() {
-        return Ok(FsRead::new(reader, size));
+    // Segmented downloads first stage into a host-owned temporary file.
+    // For ordinary documents and previews, direct HTTP streaming avoids the
+    // aria2 startup cost and the extra disk read/write cycle.
+    if let Some(size) = size.filter(|size| *size >= 32 * 1024 * 1024) {
+        if let Ok(reader) = ctx
+            .aria2()
+            .get(&media)
+            .bearer_auth(&token)
+            .size(size)
+            .timeout(std::time::Duration::from_secs(3600))
+            .send()
+        {
+            return Ok(FsRead::new(reader, Some(size)));
+        }
     }
     let response = http_request(&ctx.http(), &token, "GET", &media)
         .timeout(std::time::Duration::from_secs(3600))

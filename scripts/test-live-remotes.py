@@ -92,6 +92,26 @@ class Plugin:
             data=self.upload_source[params["offset"]:params["offset"]+params["length"]]
             return {"base64":base64.b64encode(data).decode(),"size":len(data),"eof":params["offset"]+len(data)>=len(self.upload_source)}
         if method == "fs.closeRead": return None
+        if method == "host.aria2.open":
+            url = params["url"]
+            assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}
+            assert 1 <= params["connections"] <= 16
+            assert 1 <= params["split"] <= 16
+            request = urllib.request.Request(url, headers=params.get("headers", {}))
+            response = urllib.request.urlopen(request, timeout=30)
+            self.next_resource += 1
+            key = "aria2-" + str(self.next_resource)
+            self.resources[key] = response
+            return {"streamId": key, "size": params.get("size")}
+        if method == "host.aria2.read":
+            resource = self.resources[params["streamId"]]
+            chunk = resource.read(min(params.get("size", 65536), 1024 * 1024))
+            return {"base64": base64.b64encode(chunk).decode("ascii"), "eof": not chunk}
+        if method == "host.aria2.close":
+            resource = self.resources.pop(params["streamId"], None)
+            if resource is not None:
+                resource.close()
+            return None
         if method == "host.net.http.open":
             url = params["url"]
             assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}

@@ -69,7 +69,7 @@ fn entry(node: &client::RemoteFile, node_id: String, fallback_name: &str) -> FsE
     } else {
         FsEntry::file(node_id, name)
     };
-    entry.size = Some(if node.is_dir { 0 } else { node.size });
+    entry.size = if node.is_dir { Some(0) } else { node.size };
     entry.modified = Some(node.modified as i64);
     entry.revision = strong_etag(&node.revision);
     if !node.is_dir {
@@ -270,27 +270,9 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn aria2_read(host: &sdk::RequestContext, cfg: &StoredConnection, path: &str) -> Option<FsRead> {
-    let mut request = host
-        .aria2()
-        .get(&client::webdav_url(cfg, path))
-        .timeout(std::time::Duration::from_secs(3600));
-    if cfg.allow_invalid_certs {
-        request = request.allow_invalid_certs(true);
-    }
-    if !cfg.username.is_empty() || !cfg.password.is_empty() {
-        use base64::{engine::general_purpose::STANDARD, Engine};
-        request = request.header(
-            "authorization",
-            format!(
-                "Basic {}",
-                STANDARD.encode(format!("{}:{}", cfg.username, cfg.password))
-            ),
-        );
-    }
-    request.send().ok().map(|reader| FsRead::new(reader, None))
-}
-
+// WebDAV exposes DAV:getcontentlength through PROPFIND. Reuse any Core size
+// hint first; otherwise attempt depth-0 stat. If the server omits a valid
+// length, Core safely starts a sequential aria2 transfer.
 pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let host = request.ctx();
     let cfg = connection(request)?;
@@ -298,24 +280,33 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .node_id()
         .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
     safe_relative(path)?;
-    if let Some(reader) = aria2_read(host, &cfg, path) {
-        return Ok(reader);
-    }
-    let response = client::request(&host.http(), &cfg, "GET", &client::webdav_url(&cfg, path))
+    let size = request.size().or_else(|| {
+        stat_http(&host.http(), &cfg, path)
+            .ok()
+            .and_then(|entry| entry.size)
+    });
+    let mut download = host
+        .aria2()
+        .get(&client::webdav_url(&cfg, path))
         .timeout(std::time::Duration::from_secs(3600))
-        .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status != 200 && response.status != 206 {
-        return Err(RpcError::internal(format!(
-            "WebDAV read HTTP {}",
-            response.status
-        )));
+        .allow_invalid_certs(cfg.allow_invalid_certs);
+    if !cfg.username.is_empty() || !cfg.password.is_empty() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        download = download.header(
+            "authorization",
+            format!(
+                "Basic {}",
+                STANDARD.encode(format!("{}:{}", cfg.username, cfg.password))
+            ),
+        );
     }
-    let size = response
-        .headers
-        .get("content-length")
-        .and_then(|value| value.parse::<u64>().ok());
-    Ok(FsRead::new(response, size))
+    if let Some(size) = size {
+        download = download.size(size);
+    }
+    let reader = download
+        .send()
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(FsRead::new(reader, size))
 }
 
 /// Strong-ETag HEAD used by conditional writes and the commit result.

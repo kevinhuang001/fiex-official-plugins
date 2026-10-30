@@ -57,7 +57,7 @@ fn raw_url(
     cfg: &Config,
     session: &Session,
     relative: &str,
-) -> Result<String, RpcError> {
+) -> Result<(String, Option<u64>), RpcError> {
     let parsed = client::authorized(
         host,
         cfg,
@@ -65,12 +65,14 @@ fn raw_url(
         "/api/fs/get",
         &json!({ "path": api_path(relative), "password": "" }),
     )?;
-    parsed
+    let url = parsed
         .pointer("/data/raw_url")
         .and_then(Value::as_str)
         .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
         .map(str::to_string)
-        .ok_or_else(|| RpcError::internal(crate::i18n::t("服务器未返回下载地址")))
+        .ok_or_else(|| RpcError::internal(crate::i18n::t("服务器未返回下载地址")))?;
+    let size = parsed.pointer("/data/size").and_then(Value::as_u64);
+    Ok((url, size))
 }
 
 /// Revision string used for `ifRevision`; changes with content or metadata.
@@ -257,25 +259,20 @@ pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead,
     if relative.is_empty() {
         return Err(RpcError::invalid_params("missing node ID"));
     }
-    let url = raw_url(host, &cfg, session, &relative)?;
-    if let Ok(reader) = host
+    let (url, size) = raw_url(host, &cfg, session, &relative)?;
+    // Core handles all parallelism and HTTP Range decisions. Unknown sizes
+    // naturally remain single-connection streams until metadata is available.
+    let mut download = host
         .aria2()
         .get(&url)
-        .timeout(std::time::Duration::from_secs(3600))
-        .send()
-    {
-        return Ok(FsRead::new(reader, None));
+        .timeout(std::time::Duration::from_secs(3600));
+    if let Some(size) = size {
+        download = download.size(size);
     }
-    let response = host
-        .http()
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(3600))
+    let reader = download
         .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status != 206 && response.status != 200 {
-        return Err(RpcError::internal("storage did not honor range"));
-    }
-    Ok(FsRead::new(response, None))
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(FsRead::new(reader, size))
 }
 
 /// RFC 3339 (openlist returns `2024-01-02T03:04:05Z`) to epoch seconds.

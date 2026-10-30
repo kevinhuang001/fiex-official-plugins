@@ -26,6 +26,8 @@ class Fixture:
         self.uploaded = bytearray()
         self.source = getattr(self, 'source', b'')
         self.readers = {}
+        self.aria2_streams = {}
+        self.aria2_downloads = 0
         self.change_before_commit = False
         self.offline = False
         self.oauth_calls = 0
@@ -108,8 +110,28 @@ class Fixture:
             part = body[:p['size']]
             self.streams[p['stream']] = body[len(part):]
             return {'base64':base64.b64encode(part).decode()}
-        if method.startswith('host.aria2.'):
-            raise RuntimeError('aria2 unavailable in fixture')
+        if method == 'host.aria2.open':
+            if self.offline:
+                raise RuntimeError('network disconnected')
+            url = p['url']
+            assert 'alt=media' in url or '/export?' in url or '/hello.txt' in url, url
+            assert 1 <= p['connections'] <= 16 and 1 <= p['split'] <= 16
+            assert p.get('size') is None or p['size'] == len(self.content)
+            if 'alt=media' in url:
+                assert p['headers'].get('authorization') == 'Bearer fixture-token'
+            key = f'aria2-{self.aria2_downloads}'
+            self.aria2_downloads += 1
+            self.aria2_streams[key] = self.content
+            return {'streamId': key, 'size': p.get('size')}
+        if method == 'host.aria2.read':
+            key = p['streamId']
+            data = self.aria2_streams[key]
+            chunk = data[:p['size']]
+            self.aria2_streams[key] = data[len(chunk):]
+            return {'base64': base64.b64encode(chunk).decode(), 'eof': not self.aria2_streams[key]}
+        if method == 'host.aria2.close':
+            self.aria2_streams.pop(p['streamId'], None)
+            return None
         assert method == 'host.net.http.open', method
         if self.offline:
             raise RuntimeError('network disconnected')
@@ -264,7 +286,9 @@ def main():
         assert f.content == b'new'
         assert not f.readers
         assert not f.streams
-        print('PASS Drive ranges, offline retry, bounded upload, stale revisions and commit conflicts')
+        assert not f.aria2_streams
+        assert f.aria2_downloads >= 1, 'binary media must use aria2'
+        print('PASS Drive aria2 downloads, offline retry, bounded upload, stale revisions and commit conflicts')
     finally:
         f.close()
 

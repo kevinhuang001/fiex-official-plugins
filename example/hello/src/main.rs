@@ -269,7 +269,8 @@ fn custom(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 }
 
 fn main() {
-    let providers = sdk::Providers::new().diagnostics()
+    let providers = sdk::Providers::new()
+        .diagnostics()
         .connection(HelloConnection)
         .filesystem(HelloFiles)
         .info(HelloInfo)

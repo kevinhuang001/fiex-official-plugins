@@ -69,7 +69,7 @@ fn entry(node: &client::RemoteFile, node_id: String, fallback_name: &str) -> FsE
     } else {
         FsEntry::file(node_id, name)
     };
-    entry.size = Some(if node.is_dir { 0 } else { node.size });
+    entry.size = if node.is_dir { Some(0) } else { node.size };
     entry.modified = Some(node.modified as i64);
     entry.revision = strong_etag(&node.revision);
     if !node.is_dir {
@@ -270,9 +270,9 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-// WebDAV openRead has no trustworthy content length. Core starts aria2 with
-// a sequential stream (without an extra HEAD request) rather than launching
-// optimistic parallel ranges for every small preview.
+// WebDAV exposes DAV:getcontentlength through PROPFIND. Reuse any Core size
+// hint first; otherwise attempt depth-0 stat. If the server omits a valid
+// length, Core safely starts a sequential aria2 transfer.
 pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let host = request.ctx();
     let cfg = connection(request)?;
@@ -280,6 +280,11 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .node_id()
         .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
     safe_relative(path)?;
+    let size = request.size().or_else(|| {
+        stat_http(&host.http(), &cfg, path)
+            .ok()
+            .and_then(|entry| entry.size)
+    });
     let mut download = host
         .aria2()
         .get(&client::webdav_url(&cfg, path))
@@ -295,10 +300,13 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
             ),
         );
     }
+    if let Some(size) = size {
+        download = download.size(size);
+    }
     let reader = download
         .send()
         .map_err(|error| RpcError::internal(error.to_string()))?;
-    Ok(FsRead::new(reader, None))
+    Ok(FsRead::new(reader, size))
 }
 
 /// Strong-ETag HEAD used by conditional writes and the commit result.

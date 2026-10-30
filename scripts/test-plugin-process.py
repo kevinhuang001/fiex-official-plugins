@@ -61,8 +61,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
     parser.add_argument("--binary-root", required=True)
+    parser.add_argument("--slugs", nargs="+", default=(
+        "ssh", "git", "webdav", "gdrive", "smb", "openlist", "office-preview",
+        "data-preview", "archive", "checksum", "everything", "gpg", "email"))
     args = parser.parse_args()
-    for slug in ("ssh","git","webdav","gdrive","smb","openlist","office-preview","data-preview","archive","checksum","everything","gpg","email"):
+    for slug in args.slugs:
         manifest = json.loads((Path("official") / slug / "manifest.json").read_text(encoding="utf-8"))
         entry = manifest.get("runtime", {}).get("entrypoints", {}).get(args.target)
         if not entry:

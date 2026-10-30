@@ -1,0 +1,124 @@
+name: Native plugin shard
+on:
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        required: true
+      target:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      shard:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  native:
+    name: ${{ inputs.target }} / ${{ inputs.shard }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 80
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "10G"
+      CARGO_INCREMENTAL: "0"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      TARGET: ${{ inputs.target }}
+      PLATFORM: ${{ inputs.platform }}
+      SHARD: ${{ inputs.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.target }}
+          components: clippy
+      - name: Configure sccache
+        id: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Enable compiler cache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Include the root workspace and its actual lockfile, not only Git.
+          workspaces: . -> target
+          key: official-${{ inputs.target }}-${{ inputs.shard }}
+          cache-all-crates: true
+          cache-on-failure: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Select disjoint plugin group
+        shell: bash
+        run: |
+          case "$SHARD" in
+            office) slugs='office-preview' ;;
+            data) slugs='data-preview' ;;
+            services) slugs='ssh git webdav gdrive smb openlist archive checksum everything gpg email' ;;
+            *) echo "Unknown shard: $SHARD" >&2; exit 1 ;;
+          esac
+          echo "SLUGS=$slugs" >> "$GITHUB_ENV"
+      - name: Plugin unit tests, Clippy and native release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for slug in $SLUGS; do
+            cargo test --manifest-path "official/$slug/Cargo.toml" --target "$TARGET"
+            cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "$TARGET" --all-targets -- -D warnings
+            cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "$TARGET"
+          done
+          if [ "$SHARD" = services ]; then
+            cargo clippy --manifest-path example/hello/Cargo.toml --target "$TARGET" -- -D warnings
+            cargo build --manifest-path example/hello/Cargo.toml --target "$TARGET"
+          fi
+      - name: Real process handshake, ping, errors and shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test-plugin-process.py --target "$PLATFORM" --binary-root "target/$TARGET/release" --slugs $SLUGS
+      - name: Service process regressions
+        if: inputs.shard == 'services'
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix=''
+          if [ "$RUNNER_OS" = Windows ]; then suffix='.exe'; fi
+          python scripts/test-git-vfs.py --binary "target/$TARGET/release/fiex-plugin-git$suffix"
+          python -m pip install --quiet paramiko==4.0.0
+          python scripts/test-ssh-regression.py --binary "target/$TARGET/release/fiex-plugin-ssh$suffix"
+          python scripts/test-gdrive.py --binary "target/$TARGET/release/fiex-plugin-gdrive$suffix"
+          for slug in webdav openlist; do
+            python scripts/test-connection-sync.py --kind "$slug" --binary "target/$TARGET/release/fiex-plugin-$slug$suffix"
+          done
+      - name: Archive verified binaries with executable permissions
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, tarfile
+          root = pathlib.Path('target') / os.environ['TARGET'] / 'release'
+          with tarfile.open(pathlib.Path(os.environ['RUNNER_TEMP']) / 'native.tar.gz', 'w:gz', compresslevel=1) as archive:
+              for slug in os.environ['SLUGS'].split():
+                  manifest = json.loads((pathlib.Path('official') / slug / 'manifest.json').read_text(encoding='utf-8'))
+                  entry = manifest.get('runtime', {}).get('entrypoints', {}).get(os.environ['PLATFORM'])
+                  if entry:
+                      assert pathlib.Path(entry).name == entry, entry
+                      archive.add(root / entry, arcname=entry)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ inputs.target }}-${{ inputs.shard }}
+          path: ${{ runner.temp }}/native.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+      - name: Compiler cache statistics
+        if: always() && steps.sccache.outcome == 'success'
+        shell: bash
+        run: sccache --show-stats

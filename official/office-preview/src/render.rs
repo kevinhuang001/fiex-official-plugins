@@ -58,7 +58,11 @@ fn limit_docx(ir: &mut DocumentIR, limit: usize) -> bool {
     false
 }
 
-pub(crate) fn render(bytes: Vec<u8>, extension: &str, limit: usize) -> Result<Value, RpcError> {
+fn parse_limited(
+    bytes: Vec<u8>,
+    extension: &str,
+    limit: usize,
+) -> Result<(DocumentIR, DocumentFormat, usize, bool), RpcError> {
     let format = format(extension)?;
     let document = Document::from_reader(Cursor::new(bytes), format).map_err(|error| {
         RpcError::internal(fiex_plugin_sdk::i18n::format(
@@ -77,6 +81,20 @@ pub(crate) fn render(bytes: Vec<u8>, extension: &str, limit: usize) -> Result<Va
     } else {
         false
     };
+    Ok((ir, format, total_sections, truncated))
+}
+
+pub(crate) fn render_pdf_pages(
+    bytes: Vec<u8>,
+    extension: &str,
+    limit: usize,
+) -> Result<Value, RpcError> {
+    crate::pdf::images(&bytes, extension, limit)
+}
+
+pub(crate) fn render(bytes: Vec<u8>, extension: &str, limit: usize) -> Result<Value, RpcError> {
+    let (ir, _format, total_sections, truncated) = parse_limited(bytes, extension, limit)?;
+    let limit = limit.max(1);
     let html = sanitize(&ir.to_html());
     if html.trim().is_empty() {
         return Ok(json!({
@@ -144,6 +162,20 @@ mod tests {
         assert!(!html.contains("下一步"), "{html}");
         assert_eq!(limited["truncated"], true);
         assert_eq!(limited["pages"], 1);
+    }
+
+    #[test]
+    fn renders_bounded_pdf_pages_as_png() {
+        use base64::Engine;
+        let value = render_pdf_pages(fixture("fixture.docx"), "docx", 1).unwrap();
+        let pages = value["pages"].as_array().unwrap();
+        assert_eq!(pages.len(), 1);
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(pages[0].as_str().unwrap())
+            .unwrap();
+        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        let limited = render_pdf_pages(fixture("fixture.pptx"), "pptx", 1).unwrap();
+        assert_eq!(limited["pages"].as_array().unwrap().len(), 1);
     }
 
     #[test]

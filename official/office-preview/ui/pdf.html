@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title data-i18n="Office 预览">Office 预览</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1d2430; --muted: #6b7684; --surface: #ffffff; --canvas: #f1f3f6;
+        --line: rgba(20, 30, 45, 0.12); --accent: #2f6fed;
+        font: 13px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; background: var(--canvas); color: var(--text); }
+      main { padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+      .page { width: min(100%, 900px); background: #fff; box-shadow: 0 2px 14px rgba(20,30,45,.14); }
+      .page img { display: block; width: 100%; height: auto; }
+      .hint { color: var(--muted); text-align: center; padding: 30px 0; }
+      .error { color: var(--danger, #b4443d); white-space: pre-wrap; text-align: center; padding: 30px 12px; }
+      .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 36px 0; }
+      .spinner { width: 18px; height: 18px; border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <main id="pages"><div class="hint loading"><span class="spinner" aria-hidden="true"></span><span data-i18n="正在解析文档…">正在解析文档…</span></div></main>
+    <script type="module">
+      import { client, i18n, t, ready as localeReady } from "../../../support/ui/i18n";
+      (() => {
+        const root = document.getElementById('pages')
+        let readySent = false
+        const ready = () => { if (!readySent) { readySent = true; void client.invoke('preview.ready').catch(() => {}) } }
+        const fail = (error) => {
+          root.innerHTML = ''
+          const p = document.createElement('p')
+          p.className = 'error'
+          p.textContent = String(error?.message || error)
+          root.append(p)
+          ready()
+        }
+        const start = async () => {
+          try {
+            const theme = await client.invoke('theme.get')
+            for (const [key, value] of Object.entries(theme?.tokens || {})) {
+              if (key !== 'mode' && value) document.documentElement.style.setProperty(`--${key}`, value)
+            }
+            const context = await client.invoke('context.get')
+            const resource = context.targets?.[0]?.ref
+            if (!resource) throw new Error(t('没有文件上下文'))
+            const value = await client.invoke('plugin.invoke', {
+              method: 'office.pdfPages',
+              params: { path: resource },
+            })
+            if (!Array.isArray(value.pages) || !value.pages.length) throw new Error(t('没有可显示的内容。'))
+            root.innerHTML = ''
+            for (const [index, png] of value.pages.entries()) {
+              const page = document.createElement('div')
+              page.className = 'page'
+              page.setAttribute('role', 'img')
+              page.setAttribute('aria-label', `${index + 1}`)
+              const image = document.createElement('img')
+              image.src = `data:image/png;base64,${png}`
+              image.alt = `${index + 1}`
+              page.append(image)
+              root.append(page)
+            }
+            ready()
+          } catch (error) {
+            // A file can use features the PDF path cannot represent. Keep the
+            // preview usable by falling back to the plugin's HTML renderer.
+            try {
+              const context = await client.invoke('context.get')
+              const resource = context.targets?.[0]?.ref
+              const value = await client.invoke('plugin.invoke', {
+                method: 'office.render',
+                params: { path: resource },
+              })
+              if (!value.html) throw error
+              root.innerHTML = value.html
+              ready()
+            } catch {
+              fail(error)
+            }
+          }
+        }
+        void localeReady.then(start).catch(fail)
+        i18n.subscribe(() => {})
+      })()
+    </script>
+  </body>
+</html>

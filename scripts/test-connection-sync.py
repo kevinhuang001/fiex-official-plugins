@@ -20,6 +20,8 @@ class Connection(module.Fixture):
         super().__init__(binary)
     def host(self,method,p):
         self.authorize(p)
+        if method.startswith('host.aria2.'):
+            raise RuntimeError('aria2 unavailable in fixture')
         if method=='host.net.http.open' and p.get('bodyStream'):
             if self.offline: raise RuntimeError('network disconnected')
             handle=f'body-{len(self.pending)}'

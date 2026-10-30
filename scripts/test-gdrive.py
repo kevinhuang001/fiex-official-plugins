@@ -108,6 +108,8 @@ class Fixture:
             part = body[:p['size']]
             self.streams[p['stream']] = body[len(part):]
             return {'base64':base64.b64encode(part).decode()}
+        if method.startswith('host.aria2.'):
+            raise RuntimeError('aria2 unavailable in fixture')
         assert method == 'host.net.http.open', method
         if self.offline:
             raise RuntimeError('network disconnected')

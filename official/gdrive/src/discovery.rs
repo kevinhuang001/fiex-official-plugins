@@ -36,11 +36,15 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
         if caps["canAddChildren"] == true {
             operations.extend([FsOperation::Write, FsOperation::Mkdir]);
         }
-    } else if !native {
-        if caps["canDownload"] == true {
+    } else {
+        let mime = file["mimeType"].as_str().unwrap_or("");
+        let native = mime.starts_with("application/vnd.google-apps.");
+        if caps["canDownload"] == true && (!native || super::reads::export_mime(mime).is_some()) {
             operations.push(FsOperation::Read);
         }
-        if caps["canModifyContent"] == true {
+        // Native Google editors are exported as PDF; their content cannot be
+        // written through the Drive file stream.
+        if !native && caps["canModifyContent"] == true {
             operations.push(FsOperation::Write);
         }
     }
@@ -70,12 +74,19 @@ mod tests {
         );
     }
     #[test]
-    fn folders_and_native_documents_do_not_claim_file_streams() {
+    fn native_documents_export_as_readable_files_without_write() {
         let folder = json!({"mimeType":"application/vnd.google-apps.folder","capabilities":{"canListChildren":true,"canAddChildren":true,"canDelete":true}});
         let ops = operations(&folder, true);
         assert!(ops.contains(&FsOperation::List) && ops.contains(&FsOperation::Mkdir));
         assert!(!ops.contains(&FsOperation::Read) && !ops.contains(&FsOperation::Remove));
         let document = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":true,"canModifyContent":true}});
-        assert_eq!(operations(&document, false), vec![FsOperation::Stat]);
+        assert_eq!(
+            operations(&document, false),
+            vec![FsOperation::Stat, FsOperation::Read]
+        );
+        let shortcut = json!({"mimeType":"application/vnd.google-apps.shortcut","capabilities":{"canDownload":true}});
+        assert_eq!(operations(&shortcut, false), vec![FsOperation::Stat]);
+        let blocked = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":false}});
+        assert_eq!(operations(&blocked, false), vec![FsOperation::Stat]);
     }
 }

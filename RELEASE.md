@@ -1,3 +1,7 @@
+# Fiex plugins 0.5.8
+
+- Google Drive native Docs, Sheets, Slides and Drawings are exported as PDF for preview and download. The editor document stays read-only in Fiex and is edited in Google's web apps.
+
 # Fiex plugins 0.5.5 — protocol 6
 
 Official storage plugins implement `VfsProvider` over `vfs.*`; Feature plugins use

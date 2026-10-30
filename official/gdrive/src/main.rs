@@ -86,15 +86,29 @@ fn entry(file: &Value) -> FsEntry {
     } else {
         FsEntry::file(id, name.clone())
     };
+    let mime = file["mimeType"].as_str().unwrap_or("");
+    let native = !directory
+        && mime.starts_with("application/vnd.google-apps.")
+        && reads::export_mime(mime).is_some();
     entry.allowed_ops = Some(discovery::operations(file, false));
     entry.size = Some(size);
     entry.modified = Some(0);
     entry.revision = file["version"].as_str().map(str::to_owned);
-    entry.mime = file["mimeType"].as_str().map(str::to_owned);
+    // Native editors are exported as PDF, so advertise the previewable format.
+    entry.mime = Some(if native {
+        "application/pdf".into()
+    } else {
+        mime.into()
+    });
     if !directory {
-        entry.extension = name
-            .rsplit_once('.')
-            .map(|(_, extension)| extension.to_string());
+        entry.extension = Some(if native {
+            "pdf".into()
+        } else {
+            name.rsplit_once('.')
+                .map(|(_, extension)| extension)
+                .unwrap_or_default()
+                .into()
+        });
     }
     entry
 }

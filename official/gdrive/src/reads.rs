@@ -68,13 +68,28 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
             .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?,
     )?;
     let (file, _) = metadata(&ctx.http(), &token, id)?;
-    if file["mimeType"]
+    if let Some(mime) = file["mimeType"]
         .as_str()
-        .is_some_and(|s| s.starts_with("application/vnd.google-apps."))
+        .filter(|value| value.starts_with("application/vnd.google-apps."))
     {
-        return Err(error(crate::i18n::t(
-            "Google 原生文档请在浏览器中编辑；离线文件同步支持普通文件",
-        )));
+        // Google editors have no binary stream. Export them to a format the
+        // built-in preview and download paths can read; the editor document is
+        // never modified.
+        let export = export_mime(mime)
+            .ok_or_else(|| error("this Google Drive item cannot be exported for reading"))?;
+        let response = http_request(
+            &ctx.http(),
+            &token,
+            "GET",
+            &format!(
+                "{API}/files/{id}/export?mimeType={}",
+                urlencoding::encode(export)
+            ),
+        )
+        .send()
+        .and_then(|r| r.error_for_status())
+        .map_err(error)?;
+        return Ok(FsRead::new(response, None));
     }
     let size = file["size"].as_str().and_then(|s| s.parse::<u64>().ok());
     // The SDK owns chunk offsets and seek-forward; a plain response body is the
@@ -89,6 +104,18 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     .and_then(|r| r.error_for_status())
     .map_err(error)?;
     Ok(FsRead::new(response, size))
+}
+
+pub(super) fn export_mime(mime: &str) -> Option<&'static str> {
+    match mime {
+        "application/vnd.google-apps.document"
+        | "application/vnd.google-apps.spreadsheet"
+        | "application/vnd.google-apps.presentation"
+        | "application/vnd.google-apps.drawing"
+        | "application/vnd.google-apps.form" => Some("application/pdf"),
+        "application/vnd.google-apps.script" => Some("application/vnd.google-apps.script+json"),
+        _ => None,
+    }
 }
 
 /// Drive permits duplicate names and slash characters. Include the stable ID
@@ -116,6 +143,27 @@ pub(super) fn safe_name(name: &str, id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_editor_exports_are_readable() {
+        assert_eq!(
+            export_mime("application/vnd.google-apps.document"),
+            Some("application/pdf")
+        );
+        assert_eq!(
+            export_mime("application/vnd.google-apps.spreadsheet"),
+            Some("application/pdf")
+        );
+        assert_eq!(
+            export_mime("application/vnd.google-apps.presentation"),
+            Some("application/pdf")
+        );
+        assert_eq!(
+            export_mime("application/vnd.google-apps.script"),
+            Some("application/vnd.google-apps.script+json")
+        );
+        assert_eq!(export_mime("application/vnd.google-apps.shortcut"), None);
+    }
+
     #[test]
     fn safe_unique_names_preserve_extensions() {
         assert_eq!(safe_name("a/b.txt", "abc"), "a_b [abc].txt");

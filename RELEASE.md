@@ -1,3 +1,9 @@
+# Fiex plugins 0.5.10
+
+- Google Drive native Docs, Sheets and Slides now declare Write and are updated by uploading the exported DOCX/XLSX/PPTX with a Google Workspace conversion target. The editor ID, permissions and location stay unchanged while the full document content is replaced.
+- WebDAV, OpenList and Drive file reads use long-lived HTTP/aria2 timeouts so large downloads do not fail at the old 90–120 second request limit.
+- Providers now use SDK 0.3.3 and the Core Rust aria2 engine; no external aria2c binary is required.
+
 # Fiex plugins 0.5.9
 
 - WebDAV, OpenList and Google Drive expose optional direct HTTP sources so Core can use aria2 for large downloads. Providers still own authorization; Core falls back to the normal stream when aria2 is unavailable.

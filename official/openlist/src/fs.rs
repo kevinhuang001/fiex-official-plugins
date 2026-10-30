@@ -261,7 +261,7 @@ pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead,
     if let Ok(reader) = host
         .aria2()
         .get(&url)
-        .timeout(std::time::Duration::from_secs(90))
+        .timeout(std::time::Duration::from_secs(3600))
         .send()
     {
         return Ok(FsRead::new(reader, None));
@@ -269,6 +269,7 @@ pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead,
     let response = host
         .http()
         .get(&url)
+        .timeout(std::time::Duration::from_secs(3600))
         .send()
         .map_err(|e| RpcError::internal(e.to_string()))?;
     if response.status != 206 && response.status != 200 {

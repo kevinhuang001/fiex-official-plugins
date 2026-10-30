@@ -274,7 +274,7 @@ fn aria2_read(host: &sdk::RequestContext, cfg: &StoredConnection, path: &str) ->
     let mut request = host
         .aria2()
         .get(&client::webdav_url(cfg, path))
-        .timeout(std::time::Duration::from_secs(90));
+        .timeout(std::time::Duration::from_secs(3600));
     if cfg.allow_invalid_certs {
         request = request.allow_invalid_certs(true);
     }
@@ -302,6 +302,7 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         return Ok(reader);
     }
     let response = client::request(&host.http(), &cfg, "GET", &client::webdav_url(&cfg, path))
+        .timeout(std::time::Duration::from_secs(3600))
         .send()
         .map_err(|e| RpcError::internal(e.to_string()))?;
     if response.status != 200 && response.status != 206 {

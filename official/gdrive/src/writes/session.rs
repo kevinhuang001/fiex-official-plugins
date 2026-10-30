@@ -5,6 +5,7 @@ pub(super) struct Started {
     pub revision: String,
     pub etag: String,
     pub creating: bool,
+    pub content_type: String,
 }
 pub(super) fn start(
     request: &FsRequest<'_>,
@@ -13,7 +14,7 @@ pub(super) fn start(
     size: u64,
 ) -> Result<Started, RpcError> {
     let creating = request.node_id().is_none_or(str::is_empty);
-    let (id, revision, etag, method, url, body) = if creating {
+    let (id, revision, etag, method, url, body, content_type) = if creating {
         let parent = request
             .parent_id()
             .filter(|id| !id.is_empty())
@@ -33,7 +34,8 @@ pub(super) fn start(
         }
         (String::new(), String::new(), String::new(), "POST",
             format!("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields={FILE_FIELDS}&supportsAllDrives=true"),
-            json!({"name":name,"parents":[parent]}).to_string())
+            json!({"name":name,"parents":[parent]}).to_string(),
+            "application/octet-stream".to_string())
     } else {
         let id = node(
             request
@@ -55,12 +57,23 @@ pub(super) fn start(
         if file["capabilities"]["canModifyContent"] != true {
             return Err(error("Drive file is read-only"));
         }
+        // Native editors have no binary of their own: the cache holds the
+        // exported Office representation, and this update tells Drive to
+        // import it back into the same editor, replacing all content.
+        let (body, content_type) =
+            match reads::import_format(file["mimeType"].as_str().unwrap_or("")) {
+                Some(import) => (
+                    json!({"mimeType": import.target}).to_string(),
+                    import.source.to_string(),
+                ),
+                None => ("{}".to_string(), "application/octet-stream".to_string()),
+            };
         (id.to_owned(), revision.to_owned(), etag, "PATCH",
-            format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=resumable&fields={FILE_FIELDS}&supportsAllDrives=true"), "{}".into())
+            format!("https://www.googleapis.com/upload/drive/v3/files/{id}?uploadType=resumable&fields={FILE_FIELDS}&supportsAllDrives=true"), body, content_type)
     };
     let mut upload = http_request(http, token, method, &url)
         .header("X-Upload-Content-Length", size.to_string())
-        .header("X-Upload-Content-Type", "application/octet-stream")
+        .header("X-Upload-Content-Type", &content_type)
         .header("Content-Type", "application/json");
     if !etag.is_empty() {
         upload = upload.header("If-Match", &etag);
@@ -84,5 +97,6 @@ pub(super) fn start(
         revision,
         etag,
         creating,
+        content_type,
     })
 }

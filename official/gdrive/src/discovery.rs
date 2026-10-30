@@ -39,9 +39,12 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
         if caps["canDownload"] == true && (!native || super::reads::export_format(mime).is_some()) {
             operations.push(FsOperation::Read);
         }
-        // Native Google editors are exported as PDF; their content cannot be
-        // written through the Drive file stream.
-        if !native && caps["canModifyContent"] == true {
+        // Native Docs/Sheets/Slides are written back by uploading the
+        // exported Office format with a conversion target; Core always writes
+        // the same node ID, so the editor is replaced rather than recreated.
+        if caps["canModifyContent"] == true
+            && (!native || super::reads::import_format(mime).is_some())
+        {
             operations.push(FsOperation::Write);
         }
     }
@@ -59,6 +62,33 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
 mod tests {
     use super::*;
     #[test]
+    fn native_import_formats_cover_editors_but_not_drawings() {
+        let docs = super::super::reads::import_format("application/vnd.google-apps.document")
+            .expect("docs import");
+        assert_eq!(docs.target, "application/vnd.google-apps.document");
+        assert_eq!(
+            docs.source,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+        let sheets = super::super::reads::import_format("application/vnd.google-apps.spreadsheet")
+            .expect("sheets import");
+        assert_eq!(
+            sheets.source,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        let slides = super::super::reads::import_format("application/vnd.google-apps.presentation")
+            .expect("slides import");
+        assert_eq!(
+            slides.source,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        );
+        assert!(
+            super::super::reads::import_format("application/vnd.google-apps.drawing").is_none()
+        );
+        assert!(super::super::reads::import_format("application/vnd.google-apps.script").is_none());
+    }
+
+    #[test]
     fn editability_does_not_imply_download_write_rename_or_delete() {
         assert_eq!(
             operations(&json!({"capabilities":{"canEdit":true}}), false),
@@ -71,7 +101,7 @@ mod tests {
         );
     }
     #[test]
-    fn native_documents_export_as_readable_files_without_write() {
+    fn native_documents_export_as_readable_files_with_write() {
         let folder = json!({"mimeType":"application/vnd.google-apps.folder","capabilities":{"canListChildren":true,"canAddChildren":true,"canDelete":true}});
         let ops = operations(&folder, true);
         assert!(ops.contains(&FsOperation::List) && ops.contains(&FsOperation::Mkdir));
@@ -79,6 +109,11 @@ mod tests {
         let document = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":true,"canModifyContent":true}});
         assert_eq!(
             operations(&document, false),
+            vec![FsOperation::Stat, FsOperation::Read, FsOperation::Write]
+        );
+        let drawing = json!({"mimeType":"application/vnd.google-apps.drawing","capabilities":{"canDownload":true,"canModifyContent":true}});
+        assert_eq!(
+            operations(&drawing, false),
             vec![FsOperation::Stat, FsOperation::Read]
         );
         let shortcut = json!({"mimeType":"application/vnd.google-apps.shortcut","capabilities":{"canDownload":true}});

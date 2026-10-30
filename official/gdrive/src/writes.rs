@@ -25,6 +25,7 @@ struct Upload {
     pending: Vec<u8>,
     failure: Option<String>,
     creating: bool,
+    content_type: String,
     completed: Option<Value>,
 }
 
@@ -52,6 +53,7 @@ fn send(
     sent: u64,
     chunk: &[u8],
     final_chunk: bool,
+    content_type: &str,
 ) -> Result<Option<Value>, RpcError> {
     let len = chunk.len() as u64;
     let range = if size == 0 {
@@ -60,7 +62,7 @@ fn send(
         format!("bytes {}-{}/{}", sent, sent + len - 1, size)
     };
     let mut request = http_request(http, token, "PUT", url)
-        .header("Content-Type", "application/octet-stream")
+        .header("Content-Type", content_type)
         .header("Content-Range", range);
     if !etag.is_empty() {
         request = request.header("If-Match", etag);
@@ -142,6 +144,7 @@ impl Upload {
             self.sent,
             &chunk,
             final_chunk,
+            &self.content_type,
         )?;
         if final_chunk {
             self.completed = completed;
@@ -218,6 +221,7 @@ pub(super) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
         revision: started.revision,
         etag: started.etag,
         creating: started.creating,
+        content_type: started.content_type,
         completed: None,
         size,
         sent: 0,

@@ -87,6 +87,7 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
                 urlencoding::encode(export)
             ),
         )
+        .timeout(std::time::Duration::from_secs(3600))
         .send()
         .and_then(|r| r.error_for_status())
         .map_err(error)?;
@@ -118,6 +119,7 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         return Ok(FsRead::new(reader, size));
     }
     let response = http_request(&ctx.http(), &token, "GET", &media)
+        .timeout(std::time::Duration::from_secs(3600))
         .send()
         .and_then(|r| r.error_for_status())
         .map_err(error)?;
@@ -150,6 +152,27 @@ pub(super) fn export_format(mime: &str) -> Option<ExportFormat> {
         _ => return None,
     };
     Some(ExportFormat { mime, extension })
+}
+
+/// Native editors that can be replaced through an upload+convert update.
+/// Drawings and Apps Script have no reliable reverse import, so they stay
+/// read-only even when Google allows editing them in the browser.
+pub(super) struct ImportFormat {
+    pub target: &'static str,
+    pub source: &'static str,
+}
+
+pub(super) fn import_format(mime: &str) -> Option<ImportFormat> {
+    let target = match mime {
+        "application/vnd.google-apps.document" => "application/vnd.google-apps.document",
+        "application/vnd.google-apps.spreadsheet" => "application/vnd.google-apps.spreadsheet",
+        "application/vnd.google-apps.presentation" => "application/vnd.google-apps.presentation",
+        _ => return None,
+    };
+    Some(ImportFormat {
+        target,
+        source: export_format(mime)?.mime,
+    })
 }
 
 /// Drive permits duplicate names and slash characters. Include the stable ID

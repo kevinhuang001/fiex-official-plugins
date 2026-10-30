@@ -270,10 +270,9 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-// WebDAV does not expose a reliable length in openRead. Launching a
-// multi-connection staging engine for every document slows previews and small
-// reads. Use the host HTTP response stream directly until Core can supply a
-// trusted length for adaptive segmented downloads.
+// WebDAV openRead has no trustworthy content length. Core starts aria2 with
+// a sequential stream (without an extra HEAD request) rather than launching
+// optimistic parallel ranges for every small preview.
 pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let host = request.ctx();
     let cfg = connection(request)?;
@@ -281,21 +280,25 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .node_id()
         .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
     safe_relative(path)?;
-    let response = client::request(&host.http(), &cfg, "GET", &client::webdav_url(&cfg, path))
+    let mut download = host
+        .aria2()
+        .get(&client::webdav_url(&cfg, path))
         .timeout(std::time::Duration::from_secs(3600))
-        .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status != 200 && response.status != 206 {
-        return Err(RpcError::internal(format!(
-            "WebDAV read HTTP {}",
-            response.status
-        )));
+        .allow_invalid_certs(cfg.allow_invalid_certs);
+    if !cfg.username.is_empty() || !cfg.password.is_empty() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        download = download.header(
+            "authorization",
+            format!(
+                "Basic {}",
+                STANDARD.encode(format!("{}:{}", cfg.username, cfg.password))
+            ),
+        );
     }
-    let size = response
-        .headers
-        .get("content-length")
-        .and_then(|value| value.parse::<u64>().ok());
-    Ok(FsRead::new(response, size))
+    let reader = download
+        .send()
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(FsRead::new(reader, None))
 }
 
 /// Strong-ETag HEAD used by conditional writes and the commit result.

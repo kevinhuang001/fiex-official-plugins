@@ -260,29 +260,19 @@ pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead,
         return Err(RpcError::invalid_params("missing node ID"));
     }
     let (url, size) = raw_url(host, &cfg, session, &relative)?;
-    // OpenList supplies size alongside raw_url; no extra metadata round trip
-    // is needed. Use segments only for large, known-length objects.
-    if let Some(size) = size.filter(|size| *size >= 32 * 1024 * 1024) {
-        if let Ok(reader) = host
-            .aria2()
-            .get(&url)
-            .size(size)
-            .timeout(std::time::Duration::from_secs(3600))
-            .send()
-        {
-            return Ok(FsRead::new(reader, Some(size)));
-        }
-    }
-    let response = host
-        .http()
+    // Core handles all parallelism and HTTP Range decisions. Unknown sizes
+    // naturally remain single-connection streams until metadata is available.
+    let mut download = host
+        .aria2()
         .get(&url)
-        .timeout(std::time::Duration::from_secs(3600))
-        .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status != 206 && response.status != 200 {
-        return Err(RpcError::internal("storage did not honor range"));
+        .timeout(std::time::Duration::from_secs(3600));
+    if let Some(size) = size {
+        download = download.size(size);
     }
-    Ok(FsRead::new(response, size))
+    let reader = download
+        .send()
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(FsRead::new(reader, size))
 }
 
 /// RFC 3339 (openlist returns `2024-01-02T03:04:05Z`) to epoch seconds.

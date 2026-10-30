@@ -1,5 +1,6 @@
 use super::*;
 use sdk::filesystem::{FsEntry, FsListing, FsRead, FsRequest};
+use std::io::Read;
 
 pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     let ctx = request.ctx();
@@ -78,56 +79,37 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         let export = export_format(mime)
             .ok_or_else(|| error("this Google Drive item cannot be exported for reading"))?
             .mime;
-        let response = http_request(
-            &ctx.http(),
-            &token,
-            "GET",
-            &format!(
-                "{API}/files/{id}/export?mimeType={}",
-                urlencoding::encode(export)
-            ),
-        )
-        .timeout(std::time::Duration::from_secs(3600))
-        .send()
-        .and_then(|r| r.error_for_status())
-        .map_err(error)?;
-        let size = response
-            .headers
-            .get("content-length")
-            .and_then(|value| value.trim().parse::<u64>().ok());
-        if let Some(size) = size {
-            return Ok(FsRead::new(response, Some(size)));
-        }
-        // Some export responses are chunked. Buffer them so Core receives an
-        // exact length instead of treating the file as empty.
-        let bytes = response.bytes().map_err(error)?;
+        let export_url = format!(
+            "{API}/files/{id}/export?mimeType={}",
+            urlencoding::encode(export)
+        );
+        let mut reader = ctx
+            .aria2()
+            .get(&export_url)
+            .bearer_auth(&token)
+            .timeout(std::time::Duration::from_secs(3600))
+            .send()
+            .map_err(error)?;
+        // Native Google documents have no stable downloadable binary or
+        // known size. Materialize this export so VFS receives its exact size.
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).map_err(error)?;
         return Ok(FsRead::from_bytes(bytes));
     }
     let size = file["size"].as_str().and_then(|s| s.parse::<u64>().ok());
-    // The SDK owns chunk offsets and seek-forward; a plain response body is the
-    // read stream. Core never sees Drive paths, only the file ID.
+    // Every binary GET uses the SDK aria2 entry point; the Core, not the
+    // provider, selects the connection and segment count from known size.
     let media = format!("{API}/files/{id}?alt=media&supportsAllDrives=true");
-    // Segmented downloads first stage into a host-owned temporary file.
-    // For ordinary documents and previews, direct HTTP streaming avoids the
-    // aria2 startup cost and the extra disk read/write cycle.
-    if let Some(size) = size.filter(|size| *size >= 32 * 1024 * 1024) {
-        if let Ok(reader) = ctx
-            .aria2()
-            .get(&media)
-            .bearer_auth(&token)
-            .size(size)
-            .timeout(std::time::Duration::from_secs(3600))
-            .send()
-        {
-            return Ok(FsRead::new(reader, Some(size)));
-        }
+    let mut download = ctx
+        .aria2()
+        .get(&media)
+        .bearer_auth(&token)
+        .timeout(std::time::Duration::from_secs(3600));
+    if let Some(size) = size {
+        download = download.size(size);
     }
-    let response = http_request(&ctx.http(), &token, "GET", &media)
-        .timeout(std::time::Duration::from_secs(3600))
-        .send()
-        .and_then(|r| r.error_for_status())
-        .map_err(error)?;
-    Ok(FsRead::new(response, size))
+    let reader = download.send().map_err(error)?;
+    Ok(FsRead::new(reader, size))
 }
 
 pub(super) struct ExportFormat {

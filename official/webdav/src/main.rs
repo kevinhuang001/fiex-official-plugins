@@ -77,9 +77,12 @@ impl sdk::ConnectionProvider for WebDav {
 }
 
 fn main() {
-    let providers = sdk::Providers::new().filesystem(WebDav).connection(WebDav);
+    let providers = sdk::Providers::new()
+        .diagnostics()
+        .filesystem(WebDav)
+        .connection(WebDav);
     if let Err(e) = providers.serve("org.fiex.webdav") {
-        eprintln!("WebDAV IPC failed: {e}");
+        eprintln!("WebDAV IPC failed: transport closed ({:?})", e.kind());
         std::process::exit(1);
     }
 }

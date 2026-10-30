@@ -34,11 +34,17 @@ def run(binary, plugin_id):
         for req, check in [
             ({"id":1,"method":"plugin.initialize","params":{"protocolVersion":"6.0"}}, "init"),
             ({"id":2,"method":"plugin.ping","params":{}}, "ping"),
-            ({"id":3,"method":"test.unknown","params":{}}, "unknown"),
+            ({"id":3,"method":"test.unknown","params":{"password":"DO_NOT_LOG_FIXTURE_SECRET"}}, "unknown"),
             ({"id":4,"method":"plugin.shutdown","params":{}}, "shutdown"),
         ]:
             send(child.stdin, {"jsonrpc":"2.0",**req})
             resp = receive(child.stdout)
+            while resp.get("method") in {"host.log.report", "host.error.report"}:
+                params = resp.get("params", {})
+                assert "DO_NOT_LOG_FIXTURE_SECRET" not in json.dumps(params), params
+                assert isinstance(params.get("authorization", {}).get("operationId"), int), params
+                send(child.stdin, {"jsonrpc":"2.0", "id":resp["id"], "result":None})
+                resp = receive(child.stdout)
             assert resp.get("id") == req["id"], resp
             if check == "init":
                 assert resp["result"]["pluginId"] == plugin_id and resp["result"]["ready"], resp
@@ -55,8 +61,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
     parser.add_argument("--binary-root", required=True)
+    parser.add_argument("--slugs", nargs="+", default=(
+        "ssh", "git", "webdav", "gdrive", "smb", "openlist", "office-preview",
+        "data-preview", "archive", "checksum", "everything", "gpg", "email"))
     args = parser.parse_args()
-    for slug in ("ssh","git","webdav","gdrive","smb","openlist","office-preview","data-preview","archive","checksum","everything","gpg","email"):
+    for slug in args.slugs:
         manifest = json.loads((Path("official") / slug / "manifest.json").read_text(encoding="utf-8"))
         entry = manifest.get("runtime", {}).get("entrypoints", {}).get(args.target)
         if not entry:

@@ -9,10 +9,11 @@ use fiex_plugin_sdk as sdk;
 
 fn main() {
     if let Err(error) = sdk::Providers::new()
+        .diagnostics()
         .context_menu(commands::GpgMenu)
         .serve_with("org.fiex.gpg", commands::run)
     {
-        eprintln!("GPG plugin: {error}");
+        eprintln!("GPG plugin: transport closed ({:?})", error.kind());
         std::process::exit(1);
     }
 }

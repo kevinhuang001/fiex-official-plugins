@@ -123,11 +123,15 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 fn main() {
     if let Err(error) = sdk::Providers::new()
+        .diagnostics()
         .info(Presentation)
         .preview(Presentation)
         .serve_with("org.fiex.office-preview", dispatch)
     {
-        eprintln!("Office preview IPC failed: {error}");
+        eprintln!(
+            "Office preview IPC failed: transport closed ({:?})",
+            error.kind()
+        );
         std::process::exit(1);
     }
 }

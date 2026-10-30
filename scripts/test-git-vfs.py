@@ -45,7 +45,9 @@ class Git:
             p = message.get('params', {})
             # File streams run under a background task so the host handles they
             # opened stay authorized past the `vfs.openRead` request.
-            if message['method'] == 'host.task.start':
+            if message['method'] in {'host.log.report', 'host.error.report'}:
+                value = None
+            elif message['method'] == 'host.task.start':
                 self.tasks.add(p['taskId'])
                 value = None
             elif message['method'] == 'host.task.finish':
@@ -129,7 +131,7 @@ def main():
                     assert not part['eof'] or offset >= len(expected)
                 plugin.request(uri, 'vfs.closeRead', streamId=stream)
                 assert b''.join(parts) == expected
-            searched = plugin.request(a, 'vfs.search', query='中文', hidden=True, limit=10)
+            searched = plugin.request(a, 'vfs.search', query='中文', mode='name', hidden=True, limit=10)
             assert 'result' in searched, searched
             found = searched['result']['entries']
             assert found[0]['relativePath'] == name

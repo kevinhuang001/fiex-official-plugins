@@ -11,10 +11,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
-  SCCACHE_GHA_ENABLED: 'true'
-  SCCACHE_CACHE_SIZE: '10G'
-  CARGO_INCREMENTAL: '0'
-  PYTHONUTF8: '1'
+  SCCACHE_GHA_ENABLED: "true"
+  SCCACHE_CACHE_SIZE: "10G"
+  CARGO_INCREMENTAL: "0"
+  PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
 jobs:
   format:
@@ -36,6 +36,7 @@ jobs:
             cargo fmt --manifest-path "official/$slug/Cargo.toml" --check || status=1
           done
           cargo fmt --manifest-path example/hello/Cargo.toml --check || status=1
+          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py || status=1
           exit "$status"
 
   ui:
@@ -48,6 +49,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            official/*/ui/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -68,107 +73,70 @@ jobs:
           name: plugin-panels
           path: official/*/ui/dist
 
-  build:
-    needs: [ui, format]
-    name: Plugin build (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 80
+  build-linux:
+    needs: format
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            platform: linux-x86_64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            platform: windows-x86_64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            platform: macos-aarch64
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      - uses: actions/download-artifact@v4
-        with:
-          name: plugin-panels
-          path: official
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-          components: rustfmt, clippy
-      - name: Configure sccache
-        id: sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-      - name: Enable compiler cache
-        shell: bash
-        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: official/git -> ../../target
-          key: official-${{ matrix.target }}
-          cache-on-failure: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Plugin unit tests and cross-platform packages
-        shell: bash
-        env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: |
-          set -euo pipefail
-          python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py
-          for slug in ssh git webdav gdrive smb openlist office-preview data-preview archive checksum everything gpg email; do
-            cargo fmt --manifest-path "official/$slug/Cargo.toml" --check
-            cargo test --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
-            cargo clippy --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}" --all-targets -- -D warnings
-            cargo build --release --manifest-path "official/$slug/Cargo.toml" --target "${{ matrix.target }}"
-            python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"
-          done
-          for slug in vista win11; do python scripts/package-fiex-plugin.py --slug "$slug" --target "${{ matrix.target }}"; done
-          python scripts/test-catalog.py
-          python scripts/generate-catalog.py
-          # The beginner example is kept buildable on every platform.
-          cargo fmt --manifest-path example/hello/Cargo.toml --check
-          cargo clippy --manifest-path example/hello/Cargo.toml --target "${{ matrix.target }}" -- -D warnings
-          cargo build --manifest-path example/hello/Cargo.toml --target "${{ matrix.target }}"
-      - name: Real process handshake, ping, errors and shutdown
-        shell: bash
-        run: |
-          python scripts/test-plugin-process.py --target "${{ matrix.platform }}" --binary-root "target/${{ matrix.target }}/release"
-          python scripts/test-git-vfs.py --binary "target/${{ matrix.target }}/release/fiex-plugin-git${{ runner.os == 'Windows' && '.exe' || '' }}"
-          python -m pip install --quiet paramiko==4.0.0
-          python scripts/test-ssh-regression.py --binary "target/${{ matrix.target }}/release/fiex-plugin-ssh${{ runner.os == 'Windows' && '.exe' || '' }}"
-          python scripts/test-gdrive.py --binary "target/${{ matrix.target }}/release/fiex-plugin-gdrive${{ runner.os == 'Windows' && '.exe' || '' }}"
-          for slug in webdav openlist; do
-            python scripts/test-connection-sync.py --kind "$slug" --binary "target/${{ matrix.target }}/release/fiex-plugin-$slug${{ runner.os == 'Windows' && '.exe' || '' }}"
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: fiex-plugins-${{ matrix.target }}
-          if-no-files-found: error
-          path: |
-            dist/plugins/*.fiexplugin
-            dist/plugins/fiex-catalog.json
-            dist/plugins/plugin-descriptions.json
-      - name: Compiler cache statistics
-        if: always() && steps.sccache.outcome == 'success'
-        shell: bash
-        run: |
-          sccache --show-stats
-          {
-            echo '### sccache'
-            echo '```'
-            sccache --show-stats
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        shard: [office, data, services]
+    uses: ./.github/workflows/native-plugins.yml
+    with:
+      runner: ubuntu-22.04
+      target: x86_64-unknown-linux-gnu
+      platform: linux-x86_64
+      shard: ${{ matrix.shard }}
+
+  package-linux:
+    needs: [build-linux, ui]
+    uses: ./.github/workflows/package-plugins.yml
+    with:
+      target: x86_64-unknown-linux-gnu
+
+  build-windows:
+    needs: format
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [office, data, services]
+    uses: ./.github/workflows/native-plugins.yml
+    with:
+      runner: windows-latest
+      target: x86_64-pc-windows-msvc
+      platform: windows-x86_64
+      shard: ${{ matrix.shard }}
+
+  package-windows:
+    needs: [build-windows, ui]
+    uses: ./.github/workflows/package-plugins.yml
+    with:
+      target: x86_64-pc-windows-msvc
+
+  build-macos:
+    needs: format
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [office, data, services]
+    uses: ./.github/workflows/native-plugins.yml
+    with:
+      runner: macos-latest
+      target: aarch64-apple-darwin
+      platform: macos-aarch64
+      shard: ${{ matrix.shard }}
+
+  package-macos:
+    needs: [build-macos, ui]
+    uses: ./.github/workflows/package-plugins.yml
+    with:
+      target: aarch64-apple-darwin
 
   core-integration:
     name: Installed official plugins ↔ real Core host (Linux)
-    needs: build
+    needs: package-linux
     runs-on: ubuntu-22.04
     timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - uses: actions/checkout@v4
         with:
@@ -193,8 +161,9 @@ jobs:
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: core/src-tauri -> target
-          key: core-host-integration
+          workspaces: . -> target
+          shared-key: linux-host-integration
+          cache-all-crates: true
       - name: Spawn each packaged plugin through the real Core host
         shell: bash
         env:
@@ -253,9 +222,11 @@ jobs:
 
   remote-integration:
     name: Real WebDAV and SMB plugin integration (Linux)
-    needs: build
+    needs: package-linux
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - uses: actions/checkout@v4
         with:
@@ -276,8 +247,9 @@ jobs:
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: integration -> target
-          key: real-network-broker
+          workspaces: . -> target
+          shared-key: linux-host-integration
+          cache-all-crates: true
       - uses: actions/download-artifact@v4
         with:
           name: fiex-plugins-x86_64-unknown-linux-gnu
@@ -381,7 +353,14 @@ jobs:
 
   release:
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/plugins-v'))
-    needs: [build, core-integration, remote-integration]
+    needs:
+      [
+        package-linux,
+        package-windows,
+        package-macos,
+        core-integration,
+        remote-integration,
+      ]
     runs-on: ubuntu-latest
     permissions:
       contents: write

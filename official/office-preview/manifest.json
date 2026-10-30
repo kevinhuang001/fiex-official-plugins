@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.office-preview",
   "name": "Office 预览",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。",
   "icon": "file-text",
   "author": {

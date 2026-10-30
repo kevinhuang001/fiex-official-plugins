@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.ssh",
   "name": "SSH",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SSH 连接插件：通过 SDK TCP Broker 建立连接，在独立 PluginView 中渲染终端。",
   "icon": "terminal",
   "author": {

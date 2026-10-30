@@ -86,12 +86,13 @@ impl sdk::ConnectionProvider for OpenList {
 fn main() {
     let session = Arc::new(client::Session::default());
     let providers = sdk::Providers::new()
+        .diagnostics()
         .filesystem(OpenList {
             session: Arc::clone(&session),
         })
         .connection(OpenList { session });
     if let Err(error) = providers.serve("org.fiex.openlist") {
-        eprintln!("OpenList IPC failed: {error}");
+        eprintln!("OpenList IPC failed: transport closed ({:?})", error.kind());
         std::process::exit(1);
     }
 }

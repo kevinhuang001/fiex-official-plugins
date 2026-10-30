@@ -53,6 +53,12 @@ function scanJs(file, code, kind = ts.ScriptKind.TS) {
   }
   visit(source);
 }
+for (const name of fs.readdirSync(path.join(root, "support/ui"))) {
+  if (/\.(ts|tsx)$/.test(name)) {
+    const file = path.join(root, "support/ui", name);
+    scanJs(file, fs.readFileSync(file, "utf8"), name.endsWith("tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  }
+}
 for (const slug of fs.readdirSync(path.join(root, "official"))) {
   const base = path.join(root, "official", slug, "ui");
   if (!fs.existsSync(base)) continue;

@@ -11,7 +11,6 @@
   "CSV 没有内容": "CSV is empty",
   "Deflate · 支持 AES-256 密码": "Deflate · AES-256 password support",
   "Everything ES 查询失败，请确认 Everything 正在运行且 es.exe 位于 PATH：{0}": "Everything ES query failed. Check that Everything is running and es.exe is on PATH: {0}",
-  "Everything 搜索只在 Windows 上可用": "Everything search is available only on Windows",
   "GPG 加密": "GPG encryption",
   "GPG 签名": "GPG signing",
   "GPG 解密": "GPG decryption",
@@ -391,5 +390,7 @@
   "默认值": "Default",
   "（无主题）": "(No subject)",
   "（此邮件没有纯文本内容）": "(This message has no plain-text content)",
-  "没有可显示的内容。": "No content to display."
+  "没有可显示的内容。": "No content to display.",
+  "插件界面发生错误": "Plugin UI failed",
+  "插件界面操作未完成": "Plugin UI operation failed"
 }

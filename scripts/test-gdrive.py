@@ -70,6 +70,8 @@ class Fixture:
 
     def host(self, method, p):
         self.authorize(p)
+        if method in {"host.log.report", "host.error.report"}:
+            return None
         if method == 'host.oauth.authorize':
             self.oauth_calls += 1
             assert p['authorizationEndpoint'] == 'https://accounts.google.com/o/oauth2/v2/auth'

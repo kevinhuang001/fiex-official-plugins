@@ -27,10 +27,11 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 fn main() {
     if let Err(error) = sdk::Providers::new()
+        .diagnostics()
         .connection(SshConnection)
         .serve_with("org.fiex.ssh", run)
     {
-        eprintln!("SSH provider failed: {error}");
+        eprintln!("SSH provider failed: transport closed ({:?})", error.kind());
         std::process::exit(1);
     }
 }

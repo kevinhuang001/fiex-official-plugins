@@ -82,7 +82,7 @@ class Plugin:
     def host_call(self, method, params):
         # Test fixture broker only. Production authorization is tested separately
         # through the actual Core host in the core-integration job.
-        if method in {"host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
+        if method in {"host.log.report", "host.error.report", "host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
             return None
         if method == "fs.openRead":
             assert params["ref"] == SOURCE_REF

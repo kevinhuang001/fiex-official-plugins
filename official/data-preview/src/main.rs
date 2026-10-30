@@ -17,13 +17,17 @@ use std::sync::{Arc, Mutex};
 fn main() {
     let cache = Arc::new(Mutex::new(None));
     if let Err(error) = sdk::Providers::new()
+        .diagnostics()
         .info(dispatch::Presentation(Arc::clone(&cache)))
         .preview(dispatch::Presentation(Arc::clone(&cache)))
         .serve_with("org.fiex.data-preview", move |ctx| {
             dispatch::dispatch(ctx, &cache)
         })
     {
-        eprintln!("Data preview IPC failed: {error}");
+        eprintln!(
+            "Data preview IPC failed: transport closed ({:?})",
+            error.kind()
+        );
         std::process::exit(1);
     }
 }

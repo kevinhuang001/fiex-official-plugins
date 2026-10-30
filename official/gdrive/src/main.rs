@@ -166,9 +166,12 @@ impl sdk::ConnectionProvider for Drive {
 }
 
 fn main() {
-    let providers = sdk::Providers::new().filesystem(Drive).connection(Drive);
+    let providers = sdk::Providers::new()
+        .diagnostics()
+        .filesystem(Drive)
+        .connection(Drive);
     if let Err(e) = providers.serve("org.fiex.gdrive") {
-        eprintln!("Drive IPC failed: {e}");
+        eprintln!("Drive IPC failed: transport closed ({:?})", e.kind());
         std::process::exit(1);
     }
 }

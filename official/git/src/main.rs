@@ -214,10 +214,11 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 fn main() {
     let providers = sdk::Providers::new()
+        .diagnostics()
         .filesystem(GitView)
         .decorations(decorations::GitDecorations);
     if let Err(e) = providers.serve_with("org.fiex.git", dispatch) {
-        eprintln!("Git plugin IPC error: {e}");
+        eprintln!("Git plugin IPC error: transport closed ({:?})", e.kind());
         std::process::exit(1);
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "fiex-plugin-git"
-version = "0.2.11"
+version = "0.2.12"
 edition = "2021"
 rust-version = "1.90"
 license = "GPL-3.0-or-later"

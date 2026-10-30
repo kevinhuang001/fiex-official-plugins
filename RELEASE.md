@@ -1,3 +1,8 @@
+# Fiex plugins 0.5.9
+
+- WebDAV, OpenList and Google Drive expose optional direct HTTP sources so Core can use aria2 for large downloads. Providers still own authorization; Core falls back to the normal stream when aria2 is unavailable.
+- Google Drive native editors export by type (DOCX/XLSX/PPTX/PNG/JSON) and report the exported size, so Office preview and open work instead of reporting an incomplete export.
+
 # Fiex plugins 0.5.8
 
 - Google Drive native Docs, Sheets, Slides and Drawings are exported as PDF for preview and download. The editor document stays read-only in Fiex and is edited in Google's web apps.

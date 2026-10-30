@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.gdrive",
   "name": "Google Drive",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Google Drive 按需下载、离线副本与版本保护的双向文件同步。",
   "icon": "cloud",
   "author": {

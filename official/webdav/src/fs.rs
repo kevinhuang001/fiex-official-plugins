@@ -25,7 +25,7 @@ pub(crate) fn safe_relative(value: &str) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
+pub(crate) fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
     serde_json::from_value(
         request
             .connection()
@@ -270,6 +270,27 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
+fn aria2_read(host: &sdk::RequestContext, cfg: &StoredConnection, path: &str) -> Option<FsRead> {
+    let mut request = host
+        .aria2()
+        .get(&client::webdav_url(cfg, path))
+        .timeout(std::time::Duration::from_secs(90));
+    if cfg.allow_invalid_certs {
+        request = request.allow_invalid_certs(true);
+    }
+    if !cfg.username.is_empty() || !cfg.password.is_empty() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        request = request.header(
+            "authorization",
+            format!(
+                "Basic {}",
+                STANDARD.encode(format!("{}:{}", cfg.username, cfg.password))
+            ),
+        );
+    }
+    request.send().ok().map(|reader| FsRead::new(reader, None))
+}
+
 pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let host = request.ctx();
     let cfg = connection(request)?;
@@ -277,6 +298,9 @@ pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .node_id()
         .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
     safe_relative(path)?;
+    if let Some(reader) = aria2_read(host, &cfg, path) {
+        return Ok(reader);
+    }
     let response = client::request(&host.http(), &cfg, "GET", &client::webdav_url(&cfg, path))
         .send()
         .map_err(|e| RpcError::internal(e.to_string()))?;

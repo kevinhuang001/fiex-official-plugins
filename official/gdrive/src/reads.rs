@@ -90,20 +90,37 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         .send()
         .and_then(|r| r.error_for_status())
         .map_err(error)?;
-        return Ok(FsRead::new(response, None));
+        let size = response
+            .headers
+            .get("content-length")
+            .and_then(|value| value.trim().parse::<u64>().ok());
+        if let Some(size) = size {
+            return Ok(FsRead::new(response, Some(size)));
+        }
+        // Some export responses are chunked. Buffer them so Core receives an
+        // exact length instead of treating the file as empty.
+        let bytes = response.bytes().map_err(error)?;
+        return Ok(FsRead::from_bytes(bytes));
     }
     let size = file["size"].as_str().and_then(|s| s.parse::<u64>().ok());
     // The SDK owns chunk offsets and seek-forward; a plain response body is the
     // read stream. Core never sees Drive paths, only the file ID.
-    let response = http_request(
-        &ctx.http(),
-        &token,
-        "GET",
-        &format!("{API}/files/{id}?alt=media&supportsAllDrives=true"),
-    )
-    .send()
-    .and_then(|r| r.error_for_status())
-    .map_err(error)?;
+    let media = format!("{API}/files/{id}?alt=media&supportsAllDrives=true");
+    let mut request = ctx
+        .aria2()
+        .get(&media)
+        .bearer_auth(&token)
+        .timeout(std::time::Duration::from_secs(300));
+    if let Some(size) = size {
+        request = request.size(size);
+    }
+    if let Ok(reader) = request.send() {
+        return Ok(FsRead::new(reader, size));
+    }
+    let response = http_request(&ctx.http(), &token, "GET", &media)
+        .send()
+        .and_then(|r| r.error_for_status())
+        .map_err(error)?;
     Ok(FsRead::new(response, size))
 }
 

@@ -1573,7 +1573,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gdrive"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1616,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-openlist"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",
@@ -1627,7 +1627,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-sdk"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-webdav"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "fiex-plugin-sdk",

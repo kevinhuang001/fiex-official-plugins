@@ -258,6 +258,14 @@ pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead,
         return Err(RpcError::invalid_params("missing node ID"));
     }
     let url = raw_url(host, &cfg, session, &relative)?;
+    if let Ok(reader) = host
+        .aria2()
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(90))
+        .send()
+    {
+        return Ok(FsRead::new(reader, None));
+    }
     let response = host
         .http()
         .get(&url)

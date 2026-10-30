@@ -236,6 +236,7 @@ impl sdk::SearchProvider for HelloSearch {
         Ok(sdk::SearchResults {
             entries: Vec::new(),
             truncated: false,
+            next_cursor: None,
         })
     }
 }

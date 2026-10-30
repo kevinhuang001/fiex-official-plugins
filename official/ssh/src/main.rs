@@ -12,7 +12,6 @@ fn settings(ctx: &sdk::RequestContext) -> Value {
     json!({
         "fontFamily": value("fontFamily").and_then(|value| value.as_str().map(str::to_owned)),
         "fontSize": value("fontSize").and_then(|value| value.as_u64()),
-        "foreground": value("foreground").and_then(|value| value.as_str().map(str::to_owned)),
     })
 }
 

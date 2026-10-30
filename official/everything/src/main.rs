@@ -6,6 +6,9 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]
 fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+    if p.get("mode").and_then(Value::as_str).unwrap_or("name") != "name" {
+        return Err(RpcError::invalid_params("Everything only supports filename search"));
+    }
     let query = p.get("query").and_then(Value::as_str).unwrap_or("").trim();
     // Core now sends the search root as an opaque ref. The ES adapter must
     // not receive host paths; `process_run` resolves command args that carry
@@ -67,9 +70,7 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
 }
 #[cfg(not(windows))]
 fn query(_p: &Value, _host: &sdk::RequestContext) -> Result<Value, RpcError> {
-    Ok(
-        json!({"entries":[],"truncated":false,"warning":crate::i18n::t("Everything 搜索只在 Windows 上可用")}),
-    )
+    Err(RpcError::method_not_found("search.query"))
 }
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();

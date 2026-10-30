@@ -24,7 +24,6 @@
   "Git：重命名": "Git: renamed",
   "Google OAuth 交换失败（HTTP {status}），请检查桌面应用的 Client ID、Secret 和 Drive API 配置": "Google OAuth exchange failed (HTTP {status}); verify the Desktop app client ID/secret and Drive API configuration",
   "Google 令牌请求失败（HTTP {status}）": "Google token request failed (HTTP {status})",
-  "Google 原生文档请在浏览器中编辑；离线文件同步支持普通文件": "Edit Google-native documents in a browser. Offline file sync supports regular files.",
   "Google 授权已过期或应用凭据已更改，请保存连接以重新授权": "Google authorization expired or application credentials changed; save the connection to authorize again",
   "Google 未签发离线刷新令牌，请重新授权并同意访问": "Google did not issue an offline refresh token; authorize again with consent",
   "Gzip 压缩": "Gzip compression",

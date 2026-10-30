@@ -24,7 +24,6 @@
   "Git：重命名": "Git：重新命名",
   "Google OAuth 交换失败（HTTP {status}），请检查桌面应用的 Client ID、Secret 和 Drive API 配置": "Google OAuth 交換失敗（HTTP {status}），請檢查桌面應用程式的 Client ID、Secret 和 Drive API 設定",
   "Google 令牌请求失败（HTTP {status}）": "Google 權杖請求失敗（HTTP {status}）",
-  "Google 原生文档请在浏览器中编辑；离线文件同步支持普通文件": "Google 原生文件請在瀏覽器中編輯；離線檔案同步支援普通檔案",
   "Google 授权已过期或应用凭据已更改，请保存连接以重新授权": "Google 授權已過期或應用程式憑據已變更，請儲存連線以重新授權",
   "Google 未签发离线刷新令牌，请重新授权并同意访问": "Google 未簽發離線重新整理權杖，請重新授權並同意存取",
   "Gzip 压缩": "Gzip 壓縮",

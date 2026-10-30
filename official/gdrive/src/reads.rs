@@ -75,8 +75,9 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
         // Google editors have no binary stream. Export them to a format the
         // built-in preview and download paths can read; the editor document is
         // never modified.
-        let export = export_mime(mime)
-            .ok_or_else(|| error("this Google Drive item cannot be exported for reading"))?;
+        let export = export_format(mime)
+            .ok_or_else(|| error("this Google Drive item cannot be exported for reading"))?
+            .mime;
         let response = http_request(
             &ctx.http(),
             &token,
@@ -106,16 +107,32 @@ pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     Ok(FsRead::new(response, size))
 }
 
-pub(super) fn export_mime(mime: &str) -> Option<&'static str> {
-    match mime {
-        "application/vnd.google-apps.document"
-        | "application/vnd.google-apps.spreadsheet"
-        | "application/vnd.google-apps.presentation"
-        | "application/vnd.google-apps.drawing"
-        | "application/vnd.google-apps.form" => Some("application/pdf"),
-        "application/vnd.google-apps.script" => Some("application/vnd.google-apps.script+json"),
-        _ => None,
-    }
+pub(super) struct ExportFormat {
+    pub mime: &'static str,
+    pub extension: &'static str,
+}
+
+/// Native editors have no binary of their own. Match each editor to its
+/// natural downloadable format so a Doc becomes DOCX, not a lossy PDF.
+pub(super) fn export_format(mime: &str) -> Option<ExportFormat> {
+    let (mime, extension) = match mime {
+        "application/vnd.google-apps.document" => (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "docx",
+        ),
+        "application/vnd.google-apps.spreadsheet" => (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "xlsx",
+        ),
+        "application/vnd.google-apps.presentation" => (
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "pptx",
+        ),
+        "application/vnd.google-apps.drawing" => ("image/png", "png"),
+        "application/vnd.google-apps.script" => ("application/vnd.google-apps.script+json", "json"),
+        _ => return None,
+    };
+    Some(ExportFormat { mime, extension })
 }
 
 /// Drive permits duplicate names and slash characters. Include the stable ID
@@ -144,24 +161,42 @@ pub(super) fn safe_name(name: &str, id: &str) -> String {
 mod tests {
     use super::*;
     #[test]
-    fn native_editor_exports_are_readable() {
+    fn native_editors_export_to_their_natural_format() {
         assert_eq!(
-            export_mime("application/vnd.google-apps.document"),
-            Some("application/pdf")
+            export_format("application/vnd.google-apps.document")
+                .map(|format| (format.mime, format.extension)),
+            Some((
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "docx"
+            ))
         );
         assert_eq!(
-            export_mime("application/vnd.google-apps.spreadsheet"),
-            Some("application/pdf")
+            export_format("application/vnd.google-apps.spreadsheet")
+                .map(|format| (format.mime, format.extension)),
+            Some((
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "xlsx"
+            ))
         );
         assert_eq!(
-            export_mime("application/vnd.google-apps.presentation"),
-            Some("application/pdf")
+            export_format("application/vnd.google-apps.presentation")
+                .map(|format| (format.mime, format.extension)),
+            Some((
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "pptx"
+            ))
         );
         assert_eq!(
-            export_mime("application/vnd.google-apps.script"),
-            Some("application/vnd.google-apps.script+json")
+            export_format("application/vnd.google-apps.drawing")
+                .map(|format| (format.mime, format.extension)),
+            Some(("image/png", "png"))
         );
-        assert_eq!(export_mime("application/vnd.google-apps.shortcut"), None);
+        assert_eq!(
+            export_format("application/vnd.google-apps.script")
+                .map(|format| (format.mime, format.extension)),
+            Some(("application/vnd.google-apps.script+json", "json"))
+        );
+        assert!(export_format("application/vnd.google-apps.shortcut").is_none());
     }
 
     #[test]

@@ -26,9 +26,6 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
     let mut operations = vec![FsOperation::Stat];
     let caps = &file["capabilities"];
     let directory = file["mimeType"] == "application/vnd.google-apps.folder";
-    let native = file["mimeType"]
-        .as_str()
-        .is_some_and(|mime| mime.starts_with("application/vnd.google-apps."));
     if directory {
         if caps["canListChildren"] == true {
             operations.push(FsOperation::List);
@@ -39,7 +36,7 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
     } else {
         let mime = file["mimeType"].as_str().unwrap_or("");
         let native = mime.starts_with("application/vnd.google-apps.");
-        if caps["canDownload"] == true && (!native || super::reads::export_mime(mime).is_some()) {
+        if caps["canDownload"] == true && (!native || super::reads::export_format(mime).is_some()) {
             operations.push(FsOperation::Read);
         }
         // Native Google editors are exported as PDF; their content cannot be

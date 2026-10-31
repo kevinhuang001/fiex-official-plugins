@@ -45,10 +45,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fiex-provider-contracts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fiex-plugin-sdk"
-version = "0.3.0"
+version = "0.3.3"
 dependencies = [
  "base64",
+ "fiex-provider-contracts",
  "serde",
  "serde_json",
  "shared_memory",

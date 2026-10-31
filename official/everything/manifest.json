@@ -68,7 +68,17 @@
       "priority": 80,
       "modes": [
         "name"
-      ]
+      ],
+      "match": {
+        "storage": {
+          "providerIds": [
+            "core:local-fs"
+          ]
+        },
+        "kinds": [
+          "directory"
+        ]
+      }
     }
   },
   "locales": {

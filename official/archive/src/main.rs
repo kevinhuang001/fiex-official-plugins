@@ -130,7 +130,8 @@ fn before_open(
     let destination = host
         .directory()
         .ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?
-        .reference;
+        .reference
+        .clone();
     let task_destination = destination.clone();
     let task_ignores = ignores.clone();
     let task_password = password.map(str::to_owned);

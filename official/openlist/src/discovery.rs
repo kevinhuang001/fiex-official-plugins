@@ -2,7 +2,6 @@ use crate::{
     client::{self, Session},
     fs,
 };
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use serde_json::{json, Value};
 

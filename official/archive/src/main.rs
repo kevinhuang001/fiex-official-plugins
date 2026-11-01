@@ -537,38 +537,40 @@ impl sdk::PreviewProvider for Archive {
     }
 }
 impl sdk::DecorationProvider for Archive {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::DecorationContribution>, RpcError> {
         let mut decorations = Vec::new();
-        {
-            for target in ctx.targets() {
-                let Some(metadata) = target.metadata.as_ref() else {
-                    continue;
-                };
-                let entry = serde_json::to_value(metadata)
-                    .map_err(|e| RpcError::internal(e.to_string()))?;
-                if entry["kind"] == "directory" {
-                    continue;
-                }
-                let extension = entry
-                    .get("extension")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                let label = match extension.as_str() {
-                    "zip" => "ZIP",
-                    "rar" => "RAR",
-                    "7z" => "7Z",
-                    "tar" => "TAR",
-                    "gz" | "tgz" => "TGZ",
-                    "bz2" | "tbz2" => "TBZ",
-                    "xz" | "txz" => "TXZ",
-                    _ => continue,
-                };
-                decorations.push(json!({
-                    "ref": target.reference,
-                    "badge": {"text": label, "color": "neutral", "tooltip": crate::i18n::t("压缩包")}
-                }));
+        for target in ctx.targets() {
+            let Some(metadata) = target.metadata.as_ref() else {
+                continue;
+            };
+            if metadata.kind == "directory" {
+                continue;
             }
+            let extension = metadata
+                .extension
+                .as_deref()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let label = match extension.as_str() {
+                "zip" => "ZIP",
+                "rar" => "RAR",
+                "7z" => "7Z",
+                "tar" => "TAR",
+                "gz" | "tgz" => "TGZ",
+                "bz2" | "tbz2" => "TBZ",
+                "xz" | "txz" => "TXZ",
+                _ => continue,
+            };
+            let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
+            contribution.badges.push(sdk::DecorationBadge {
+                text: label.into(),
+                color: "neutral".into(),
+                tooltip: Some(crate::i18n::t("压缩包").to_string()),
+            });
+            decorations.push(contribution);
         }
         Ok(decorations)
     }

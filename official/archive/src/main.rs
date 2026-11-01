@@ -652,7 +652,7 @@ impl sdk::ContextMenuProvider for Archive {
                     entry: Some("ui/dist/index.html".into()),
                     asset_path: None,
                     panel_id: Some(item.into()),
-                    title: Some(crate::i18n::t("高级压缩")),
+                    title: Some(crate::i18n::t("高级压缩").to_string()),
                     size: Some(sdk::PluginPanelSize {
                         width: 400,
                         height: 420,

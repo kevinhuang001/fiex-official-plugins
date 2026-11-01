@@ -182,8 +182,7 @@ fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
     let connection = request
         .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    serde_json::from_value(connection)
-        .map_err(|e| RpcError::invalid_params(e.to_string()))
+    serde_json::from_value(connection).map_err(|e| RpcError::invalid_params(e.to_string()))
 }
 
 fn directory_entries(
@@ -546,8 +545,8 @@ fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidati
         .connection_value()
         .map_err(RpcError::invalid_params)?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let cfg: StoredConnection = serde_json::from_value(connection)
-        .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    let cfg: StoredConnection =
+        serde_json::from_value(connection).map_err(|e| RpcError::invalid_params(e.to_string()))?;
     safe_relative(&cfg.base)?;
     directory_entries(&ctx.tcp(), &cfg, "")?;
     Ok(sdk::ConnectionValidation::valid())
@@ -605,10 +604,16 @@ impl VfsProvider for Smb {
 }
 
 impl sdk::ConnectionProvider for Smb {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
         open(ctx)
     }
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
         validate(ctx)
     }
 }

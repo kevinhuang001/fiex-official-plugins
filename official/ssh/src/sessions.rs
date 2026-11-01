@@ -1,6 +1,8 @@
 //! Plugin-owned terminal sessions. Only opaque tokens cross the PluginView bridge.
 use base64::{engine::general_purpose::STANDARD, Engine};
-use fiex_plugin_sdk::{ConnectionOpenResult, ConnectionFieldValue, ConnectionSettings, PackageView, RpcError};
+use fiex_plugin_sdk::{
+    ConnectionFieldValue, ConnectionOpenResult, ConnectionSettings, PackageView, RpcError,
+};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -69,9 +71,7 @@ fn sweep(registry: &mut Registry) {
 pub(crate) fn connection_view(
     connection: &ConnectionSettings,
 ) -> Result<ConnectionOpenResult, RpcError> {
-    let connection_value = connection
-        .to_value()
-        .map_err(RpcError::invalid_params)?;
+    let connection_value = connection.to_value().map_err(RpcError::invalid_params)?;
     let host = connection
         .get("host")
         .and_then(|value| match value {
@@ -93,10 +93,7 @@ pub(crate) fn connection_view(
             source: "package".into(),
             entry: "ui/dist/index.html".into(),
         },
-        tab_title: Some(format!(
-            "SSH · {}",
-            host
-        )),
+        tab_title: Some(format!("SSH · {}", host)),
         state: json!({"sessionId":id}),
     })
 }
@@ -252,11 +249,9 @@ mod tests {
     #[test]
     fn abandoned_views_and_slow_consumers_are_bounded() {
         let ConnectionOpenResult::PluginView { state, .. } = connection_view(
-            &serde_json::from_value::<ConnectionSettings>(json!({"host":"example.test"}))
-                .unwrap(),
+            &serde_json::from_value::<ConnectionSettings>(json!({"host":"example.test"})).unwrap(),
         )
-        .unwrap()
-        else {
+        .unwrap() else {
             panic!("SSH must open as a package view");
         };
         let id = state["sessionId"].as_str().unwrap();

@@ -1,7 +1,7 @@
 //! Method dispatch: turn a panel request into a GnuPG invocation and shape the
 //! result for the panel.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{gpg, keys::keyring, keys::keys};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
@@ -306,7 +306,10 @@ impl sdk::ContextMenuProvider for GpgMenu {
             Some(_) => Err(RpcError::invalid_params("unknown GPG submenu")),
         }
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::MenuExecuteResult, RpcError> {
+    fn execute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::MenuExecuteResult, RpcError> {
         let item = ctx
             .input()?
             .context_menu_execute()
@@ -329,10 +332,7 @@ impl sdk::ContextMenuProvider for GpgMenu {
             asset_path: None,
             panel_id: Some(item.into()),
             title: Some(title),
-            size: Some(sdk::PluginPanelSize {
-                width,
-                height,
-            }),
+            size: Some(sdk::PluginPanelSize { width, height }),
         }))
     }
 }

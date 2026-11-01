@@ -2,8 +2,8 @@
 //!
 //! Files are read through `/api/fs/get`, which returns a storage URL. The SDK
 //! owns chunk offsets and stream ids, so a plain HTTP response is the reader.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use super::client::{self, Config, Session};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest},
@@ -127,7 +127,10 @@ pub(crate) fn object(
     )
 }
 
-pub(crate) fn validate(host: &dyn sdk::ProviderInvocation, session: &Session) -> Result<sdk::ConnectionValidation, RpcError> {
+pub(crate) fn validate(
+    host: &dyn sdk::ProviderInvocation,
+    session: &Session,
+) -> Result<sdk::ConnectionValidation, RpcError> {
     let request = host
         .input()?
         .connection_request()

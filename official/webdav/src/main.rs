@@ -64,7 +64,10 @@ impl VfsProvider for WebDav {
 }
 
 impl sdk::ConnectionProvider for WebDav {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
         let mount = ctx
             .input()?
             .connection_request()
@@ -78,7 +81,10 @@ impl sdk::ConnectionProvider for WebDav {
             },
         })
     }
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
         fs::validate(ctx)
     }
 }

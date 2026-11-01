@@ -2,8 +2,8 @@
 //!
 //! Core owns mount configuration, caching and conflict resolution; this
 //! provider translates the unified `vfs.*` requests into WebDAV calls.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use super::client::{self, StoredConnection, DAV_BODY};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
@@ -30,8 +30,7 @@ pub(crate) fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, Rp
     let connection = request
         .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    serde_json::from_value(connection)
-        .map_err(|error| RpcError::invalid_params(error.to_string()))
+    serde_json::from_value(connection).map_err(|error| RpcError::invalid_params(error.to_string()))
 }
 
 fn propfind(
@@ -85,7 +84,9 @@ fn display_name(path: &str) -> &str {
     }
 }
 
-pub(crate) fn validate(host: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+pub(crate) fn validate(
+    host: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::ConnectionValidation, RpcError> {
     let request = host
         .input()?
         .connection_request()
@@ -265,7 +266,11 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn aria2_read(host: &dyn sdk::ProviderInvocation, cfg: &StoredConnection, path: &str) -> Option<FsRead> {
+fn aria2_read(
+    host: &dyn sdk::ProviderInvocation,
+    cfg: &StoredConnection,
+    path: &str,
+) -> Option<FsRead> {
     let mut request = host
         .aria2()
         .get(&client::webdav_url(&cfg, path))

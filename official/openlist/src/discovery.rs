@@ -1,8 +1,8 @@
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{
     client::{self, Session},
     fs,
 };
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use serde_json::{json, Value};
 
@@ -14,9 +14,15 @@ pub fn discover(
         .input()?
         .vfs_request()
         .ok_or_else(|| RpcError::invalid_params("missing VFS request"))?;
-    let connection = request.connection_value().map_err(RpcError::invalid_params)?;
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?;
     let cfg = client::config(connection.as_ref())?;
-    let node = request.node_id.as_deref().or(request.parent_id.as_deref()).unwrap_or("");
+    let node = request
+        .node_id
+        .as_deref()
+        .or(request.parent_id.as_deref())
+        .unwrap_or("");
     fs::safe_relative(node)?;
     // /api/fs/list reports the directory's meta write gate. For a file,
     // mutations operate in its parent; mkdir already supplies parentId.

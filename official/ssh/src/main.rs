@@ -39,7 +39,10 @@ fn main() {
 
 struct SshConnection;
 impl sdk::ConnectionProvider for SshConnection {
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, RpcError> {
         let request = ctx
             .input()?
             .connection_request()
@@ -53,9 +56,16 @@ impl sdk::ConnectionProvider for SshConnection {
                 _ => None,
             })
             .unwrap_or("");
-        Ok(if host.is_empty() { sdk::ConnectionValidation::invalid() } else { sdk::ConnectionValidation::valid() })
+        Ok(if host.is_empty() {
+            sdk::ConnectionValidation::invalid()
+        } else {
+            sdk::ConnectionValidation::valid()
+        })
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         let request = ctx
             .input()?
             .connection_request()

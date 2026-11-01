@@ -1,6 +1,6 @@
 //! Connection provider plus mailbox methods.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{config::Settings, imap, smtp};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
@@ -87,10 +87,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 
-fn test_mailbox(
-    ctx: &dyn sdk::ProviderInvocation,
-    settings: Settings,
-) -> Result<Value, RpcError> {
+fn test_mailbox(ctx: &dyn sdk::ProviderInvocation, settings: Settings) -> Result<Value, RpcError> {
     let mut session = imap_session(ctx, &settings).map_err(RpcError::internal)?;
     let _ = session
         .select("INBOX")
@@ -111,7 +108,10 @@ fn test_mailbox(
 }
 pub struct EmailConnection;
 impl sdk::ConnectionProvider for EmailConnection {
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, RpcError> {
         let request = ctx
             .input()?
             .connection_request()
@@ -124,7 +124,10 @@ impl sdk::ConnectionProvider for EmailConnection {
         test_mailbox(ctx, settings)?;
         Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         let request = ctx
             .input()?
             .connection_request()
@@ -144,7 +147,10 @@ impl sdk::ConnectionProvider for EmailConnection {
                 source: "package".into(),
                 entry: "ui/dist/index.html".into(),
             },
-            tab_title: Some(fiex_plugin_sdk::i18n::format(crate::i18n::t("邮箱 · {0}"), &[("0", settings.email.clone())])),
+            tab_title: Some(fiex_plugin_sdk::i18n::format(
+                crate::i18n::t("邮箱 · {0}"),
+                &[("0", settings.email.clone())],
+            )),
             state: json!({
                 "connectionId": connection_id,
                 "email": settings.email,

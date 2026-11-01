@@ -123,7 +123,10 @@ pub(crate) fn dispatch(
 mod provider_results;
 pub(crate) struct Presentation(pub std::sync::Arc<Mutex<Option<Cache>>>);
 impl sdk::InfoProvider for Presentation {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = resources::target(ctx)?;
         let rows = info_rows(ctx, &target, &self.0)?;
         provider_results::section("data", crate::i18n::t("数据表"), rows["rows"].clone())

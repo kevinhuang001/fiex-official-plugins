@@ -1,7 +1,7 @@
 //! RFC 3744 current-user-privilege-set. OPTIONS/Allow only describes methods,
 //! so it must never be treated as the current account's write authorization.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{client, fs};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use quick_xml::events::Event;
 
@@ -14,9 +14,13 @@ pub fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, R
         .connection_value()
         .map_err(RpcError::invalid_params)?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let cfg: client::StoredConnection = serde_json::from_value(connection)
-        .map_err(|e| RpcError::invalid_params(e.to_string()))?;
-    let node = request.node_id.as_deref().or(request.parent_id.as_deref()).unwrap_or("");
+    let cfg: client::StoredConnection =
+        serde_json::from_value(connection).map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    let node = request
+        .node_id
+        .as_deref()
+        .or(request.parent_id.as_deref())
+        .unwrap_or("");
     fs::safe_relative(node)?;
     let mut ops = resource_privileges(ctx, &cfg, node)?;
     ops.retain(|op| !matches!(op, FsOperation::Rename | FsOperation::Remove));

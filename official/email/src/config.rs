@@ -1,6 +1,6 @@
 //! Account settings for a connection or for the standalone toolbar panel.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk as sdk;
+use fiex_plugin_sdk::ProviderInvocationExt;
 use serde_json::Value;
 
 #[derive(Clone, Debug)]

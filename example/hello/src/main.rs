@@ -62,13 +62,22 @@ fn connection_open(
 }
 
 impl sdk::ConnectionProvider for HelloConnection {
-    fn validate(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    fn validate(
+        &self,
+        _ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, RpcError> {
         Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         connection_open(ctx)
     }
-    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    fn create(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         connection_open(ctx)
     }
 }
@@ -129,7 +138,10 @@ impl VfsProvider for HelloFiles {
 struct HelloInfo;
 
 impl sdk::InfoProvider for HelloInfo {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let meta = ctx
             .targets()
             .first()
@@ -262,7 +274,10 @@ impl sdk::ContextMenuProvider for HelloMenu {
             sdk::MenuItem::submenu("example.more", "示例"),
         ])
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::MenuExecuteResult, RpcError> {
+    fn execute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::MenuExecuteResult, RpcError> {
         let item = ctx
             .input()?
             .context_menu_execute()
@@ -271,7 +286,9 @@ impl sdk::ContextMenuProvider for HelloMenu {
         if !matches!(item, "example.inspect" | "example.copy-path") {
             return Err(RpcError::invalid_params("unknown example menu item"));
         }
-        Ok(sdk::MenuExecuteResult::Custom(json!({"ok": true, "itemId": item})))
+        Ok(sdk::MenuExecuteResult::Custom(
+            json!({"ok": true, "itemId": item}),
+        ))
     }
 }
 

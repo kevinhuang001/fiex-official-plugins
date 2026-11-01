@@ -277,7 +277,11 @@ fn archive_menu_input(
     ctx: &dyn sdk::ProviderInvocation,
     parent_id: Option<&str>,
 ) -> Result<Value, RpcError> {
-    let targets = ctx.targets().iter().map(archive_resource).collect::<Vec<_>>();
+    let targets = ctx
+        .targets()
+        .iter()
+        .map(archive_resource)
+        .collect::<Vec<_>>();
     Ok(json!({"targets":targets,"parentId":parent_id}))
 }
 
@@ -395,11 +399,9 @@ fn run_operation(
             })?;
             Ok(json!({"taskId": task.id()}))
         }
-        "archive.info" => archive_info(
-            &resources::from_params(p, "path", host)?.reference,
-            p,
-            host,
-        ),
+        "archive.info" => {
+            archive_info(&resources::from_params(p, "path", host)?.reference, p, host)
+        }
         "archive.list" => match listing::list(
             &resources::from_params(p, "path", host)?.reference,
             p.get("password").and_then(Value::as_str),
@@ -547,7 +549,10 @@ mod context_menu_tests {
 mod provider_results;
 struct Archive;
 impl sdk::InfoProvider for Archive {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
@@ -643,7 +648,10 @@ impl sdk::ContextMenuProvider for Archive {
         serde_json::from_value(archive_menu(&params)["items"].clone())
             .map_err(|error| RpcError::internal(error.to_string()))
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::MenuExecuteResult, RpcError> {
+    fn execute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::MenuExecuteResult, RpcError> {
         let request = ctx
             .input()?
             .context_menu_execute()

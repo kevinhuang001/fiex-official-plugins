@@ -88,7 +88,11 @@ fn query(
     entries.sort_by_key(|entry| entry.path.to_lowercase());
     let truncated = entries.len() > limit;
     entries.truncate(limit);
-    Ok(sdk::SearchResults { entries, truncated, next_cursor: None })
+    Ok(sdk::SearchResults {
+        entries,
+        truncated,
+        next_cursor: None,
+    })
 }
 #[cfg(not(windows))]
 fn query(

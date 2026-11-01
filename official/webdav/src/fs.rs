@@ -9,7 +9,7 @@ use fiex_plugin_sdk::{
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     io,
     sync::{Arc, Mutex},

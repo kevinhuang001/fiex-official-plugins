@@ -2,7 +2,6 @@
 use crate::table::{kind_of, Column, Table};
 use calamine::{Data, Reader, Xls, Xlsx};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
 use std::io::Cursor;
 
 const MAX_ROWS: usize = 200_000;
@@ -100,17 +99,6 @@ pub fn sheet_names(bytes: &[u8], extension: &str) -> Result<Vec<String>, String>
         return Err(crate::i18n::t("工作簿没有可见的工作表").into());
     }
     Ok(names)
-}
-
-#[allow(dead_code)]
-pub fn open(bytes: Vec<u8>, extension: &str) -> Result<BTreeMap<String, Table>, String> {
-    let mut sheets = BTreeMap::new();
-    for name in sheet_names(&bytes, extension)? {
-        if let Ok(table) = sheet(&bytes, extension, &name) {
-            sheets.insert(name, table);
-        }
-    }
-    Ok(sheets)
 }
 
 #[cfg(test)]

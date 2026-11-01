@@ -1,5 +1,4 @@
 use fiex_plugin_sdk as sdk;
-use fiex_plugin_sdk::ProviderInvocationExt;
 
 fn badge(code: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
     if code == "??" {
@@ -24,7 +23,11 @@ fn normalize(path: &str) -> String {
 }
 
 fn resolve(host: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::DecorationContribution>, String> {
-    let directory = host.directory().ok_or("missing directory ref")?.reference;
+    let directory = host
+        .directory()
+        .ok_or("missing directory ref")?
+        .reference
+        .clone();
     let Some(status) = crate::git_host::status(&directory, host) else {
         return Ok(Vec::new());
     };

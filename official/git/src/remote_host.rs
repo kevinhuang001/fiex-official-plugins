@@ -1,6 +1,5 @@
 use crate::git_host::run;
 use fiex_plugin_sdk as sdk;
-use fiex_plugin_sdk::ProviderInvocationExt;
 use serde_json::{json, Value};
 fn valid(name: &str) -> Result<(), String> {
     if name.is_empty()

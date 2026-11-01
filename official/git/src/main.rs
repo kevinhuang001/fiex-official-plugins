@@ -1,5 +1,4 @@
 //! Fiex Git plugin runs as an independent process; never links to Fiex Core.
-use fiex_plugin_sdk::ProviderInvocationExt;
 mod decorations;
 mod files;
 mod git_host;
@@ -41,7 +40,6 @@ fn response<T: serde::Serialize>(result: Result<T, String>) -> Result<Value, Rpc
 }
 
 fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
-    let path = request.node_id().unwrap_or("");
     let result = history_host::list(request).map_err(RpcError::internal)?;
     let start = request
         .cursor()
@@ -82,9 +80,6 @@ fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
 }
 
 fn search(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
-    let path = request
-        .node_id()
-        .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?;
     let query = request
         .query()
         .ok_or_else(|| RpcError::invalid_params("missing query"))?;

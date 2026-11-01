@@ -1,5 +1,5 @@
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk as sdk;
+use fiex_plugin_sdk::ProviderInvocationExt;
 
 fn badge(code: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
     if code == "??" {

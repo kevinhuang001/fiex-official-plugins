@@ -42,8 +42,7 @@ fn response<T: serde::Serialize>(result: Result<T, String>) -> Result<Value, Rpc
 
 fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     let path = request.node_id().unwrap_or("");
-    let result = history_host::list(request)
-        .map_err(RpcError::internal)?;
+    let result = history_host::list(request).map_err(RpcError::internal)?;
     let start = request
         .cursor()
         .unwrap_or("0")
@@ -90,8 +89,7 @@ fn search(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         .query()
         .ok_or_else(|| RpcError::invalid_params("missing query"))?;
     let limit = request.limit().clamp(1, 2000);
-    let mut entries = history_host::search(request, query)
-    .map_err(RpcError::internal)?;
+    let mut entries = history_host::search(request, query).map_err(RpcError::internal)?;
     let truncated = entries.len() > limit;
     entries.truncate(limit);
     Ok(FsListing {

@@ -1,9 +1,9 @@
 //! Git history logic lives in the plugin; Core only executes authorized commands.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{
     files::{Entry, Listing},
     git_host::run,
 };
+use fiex_plugin_sdk::ProviderInvocationExt;
 
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
@@ -32,16 +32,12 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
         relative: relative.into(),
     })
 }
-fn request_route(
-    path: &str,
-    request: &sdk::filesystem::FsRequest<'_>,
-) -> Result<Route, String> {
+fn request_route(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Route, String> {
     let context = request
         .view_context()
         .ok_or_else(|| crate::i18n::t("无效历史上下文"))?;
     let context = serde_json::to_value(context).map_err(|error| error.to_string())?;
-    route(path, &context)
-        .ok_or_else(|| crate::i18n::t("无效历史上下文").into())
+    route(path, &context).ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
 /// The blob path is stable for one commit, so it doubles as the node id.
@@ -188,9 +184,7 @@ fn entries(
     }
     Ok(values)
 }
-pub fn list(
-    request: &sdk::filesystem::FsRequest<'_>,
-) -> Result<Listing, String> {
+pub fn list(request: &sdk::filesystem::FsRequest<'_>) -> Result<Listing, String> {
     let path = request.node_id().unwrap_or("");
     Ok(Listing {
         read_only: true,
@@ -243,10 +237,7 @@ pub fn blob(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Vec<
     }
     result.stdout_bytes()
 }
-pub fn search(
-    request: &sdk::filesystem::FsRequest<'_>,
-    query: &str,
-) -> Result<Vec<Entry>, String> {
+pub fn search(request: &sdk::filesystem::FsRequest<'_>, query: &str) -> Result<Vec<Entry>, String> {
     let query = query.to_lowercase();
     Ok(entries(
         request.node_id().unwrap_or(""),
@@ -255,10 +246,10 @@ pub fn search(
         true,
         request,
     )?
-        .into_iter()
-        .filter(|v| v.name.to_lowercase().contains(&query))
-        .take(2000)
-        .collect())
+    .into_iter()
+    .filter(|v| v.name.to_lowercase().contains(&query))
+    .take(2000)
+    .collect())
 }
 #[cfg(test)]
 mod tests {

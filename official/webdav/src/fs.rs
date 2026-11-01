@@ -3,13 +3,11 @@
 //! Core owns mount configuration, caching and conflict resolution; this
 //! provider translates the unified `vfs.*` requests into WebDAV calls.
 use super::client::{self, StoredConnection, DAV_BODY};
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
-use serde_json::Value;
 use std::{
     io,
     sync::{Arc, Mutex},
@@ -266,12 +264,22 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn aria2_read(
-    host: &dyn sdk::ProviderInvocation,
-    cfg: &StoredConnection,
-    path: &str,
-) -> Option<FsRead> {
-    let mut request = host
+// WebDAV exposes DAV:getcontentlength through PROPFIND. Reuse any Core size
+// hint first; otherwise attempt depth-0 stat. If the server omits a valid
+// length, Core safely starts a sequential aria2 transfer.
+pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+    let host = request.ctx();
+    let cfg = connection(request)?;
+    let path = request
+        .node_id()
+        .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
+    safe_relative(path)?;
+    let size = request.size().or_else(|| {
+        stat_http(&host.http(), &cfg, path)
+            .ok()
+            .and_then(|entry| entry.size)
+    });
+    let mut download = host
         .aria2()
         .get(&client::webdav_url(&cfg, path))
         .timeout(std::time::Duration::from_secs(3600))

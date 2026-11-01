@@ -2,6 +2,8 @@
 //! the plugin never contacts Everything's native IPC endpoint itself.
 #[path = "../../../support/i18n.rs"]
 mod i18n;
+#[cfg(windows)]
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]

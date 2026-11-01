@@ -11,7 +11,6 @@ use fiex_plugin_sdk::{
     RpcError,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
 use smb::{GetLen, ReadAt};
 use std::{io, str::FromStr};
 

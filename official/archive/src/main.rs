@@ -511,7 +511,10 @@ mod context_menu_tests {
 mod provider_results;
 struct Archive;
 impl sdk::InfoProvider for Archive {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;

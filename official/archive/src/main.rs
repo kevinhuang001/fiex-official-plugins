@@ -687,7 +687,10 @@ impl sdk::ContextMenuProvider for Archive {
     }
 }
 impl sdk::HookProvider for Archive {
-    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::contracts::HookResult, RpcError> {
+    fn invoke(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::contracts::HookResult, RpcError> {
         let request = ctx
             .input()?
             .hook_request()

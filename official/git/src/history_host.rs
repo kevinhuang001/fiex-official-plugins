@@ -196,7 +196,7 @@ pub fn list(
         read_only: true,
         virtual_volume: true,
         path: path.into(),
-        entries(path, request.hidden(), &request.ignores(), false, request)?,
+        entries: entries(path, request.hidden(), &request.ignores(), false, request)?,
         warnings: vec![],
     })
 }

@@ -20,8 +20,6 @@ class Connection(module.Fixture):
         super().__init__(binary)
     def host(self,method,p):
         self.authorize(p)
-        if method.startswith('host.aria2.'):
-            raise RuntimeError('aria2 unavailable in fixture')
         if method=='host.net.http.open' and p.get('bodyStream'):
             if self.offline: raise RuntimeError('network disconnected')
             handle=f'body-{len(self.pending)}'
@@ -148,7 +146,8 @@ def main():
             if result['eof']: break
         assert b''.join(parts)==f.content and offset==len(f.content)
         call('vfs.closeRead',streamId=stream)
-        assert not f.streams, f.streams
+        assert not f.streams and not f.aria2_streams, (f.streams, f.aria2_streams)
+        assert f.aria2_downloads >= 1, 'download must use aria2'
         assert 'error' in upload(f.source,'stale')
         f.offline=True
         assert 'error' in upload(f.source,before)
@@ -158,7 +157,7 @@ def main():
         after=uploaded['result']['revision']
         assert after!=before and f.content==f.source
         assert 'error' in upload(f.source,before)
-        assert not f.files and not f.streams and not f.pending
+        assert not f.files and not f.streams and not f.pending and not f.aria2_streams
         print('PASS',args.kind,'offline retry, version checks and streamed upload')
     finally:f.close()
 if __name__=='__main__':main()

@@ -100,8 +100,17 @@ fn main() {
     assert_eq!(info.name, "a.txt");
     let preview = plugin_vfs::read_prefix(&child, 1024).expect("vfs.openRead failed");
     assert_eq!(String::from_utf8_lossy(&preview), "hello\n");
-    let (found, _) =
-        plugin_vfs::search(&history_path, "a.txt", true, &[], 50).expect("vfs.search failed");
+    let mut found = Vec::new();
+    plugin_vfs::search_stream(
+        &history_path,
+        "a.txt",
+        true,
+        &[],
+        50,
+        &|| false,
+        &mut |entry| found.push(entry),
+    )
+    .expect("vfs.search failed");
     assert!(!found.is_empty(), "search returned no entries");
 
     std::fs::write(repo.join("a.txt"), "changed\n").unwrap();

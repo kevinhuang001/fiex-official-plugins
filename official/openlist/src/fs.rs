@@ -128,7 +128,7 @@ pub(crate) fn object(
 pub(crate) fn validate(
     host: &dyn sdk::ProviderInvocation,
     session: &Session,
-) -> Result<Value, RpcError> {
+) -> Result<sdk::ConnectionValidation, RpcError> {
     let cfg = client::config(host.params().get("connection"))?;
     client::authorized(
         host,
@@ -143,7 +143,7 @@ pub(crate) fn validate(
             "refresh": false
         }),
     )?;
-    Ok(json!({ "valid": true }))
+    Ok(sdk::ConnectionValidation::valid())
 }
 
 pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListing, RpcError> {

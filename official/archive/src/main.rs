@@ -121,7 +121,7 @@ fn before_open(
     path: &sdk::ResourceRef,
     params: &Value,
     host: &dyn sdk::ProviderInvocation,
-) -> Result<Value, RpcError> {
+) -> Result<sdk::HookResult, RpcError> {
     let stored = stored_ignores(host, "extractIgnores");
     let ignores = merge_ignores(params, stored);
     let password = params.get("password").and_then(Value::as_str);
@@ -162,7 +162,7 @@ fn before_open(
             while !handle.is_finished() && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(10));
             }
-            Ok(json!({ "handled": true }))
+            Ok(sdk::HookResult { handled: true })
         }
         Err(error) => {
             let _ = host.log(
@@ -180,7 +180,7 @@ fn before_open(
                 max_total,
                 host.sdk_context(),
             ) {
-                Ok(_) => Ok(json!({ "handled": true })),
+                Ok(_) => Ok(sdk::HookResult { handled: true }),
                 Err(error) => {
                     if error != archives::CANCELLED {
                         let _ = host.report_error(
@@ -189,7 +189,7 @@ fn before_open(
                             None,
                         );
                     }
-                    Ok(json!({ "handled": true }))
+                    Ok(sdk::HookResult { handled: true })
                 }
             }
         }
@@ -618,12 +618,12 @@ impl sdk::ContextMenuProvider for Archive {
     }
 }
 impl sdk::HookProvider for Archive {
-    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
         let p = ctx.params();
         let host = ctx;
 
         if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
-            return Ok(json!({ "handled": false }));
+            return Ok(sdk::HookResult { handled: false });
         }
         before_open(&resources::input(host, "path")?.reference, p, host)
     }

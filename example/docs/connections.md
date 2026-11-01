@@ -52,10 +52,13 @@ NavigationTarget: { kind: "vfs" } | { kind: "pluginView" }
 struct ExampleConnection;
 
 impl sdk::ConnectionProvider for ExampleConnection {
-    fn validate(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"valid": true}))
+    fn validate(
+        &self,
+        _ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, RpcError> {
+        Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let factory = ctx.params()["factoryId"].as_str().unwrap_or("");
         if factory == "example-account" {
             return Ok(json!({
@@ -70,30 +73,13 @@ impl sdk::ConnectionProvider for ExampleConnection {
             "nodeRef": {"mountId": ctx.params()["mountId"], "nodeId": "root"}
         }))
     }
-    fn create(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         self.open(ctx)
-    }
-    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"entries": [{
-            "name": "README.md", "nodeId": "readme", "kind": "file",
-            "size": 14, "modified": 0, "revision": "1"
-        }], "nextCursor": null}))
-    }
-    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"revision": "1", "size": 14}))
-    }
-    fn open_read(&self, _ctx: &sdk::RequestContext)
-        -> Result<sdk::ConnectionReader, RpcError>
-    {
-        Ok(sdk::ConnectionReader::new(
-            std::io::Cursor::new(b"hello example\n".to_vec()),
-            Some(14),
-        ))
     }
 }
 ```
 
-`vfs.openRead` / `vfs.readStream` / `vfs.closeRead` 不需要自己实现：返回
-`ConnectionReader` 后，SDK 负责 stream ID、offset、分块和关闭。
+`ConnectionProvider` 只负责校验、打开或创建连接。文件列表与读写由独立的
+`VfsProvider` 实现；连接的 `open` / `create` 响应只选择连接视图或 VFS 挂载。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloConnection`。

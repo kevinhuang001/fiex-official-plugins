@@ -764,8 +764,8 @@ Manifest：
 ```rust
 struct ExampleHooks;
 impl sdk::HookProvider for ExampleHooks {
-    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"handled": false}))
+    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
+        Ok(sdk::HookResult { handled: false })
     }
 }
 ```

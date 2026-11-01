@@ -52,8 +52,11 @@ fn connection_open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError>
 }
 
 impl sdk::ConnectionProvider for HelloConnection {
-    fn validate(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({"valid": true}))
+    fn validate(
+        &self,
+        _ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, RpcError> {
+        Ok(sdk::ConnectionValidation::valid())
     }
     fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         connection_open(ctx)
@@ -248,19 +251,16 @@ impl sdk::SearchProvider for HelloSearch {
 struct HelloHooks;
 
 impl sdk::HookProvider for HelloHooks {
-    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({"handled": false}))
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
+        Ok(sdk::HookResult { handled: false })
     }
 }
 
 struct HelloToolbar;
 
 impl sdk::ToolbarProvider for HelloToolbar {
-    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({
-            "refreshed": true,
-            "directory": ctx.params().get("root").cloned().unwrap_or(Value::Null)
-        }))
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ToolbarResult, RpcError> {
+        Ok(sdk::ToolbarResult::default())
     }
 }
 

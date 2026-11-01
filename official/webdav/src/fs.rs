@@ -9,7 +9,7 @@ use fiex_plugin_sdk::{
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     io,
     sync::{Arc, Mutex},
@@ -87,7 +87,9 @@ fn display_name(path: &str) -> &str {
     }
 }
 
-pub(crate) fn validate(host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+pub(crate) fn validate(
+    host: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::ConnectionValidation, RpcError> {
     let cfg: StoredConnection = serde_json::from_value(
         host.params()
             .get("connection")
@@ -97,7 +99,7 @@ pub(crate) fn validate(host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcE
     .map_err(|error| RpcError::invalid_params(error.to_string()))?;
     let url = format!("{}/", client::webdav_url(&cfg, "").trim_end_matches('/'));
     propfind(&host.http(), &cfg, &url, "", "1")?;
-    Ok(json!({"valid":true}))
+    Ok(sdk::ConnectionValidation::valid())
 }
 
 pub(crate) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {

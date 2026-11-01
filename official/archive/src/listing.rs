@@ -1,4 +1,5 @@
 //! Read-only archive listings for the preview panel.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::io::{Read, Seek};
@@ -56,7 +57,7 @@ pub fn looks_encrypted(message: &str) -> bool {
 pub fn list(
     source: &sdk::ResourceRef,
     password: Option<&str>,
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Value, String> {
     let lower = host
         .files()

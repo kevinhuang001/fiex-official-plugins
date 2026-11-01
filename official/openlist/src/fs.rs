@@ -2,6 +2,7 @@
 //!
 //! Files are read through `/api/fs/get`, which returns a storage URL. The SDK
 //! owns chunk offsets and stream ids, so a plain HTTP response is the reader.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use super::client::{self, Config, Session};
 use fiex_plugin_sdk::{
     self as sdk,
@@ -53,7 +54,7 @@ pub(crate) fn valid_name(name: &str) -> Result<(), RpcError> {
 }
 
 fn raw_url(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     session: &Session,
     relative: &str,
@@ -110,7 +111,7 @@ fn entry_from_data(data: &Value, node: &str) -> FsEntry {
 }
 
 pub(crate) fn object(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     session: &Session,
     node: &str,
@@ -124,7 +125,7 @@ pub(crate) fn object(
     )
 }
 
-pub(crate) fn validate(host: &sdk::RequestContext, session: &Session) -> Result<Value, RpcError> {
+pub(crate) fn validate(host: &dyn sdk::ProviderInvocation, session: &Session) -> Result<Value, RpcError> {
     let cfg = client::config(host.params().get("connection"))?;
     client::authorized(
         host,
@@ -223,7 +224,7 @@ pub(crate) fn stat(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry
 }
 
 pub(crate) fn stat_node(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     session: &Session,
     node: &str,

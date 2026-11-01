@@ -1,5 +1,6 @@
 //! Standalone WebDAV adapter. The Fiex host owns mount configuration,
 //! credential storage, cache, sync rules and conflict resolution.
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod client;
 mod discovery;
 mod fs;
@@ -16,7 +17,7 @@ struct WebDav;
 impl VfsProvider for WebDav {
     fn discover(
         &self,
-        ctx: &sdk::RequestContext,
+        ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::filesystem::FsOperation>, sdk::RpcError> {
         discovery::discover(ctx)
     }
@@ -63,7 +64,7 @@ impl VfsProvider for WebDav {
 }
 
 impl sdk::ConnectionProvider for WebDav {
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
         let mount = ctx.params()["mountId"]
             .as_str()
             .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
@@ -71,7 +72,7 @@ impl sdk::ConnectionProvider for WebDav {
             serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
         )
     }
-    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
         fs::validate(ctx)
     }
 }

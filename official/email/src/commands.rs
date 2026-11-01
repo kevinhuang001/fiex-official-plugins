@@ -1,4 +1,5 @@
 //! Connection provider plus mailbox methods.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{config::Settings, imap, smtp};
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
@@ -10,12 +11,12 @@ fn text<'a>(p: &'a Value, key: &str) -> Result<&'a str, RpcError> {
         .ok_or_else(|| RpcError::invalid_params(format!("missing {key}")))
 }
 
-fn settings(ctx: &sdk::RequestContext, p: &Value) -> Result<Settings, RpcError> {
+fn settings(ctx: &dyn sdk::ProviderInvocation, p: &Value) -> Result<Settings, RpcError> {
     Settings::from_params(ctx, p).map_err(RpcError::invalid_params)
 }
 
 fn imap_session(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     settings: &Settings,
 ) -> Result<imap::Session<fiex_plugin_sdk::tcp::TcpStream>, String> {
     let stream = ctx
@@ -86,7 +87,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 
-fn test_mailbox(ctx: &sdk::RequestContext, from_connection: bool) -> Result<Value, RpcError> {
+fn test_mailbox(ctx: &dyn sdk::ProviderInvocation, from_connection: bool) -> Result<Value, RpcError> {
     let p = ctx.params();
 
     let connection = p.get("connection").unwrap_or(p);
@@ -115,10 +116,10 @@ fn test_mailbox(ctx: &sdk::RequestContext, from_connection: bool) -> Result<Valu
 }
 pub struct EmailConnection;
 impl sdk::ConnectionProvider for EmailConnection {
-    fn validate(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         test_mailbox(ctx, true)
     }
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let p = ctx.params();
 
         let settings = Settings::from_connection(

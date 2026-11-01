@@ -1,4 +1,5 @@
 //! Fiex Git plugin runs as an independent process; never links to Fiex Core.
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod decorations;
 mod files;
 mod git_host;
@@ -136,7 +137,7 @@ impl VfsProvider for GitView {
 
     fn search_capabilities(
         &self,
-        _ctx: &sdk::RequestContext,
+        _ctx: &dyn sdk::ProviderInvocation,
     ) -> sdk::filesystem::SearchCapabilities {
         // History search matches path names only; commit contents are never
         // indexed.

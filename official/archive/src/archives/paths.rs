@@ -1,5 +1,6 @@
 //! Path helpers: safe extraction names, non-colliding targets and the default
 //! archive destination.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, Files};
 use std::path::{Component, Path};
 
@@ -87,7 +88,7 @@ pub(crate) fn entry_ref(
 pub fn default_destination(
     paths: &[sdk::ResourceRef],
     format: &str,
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::ResourceRef, String> {
     if !matches!(
         format,

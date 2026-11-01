@@ -1,3 +1,4 @@
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 
@@ -23,7 +24,7 @@ fn normalize(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-pub fn list(_params: &Value, host: &sdk::RequestContext) -> Result<Value, String> {
+pub fn list(_params: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, String> {
     let directory = host.directory().ok_or("missing directory ref")?.reference;
     let Some(status) = crate::git_host::status(&directory, host) else {
         return Ok(json!({ "decorations": [] }));
@@ -60,7 +61,7 @@ pub fn list(_params: &Value, host: &sdk::RequestContext) -> Result<Value, String
 
 pub struct GitDecorations;
 impl sdk::DecorationProvider for GitDecorations {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, sdk::RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, sdk::RpcError> {
         let value = list(ctx.params(), ctx).map_err(sdk::RpcError::internal)?;
         serde_json::from_value(value["decorations"].clone())
             .map_err(|error| sdk::RpcError::internal(error.to_string()))

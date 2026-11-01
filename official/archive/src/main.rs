@@ -1,391 +1,4 @@
-mod archives;
-#[path = "../../../support/i18n.rs"]
-mod i18n;
-mod ignores;
-mod listing;
-#[path = "../../../support/resources.rs"]
-mod resources;
-use fiex_plugin_sdk::{self as sdk, RpcError};
-use serde_json::{json, Value};
-use std::time::{Duration, Instant};
-
-/// How long a `beforeOpen` hook waits for an extraction that is likely quick.
-/// If the archive is still being expanded after this, the hook returns so Core
-/// can finish the open immediately; the task keeps running in the background.
-const HOOK_SYNC_GRACE: Duration = Duration::from_millis(750);
-fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
-    p.get(k)
-        .and_then(Value::as_str)
-        .ok_or_else(|| RpcError::invalid_params(format!("missing {k}")))
-}
-/// Stored as a JSON array by the list setting; older installs may still hold a
-/// comma/newline separated string, which is accepted for compatibility.
-fn stored_ignores(host: &sdk::RequestContext, key: &str) -> Vec<String> {
-    match host.storage().get::<Value>(key) {
-        Ok(Some(Value::Array(items))) => items
-            .iter()
-            .filter_map(Value::as_str)
-            .map(str::trim)
-            .filter(|part| !part.is_empty())
-            .map(str::to_string)
-            .collect(),
-        Ok(Some(Value::String(value))) => value
-            .split(['\n', ',', 'ï¼Œ'])
-            .map(str::trim)
-            .filter(|part| !part.is_empty())
-            .map(str::to_string)
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-fn merge_ignores(params: &Value, mut stored: Vec<String>) -> Vec<String> {
-    let mut values = params
-        .get("ignores")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    values.append(&mut stored);
-    values
-}
-fn format_size(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
-    let mut value = bytes as f64;
-    let mut unit = 0;
-    while value >= 1024.0 && unit + 1 < UNITS.len() {
-        value /= 1024.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{bytes} B")
-    } else {
-        format!("{value:.1} {}", UNITS[unit])
-    }
-}
-
-fn max_total_bytes(ctx: &sdk::RequestContext, p: &Value) -> u64 {
-    const GIB: u64 = 1024 * 1024 * 1024;
-    let configured = ctx
-        .storage()
-        .get::<Value>("extractMaxTotalGiB")
-        .ok()
-        .flatten()
-        .and_then(|value| value.as_u64())
-        .unwrap_or(archives::DEFAULT_MAX_TOTAL_GIB);
-    let bytes = p
-        .get("maxTotalBytes")
-        .and_then(Value::as_u64)
-        .unwrap_or_else(|| configured.saturating_mul(GIB));
-    bytes.clamp(GIB, archives::MAX_TOTAL_CAP_GIB.saturating_mul(GIB))
-}
-
-fn archive_error(error: String) -> RpcError {
-    if error == archives::CANCELLED {
-        RpcError::cancelled()
-    } else {
-        RpcError::internal(error)
-    }
-}
-
-/// Extraction errors are surfaced to the status/error channel. An encrypted
-/// archive is not a crash: point the user at the explicit extract/preview
-/// actions that can carry a password.
-fn hook_error_message(error: &str) -> String {
-    if listing::looks_encrypted(error) {
-        crate::i18n::t("å‹ç¼©åŒ…å·²åŠ å¯†ï¼Œè¯·ä½¿ç”¨å³é”®â€œè§£å‹ç¼©â€æˆ–é¢„è§ˆé¢æ¿è¾“å…¥å¯†ç ").into()
-    } else {
-        error.to_string()
-    }
-}
-
-fn hook_extract(
-    path: &sdk::ResourceRef,
-    destination: &sdk::ResourceRef,
-    password: Option<&str>,
-    ignores: &[String],
-    max_total: u64,
-    context: &dyn archives::ArchiveContext,
-) -> Result<sdk::ResourceRef, String> {
-    archives::extract(path, destination, password, ignores, max_total, context)
-}
-
-/// `beforeOpen` consumes the OS open. Extraction runs as a background task so
-/// a large archive cannot stall the open, and the response intentionally never
-/// contains the task id or a raw task payload.
-fn before_open(
-    path: &sdk::ResourceRef,
-    params: &Value,
-    host: &sdk::RequestContext,
-) -> Result<Value, RpcError> {
-    let stored = stored_ignores(host, "extractIgnores");
-    let ignores = merge_ignores(params, stored);
-    let password = params.get("password").and_then(Value::as_str);
-    let max_total = max_total_bytes(host, params);
-    let task_path = path.clone();
-    let destination = host
-        .directory()
-        .ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?
-        .reference;
-    let task_destination = destination.clone();
-    let task_ignores = ignores.clone();
-    let task_password = password.map(str::to_owned);
-    match host.spawn_task_with_label(crate::i18n::t("æ­£åœ¨è§£å‹"), move |task| {
-        hook_extract(
-            &task_path,
-            &task_destination,
-            task_password.as_deref(),
-            &task_ignores,
-            max_total,
-            &task,
-        )
-        .map(|destination| json!({ "destination": destination }))
-        .map_err(|error| {
-            if error != archives::CANCELLED {
-                let _ =
-                    task.report_error("archive.hook.extract", &hook_error_message(&error), None);
-            }
-            archive_error(error)
-        })
-    }) {
-        Ok(handle) => {
-            // Small archives finish inside the grace window, so the caller's
-            // immediate reload already shows the extracted folder. Large ones
-            // keep running in the status centre. Both consume the open and
-            // return only the handled flag, never task-shaped JSON.
-            let deadline = Instant::now() + HOOK_SYNC_GRACE;
-            while !handle.is_finished() && Instant::now() < deadline {
-                std::thread::sleep(Duration::from_millis(10));
-            }
-            Ok(json!({ "handled": true }))
-        }
-        Err(error) => {
-            let _ = host.log(
-                "warn",
-                "Background extraction unavailable; trying inline extraction",
-            );
-            let _ = error;
-            // The task registry is exhausted or unavailable. Extract inline so
-            // the user's open is still consumed, then report any real failure.
-            match hook_extract(path, &destination, password, &ignores, max_total, host) {
-                Ok(_) => Ok(json!({ "handled": true })),
-                Err(error) => {
-                    if error != archives::CANCELLED {
-                        let _ = host.report_error(
-                            "archive.hook.extract",
-                            &hook_error_message(&error),
-                            None,
-                        );
-                    }
-                    Ok(json!({ "handled": true }))
-                }
-            }
-        }
-    }
-}
-fn archive_menu(params: &Value) -> Value {
-    // Source semantics and capabilities alone decide applicability. A
-    // launch-only object or unreadable file cannot be archived.
-    let readable = params["targets"].as_array().is_some_and(|targets| {
-        !targets.is_empty()
-            && targets.iter().all(|target| {
-                let metadata = &target["metadata"];
-                let operation = if metadata["kind"] == "directory" {
-                    "list"
-                } else {
-                    "read"
-                };
-                metadata["kind"] != "symlink" && metadata["operations"][operation] == true
-            })
-    });
-    if !readable {
-        return json!({"items":[]});
-    }
-
-    let parent = params.get("parentId").and_then(Value::as_str);
-    if let Some(parent) = parent {
-        if parent != "archive.compress" {
-            return json!({"items":[]});
-        }
-        let formats = [
-            ("archive.zip", "ZIP"),
-            ("archive.rar", "RAR"),
-            ("archive.7z", "7z"),
-            ("archive.tar", "TAR"),
-            ("archive.tar.gz", "TAR.GZ"),
-            ("archive.tar.bz2", "TAR.BZ2"),
-            ("archive.tar.xz", "TAR.XZ"),
-            ("archive.advanced", crate::i18n::t("é«˜çº§å‹ç¼©â€¦")),
-        ];
-        return json!({"items":formats.into_iter().map(|(id, title)| {
-            json!({"id":id,"title":title,"kind":"action"})
-        }).collect::<Vec<_>>()});
-    }
-
-    let targets = params.get("targets").and_then(Value::as_array);
-    let selection = targets.map_or(0, Vec::len);
-    if selection == 0 {
-        return json!({"items":[]});
-    }
-    let archive = |name: &str| {
-        [
-            "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz",
-        ]
-        .iter()
-        .any(|ext| name.to_ascii_lowercase().ends_with(&format!(".{ext}")))
-    };
-    let only_archive = selection == 1
-        && targets
-            .and_then(|targets| targets.first())
-            .and_then(|target| target.pointer("/metadata/name"))
-            .and_then(Value::as_str)
-            .is_some_and(archive);
-    if only_archive {
-        return json!({"items":[
-            {"id":"archive.extract","title":crate::i18n::t("è§£å‹ç¼©"),"kind":"action"}
-        ]});
-    }
-    json!({"items":[{"id":"archive.compress","title":crate::i18n::t("å‹ç¼©"),"kind":"submenu"}]})
-}
-
-fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
-    let target = resources::input(host, "path")?;
-    let path = &target.reference;
-    let password = p.get("password").and_then(Value::as_str);
-    let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
-    let compressed = host
-        .files()
-        .metadata(path)
-        .map(|entry| entry.size.unwrap_or(0))
-        .unwrap_or(0);
-    let entries = listing
-        .get("entries")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let count = entries.len();
-    let uncompressed = entries
-        .iter()
-        .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
-        .sum::<u64>();
-    let format = resources::name(&target)?
-        .rsplit_once('.')
-        .map(|(_, extension)| extension.to_ascii_uppercase())
-        .unwrap_or_else(|| "UNKNOWN".into());
-    let mut rows = vec![
-        json!({"label":crate::i18n::t("æ ¼å¼"),"value":format}),
-        json!({"label":crate::i18n::t("å‹ç¼©åå¤§å°"),"value":format_size(compressed)}),
-        json!({"label":crate::i18n::t("è§£å‹åå¤§å°"),"value":format_size(uncompressed)}),
-        json!({"label":crate::i18n::t("æ–‡ä»¶æ•°"),"value":count.to_string()}),
-    ];
-    if uncompressed > 0 {
-        let saved = 1.0 - compressed as f64 / uncompressed as f64;
-        rows.push(
-            json!({"label":crate::i18n::t("å‹ç¼©ç‡"),"value":format!("{:.1}%", saved * 100.0)}),
-        );
-    }
-    if listing
-        .get("encrypted")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        rows.push(json!({"label":crate::i18n::t("åŠ å¯†"),"value":crate::i18n::t("æ˜¯")}));
-    }
-    if listing.get("supported").and_then(Value::as_bool) == Some(false) {
-        if let Some(message) = listing.get("message").and_then(Value::as_str) {
-            rows.push(json!({"label":crate::i18n::t("è¯´æ˜"),"value":message}));
-        }
-    }
-    Ok(json!({"rows": rows}))
-}
-
-fn run_operation(
-    ctx: &sdk::RequestContext,
-    params: Value,
-    operation: &str,
-) -> Result<Value, RpcError> {
-    let method = operation;
-    let p = &params;
-    let host = &ctx;
-    match operation {
-        "archive.compress" => {
-            let paths = if let Some(paths) = p.get("paths").filter(|value| value.is_array()) {
-                serde_json::from_value::<Vec<sdk::ResourceRef>>(paths.clone())
-                    .map_err(|error| RpcError::invalid_params(error.to_string()))?
-            } else {
-                ctx.targets()
-                    .iter()
-                    .map(|target| target.reference.clone())
-                    .collect()
-            };
-            let stored = stored_ignores(host, "compressIgnores");
-            let ignores = merge_ignores(p, stored);
-            let format = param(p, "format")?.to_string();
-            let destination = match p.get("destination").filter(|value| value.is_object()) {
-                Some(value) => serde_json::from_value::<sdk::ResourceRef>(value.clone())
-                    .map_err(|error| RpcError::invalid_params(error.to_string()))?,
-                None => {
-                    if let Some(name) = p.get("destinationName").and_then(Value::as_str) {
-                        host.files()
-                            .child(
-                                &host
-                                    .directory()
-                                    .ok_or_else(|| {
-                                        RpcError::invalid_params("missing output directory ref")
-                                    })?
-                                    .reference,
-                                name,
-                            )
-                            .map_err(|error| RpcError::internal(error.to_string()))?
-                    } else {
-                        archives::default_destination(&paths, &format, host)
-                            .map_err(RpcError::internal)?
-                    }
-                }
-            };
-            let level = p.get("level").and_then(Value::as_u64).map(|n| n as u32);
-            let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
-            let task = ctx.spawn_task_with_label(crate::i18n::t("æ­£åœ¨å‹ç¼©"), move |task| {
-                let result = archives::compress(
-                    &paths,
-                    &destination,
-                    &format,
-                    &ignores,
-                    level,
-                    password.as_deref(),
-                    &task,
-                )
-                .map_err(archive_error)?;
-                Ok(json!(result))
-            })?;
-            Ok(json!({"taskId": task.id()}))
-        }
-        "archive.info" => archive_info(p, host),
-        "archive.list" => match listing::list(
-            &resources::input(host, "path")?.reference,
-            p.get("password").and_then(Value::as_str),
-            host,
-        ) {
-            Ok(value) => Ok(value),
-            Err(message) if listing::looks_encrypted(&message) => Ok(json!({
-                "supported": true, "encrypted": true, "passwordRequired": true, "entries": []
-            })),
-            Err(message) => Err(RpcError::internal(message)),
-        },
-        // Runs before Core opens the file: consume the open and extract into
-        // the archive's folder. Never fall through for a matching archive, and
-        // never mistake this event's response for a menu/task result.
-        "archive.extract" => {
-            let stored = stored_ignores(host, "extractIgnores");
-            let ignores = merge_ignores(p, stored);
-            let path = resources::input(host, "path")?.reference;
-            let destination =
-                if let Some(value) = p.get("destination").filter(|value| value.is_object()) {
-                    serde_json::from_value::<sdk::ResourceRef>(value.clone())
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíóN5N‹Z–‹­¦ëeŠw¬ÕÕÍ”™¥•á}Á±Õ¥¹}Í‘¬èéAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¹áĞì)µ½…É¡¥Ù•Ìì(mÁ…Ñ €ô€ˆ¸¸¼¸¸¼¸¸½ÍÕÁÁ½ÉĞ½¤Äá¸¹ÉÌ‰t)µ½¤Äá¸ì)µ½¥¹½É•Ìì)µ½±¥ÍÑ¥¹œì(mÁ…Ñ €ô€ˆ¸¸¼¸¸¼¸¸½ÍÕÁÁ½ÉĞ½É•Í½ÕÉ•Ì¹ÉÌ‰t)µ½É•Í½ÕÉ•Ìì)ÕÍ”™¥•á}Á±Õ¥¹}Í‘¬èéíÍ•±˜…ÌÍ‘¬°IÁÉÉ½Éôì)ÕÍ”Í•É‘•}©Í½¸èéí©Í½¸°Y…±Õ•ôì)ÕÍ”ÍÑèéÑ¥µ”èéíÕÉ…Ñ¥½¸°%¹ÍÑ…¹Ñôì((¼¼¼!½Ü±½¹œ„‰•™½É•=Á•¹€¡½½¬İ…¥ÑÌ™½È…¸•áÑÉ…Ñ¥½¸Ñ¡…Ğ¥Ì±¥­•±äÅÕ¥¬¸(¼¼¼%˜Ñ¡”…É¡¥Ù”¥ÌÍÑ¥±°‰•¥¹œ•áÁ…¹‘•…™Ñ•ÈÑ¡¥Ì°Ñ¡”¡½½¬É•ÑÕÉ¹ÌÍ¼½É”(¼¼¼…¸™¥¹¥Í Ñ¡”½Á•¸¥µµ•‘¥…Ñ•±äìÑ¡”Ñ…Í¬­••ÁÌÉÕ¹¹¥¹œ¥¸Ñ¡”‰…­É½Õ¹¸)½¹ÍĞ!==-}Me9}IèÕÉ…Ñ¥½¸€ôÕÉ…Ñ¥½¸èé™É½µ}µ¥±±¥Ì ÜÔÀ¤ì)™¸Á…É…´ğ„ø¡Àè€˜„Y…±Õ”°¬è€™ÍÑÈ¤€´øI•ÍÕ±Ğğ˜„ÍÑÈ°IÁÉÉ½Èøì(€€€À¹•Ğ¡¬¤(€€€€€€€€¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÍÑÈ¤(€€€€€€€€¹½­}½É}•±Í”¡ñğIÁÉÉ½Èèé¥¹Ù…±¥‘}Á…É…µÌ¡™½Éµ…Ğ„ ‰µ¥ÍÍ¥¹œí­ôˆ¤¤¤)ô(¼¼¼MÑ½É•…Ì„)M=8…ÉÉ…ä‰äÑ¡”±¥ÍĞÍ•ÑÑ¥¹œì½±‘•È¥¹ÍÑ…±±Ìµ…äÍÑ¥±°¡½±„(¼¼¼½µµ„½¹•İ±¥¹”Í•Á…É…Ñ•ÍÑÉ¥¹œ°İ¡¥ ¥Ì…•ÁÑ•™½È½µÁ…Ñ¥‰¥±¥Ñä¸)™¸ÍÑ½É•‘}¥¹½É•Ì¡¡½ÍĞè€™‘å¸Í‘¬èéAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¸°­•äè€™ÍÑÈ¤€´øY•ŒñMÑÉ¥¹œøì(€€€µ…Ñ ¡½ÍĞ¹ÍÑ½É…” ¤¹•ĞèèñY…±Õ”ø¡­•ä¤ì(€€€€€€€=¬¡M½µ”¡Y…±Õ”èéÉÉ…ä¡¥Ñ•µÌ¤¤¤€ôø¥Ñ•µÌ(€€€€€€€€€€€€¹¥Ñ•È ¤(€€€€€€€€€€€€¹™¥±Ñ•É}µ…À¡Y…±Õ”èé…Í}ÍÑÈ¤(€€€€€€€€€€€€¹µ…À¡ÍÑÈèéÑÉ¥´¤(€€€€€€€€€€€€¹™¥±Ñ•È¡ñÁ…ÉÑğ€…Á…ÉĞ¹¥Í}•µÁÑä ¤¤(€€€€€€€€€€€€¹µ…À¡ÍÑÈèéÑ½}ÍÑÉ¥¹œ¤(€€€€€€€€€€€€¹½±±•Ğ ¤°(€€€€€€€=¬¡M½µ”¡Y…±Õ”èéMÑÉ¥¹œ¡Ù…±Õ”¤¤¤€ôøÙ…±Õ”(€€€€€€€€€€€€¹ÍÁ±¥Ğ¡lq¸œ°€œ°œ°€Ÿ¾ò0t¤(€€€€€€€€€€€€¹µ…À¡ÍÑÈèéÑÉ¥´¤(€€€€€€€€€€€€¹™¥±Ñ•È¡ñÁ…ÉÑğ€…Á…ÉĞ¹¥Í}•µÁÑä ¤¤(€€€€€€€€€€€€¹µ…À¡ÍÑÈèéÑ½}ÍÑÉ¥¹œ¤(€€€€€€€€€€€€¹½±±•Ğ ¤°(€€€€€€€|€ôøY•Œèé¹•Ü ¤°(€€€ô)ô)™¸µ•É•}¥¹½É•Ì¡Á…É…µÌè€™Y…±Õ”°µÕĞÍÑ½É•èY•ŒñMÑÉ¥¹œø¤€´øY•ŒñMÑÉ¥¹œøì(€€€±•ĞµÕĞÙ…±Õ•Ì€ôÁ…É…µÌ(€€€€€€€€¹•Ğ ‰¥¹½É•Ìˆ¤(€€€€€€€€¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}…ÉÉ…ä¤(€€€€€€€€¹µ…À¡ñ¥Ñ•µÍğì(€€€€€€€€€€€¥Ñ•µÌ(€€€€€€€€€€€€€€€€¹¥Ñ•È ¤(€€€€€€€€€€€€€€€€¹™¥±Ñ•É}µ…À¡Y…±Õ”èé…Í}ÍÑÈ¤(€€€€€€€€€€€€€€€€¹µ…À¡ÍÑÈèéÑ½}ÍÑÉ¥¹œ¤(€€€€€€€€€€€€€€€€¹½±±•ĞèèñY•Œñ|øø ¤(€€€€€€€ô¤(€€€€€€€€¹Õ¹İÉ…Á}½É}‘•™…Õ±Ğ ¤ì(€€€Ù…±Õ•Ì¹…ÁÁ•¹ ™µÕĞÍÑ½É•¤ì(€€€Ù…±Õ•Ì)ô)™¸™½Éµ…Ñ}Í¥é”¡‰åÑ•ÌèÔØĞ¤€´øMÑÉ¥¹œì(€€€½¹ÍĞU9%QLèl™ÍÑÈì€Õt€ôl‰ˆ°€‰-¥ˆ°€‰5¥ˆ°€‰¥ˆ°€‰Q¥‰tì(€€€±•ĞµÕĞÙ…±Õ”€ô‰åÑ•Ì…Ì˜ØĞì(€€€±•ĞµÕĞÕ¹¥Ğ€ô€Àì(€€€İ¡¥±”Ù…±Õ”€øô€ÄÀÈĞ¸À€˜˜Õ¹¥Ğ€¬€Ä€ğU9%QL¹±•¸ ¤ì(€€€€€€€Ù…±Õ”€¼ô€ÄÀÈĞ¸Àì(€€€€€€€Õ¹¥Ğ€¬ô€Äì(€€€ô(€€€¥˜Õ¹¥Ğ€ôô€Àì(€€€€€€€™½Éµ…Ğ„ ‰í‰åÑ•Íôˆ¤(€€€ô•±Í”ì(€€€€€€€™½Éµ…Ğ„ ‰íÙ…±Õ”è¸Åôíôˆ°U9%QMmÕ¹¥Ñt¤(€€€ô)ô()™¸µ…á}Ñ½Ñ…±}‰åÑ•Ì¡Ñàè€™‘å¸Í‘¬èéAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¸°Àè€™Y…±Õ”¤€´øÔØĞì(€€€½¹ÍĞ%èÔØĞ€ô€ÄÀÈĞ€¨€ÄÀÈĞ€¨€ÄÀÈĞì(€€€±•Ğ½¹™¥ÕÉ•€ôÑà(€€€€€€€€¹ÍÑ½É…” ¤(€€€€€€€€¹•ĞèèñY…±Õ”ø ‰•áÑÉ…Ñ5…áQ½Ñ…±¥ˆ¤(€€€€€€€€¹½¬ ¤(€€€€€€€€¹™±…ÑÑ•¸ ¤(€€€€€€€€¹…¹‘}Ñ¡•¸¡ñÙ…±Õ•ğÙ…±Õ”¹…Í}ÔØĞ ¤¤(€€€€€€€€¹Õ¹İÉ…Á}½È¡…É¡¥Ù•ÌèéU1Q}5a}Q=Q1}%¤ì(€€€±•Ğ‰åÑ•Ì€ôÀ(€€€€€€€€¹•Ğ ‰µ…áQ½Ñ…±	åÑ•Ìˆ¤(€€€€€€€€¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÔØĞ¤(€€€€€€€€¹Õ¹İÉ…Á}½É}•±Í”¡ñğ½¹™¥ÕÉ•¹Í…ÑÕÉ…Ñ¥¹}µÕ°¡%¤¤ì(€€€‰åÑ•Ì¹±…µÀ¡%°…É¡¥Ù•Ìèé5a}Q=Q1}A}%¹Í…ÑÕÉ…Ñ¥¹}µÕ°¡%¤¤)ô()™¸…É¡¥Ù•}•ÉÉ½È¡•ÉÉ½ÈèMÑÉ¥¹œ¤€´øIÁÉÉ½Èì(€€€¥˜•ÉÉ½È€ôô…É¡¥Ù•Ìèé911ì(€€€€€€€IÁÉÉ½Èèé…¹•±±• ¤(€€€ô•±Í”ì(€€€€€€€IÁÉÉ½Èèé¥¹Ñ•É¹…°¡•ÉÉ½È¤(€€€ô)ô((¼¼¼áÑÉ…Ñ¥½¸•ÉÉ½ÉÌ…É”ÍÕÉ™…•Ñ¼Ñ¡”ÍÑ…ÑÕÌ½•ÉÉ½È¡…¹¹•°¸¸•¹ÉåÁÑ•(¼¼¼…É¡¥Ù”¥Ì¹½Ğ„É…Í èÁ½¥¹ĞÑ¡”ÕÍ•È…ĞÑ¡”•áÁ±¥¥Ğ•áÑÉ…Ğ½ÁÉ•Ù¥•Ü(¼¼¼…Ñ¥½¹ÌÑ¡…Ğ…¸…ÉÉä„Á…ÍÍİ½É¸)™¸¡½½­}•ÉÉ½É}µ•ÍÍ…”¡•ÉÉ½Èè€™ÍÑÈ¤€´øMÑÉ¥¹œì(€€€¥˜±¥ÍÑ¥¹œèé±½½­Í}•¹ÉåÁÑ•¡•ÉÉ½È¤ì(€€€€€€€É…Ñ”èé¤Äá¸èéĞ ‹–:/ò§–2–ŞË–*ƒ–¾¾ò3¢¾ß’öÿR£–>Ï¦R»Šs¢–:/ò§Šwš"[¦Š¢#¦v‹švÿ¢úO–—–¾‚ˆ¤¹¥¹Ñ¼ ¤(€€€ô•±Í”ì(€€€€€€€•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤(€€€ô)ô()™¸¡½½­}•áÑÉ…Ğ (€€€Á…Ñ è€™Í‘¬èéI•Í½ÕÉ•I•˜°(€€€‘•ÍÑ¥¹…Ñ¥½¸è€™Í‘¬èéI•Í½ÕÉ•I•˜°(€€€Á…ÍÍİ½Éè=ÁÑ¥½¸ğ™ÍÑÈø°(€€€¥¹½É•Ìè€™mMÑÉ¥¹t°(€€€µ…á}Ñ½Ñ…°èÔØĞ°(€€€½¹Ñ•áĞè€™‘å¸…É¡¥Ù•ÌèéÉ¡¥Ù•½¹Ñ•áĞ°(¤€´øI•ÍÕ±ĞñÍ‘¬èéI•Í½ÕÉ•I•˜°MÑÉ¥¹œøì(€€€…É¡¥Ù•Ìèé•áÑÉ…Ğ¡Á…Ñ °‘•ÍÑ¥¹…Ñ¥½¸°Á…ÍÍİ½É°¥¹½É•Ì°µ…á}Ñ½Ñ…°°½¹Ñ•áĞ¤)ô((¼¼¼‰•™½É•=Á•¹€½¹ÍÕµ•ÌÑ¡”=L½Á•¸¸áÑÉ…Ñ¥½¸ÉÕ¹Ì…Ì„‰…­É½Õ¹Ñ…Í¬Í¼(¼¼¼„±…É”…É¡¥Ù”…¹¹½ĞÍÑ…±°Ñ¡”½Á•¸°…¹Ñ¡”É•ÍÁ½¹Í”¥¹Ñ•¹Ñ¥½¹…±±ä¹•Ù•È(¼¼¼½¹Ñ…¥¹ÌÑ¡”Ñ…Í¬¥½È„É…ÜÑ…Í¬Á…å±½…¸)™¸‰•™½É•}½Á•¸ (€€€Á…Ñ è€™Í‘¬èéI•Í½ÕÉ•I•˜°(€€€Á…É…µÌè€™Y…±Õ”°(€€€¡½ÍĞè€™‘å¸Í‘¬èéAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¸°(¤€´øI•ÍÕ±ĞñY…±Õ”°IÁÉÉ½Èøì(€€€±•ĞÍÑ½É•€ôÍÑ½É•‘}¥¹½É•Ì¡¡½ÍĞ°€‰•áÑÉ…Ñ%¹½É•Ìˆ¤ì(€€€±•Ğ¥¹½É•Ì€ôµ•É•}¥¹½É•Ì¡Á…É…µÌ°ÍÑ½É•¤ì(€€€±•ĞÁ…ÍÍİ½É€ôÁ…É…µÌ¹•Ğ ‰Á…ÍÍİ½Éˆ¤¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÍÑÈ¤ì(€€€±•Ğµ…á}Ñ½Ñ…°€ôµ…á}Ñ½Ñ…±}‰åÑ•Ì¡¡½ÍĞ°Á…É…µÌ¤ì(€€€±•ĞÑ…Í­}Á…Ñ €ôÁ…Ñ ¹±½¹” ¤ì(€€€±•Ğ‘•ÍÑ¥¹…Ñ¥½¸€ô¡½ÍĞ(€€€€€€€€¹‘¥É•Ñ½Éä ¤(€€€€€€€€¹½­}½É}•±Í”¡ñğIÁÉÉ½Èèé¥¹Ù…±¥‘}Á…É…µÌ ‰µ¥ÍÍ¥¹œ½ÕÑÁÕĞ‘¥É•Ñ½ÉäÉ•˜ˆ¤¤ü(€€€€€€€€¹É•™•É•¹”ì(€€€±•ĞÑ…Í­}‘•ÍÑ¥¹…Ñ¥½¸€ô‘•ÍÑ¥¹…Ñ¥½¸¹±½¹” ¤ì(€€€±•ĞÑ…Í­}¥¹½É•Ì€ô¥¹½É•Ì¹±½¹” ¤ì(€€€±•ĞÑ…Í­}Á…ÍÍİ½É€ôÁ…ÍÍİ½É¹µ…À¡ÍÑÈèéÑ½}½İ¹•¤ì(€€€µ…Ñ ¡½ÍĞ¹ÍÁ…İ¹}Ñ…Í­}İ¥Ñ¡}±…‰•°¡É…Ñ”èé¤Äá¸èéĞ ‹š¶–r£¢–:,ˆ¤°µ½Ù”ñÑ…Í­ğì(€€€€€€€¡½½­}•áÑÉ…Ğ (€€€€€€€€€€€€™Ñ…Í­}Á…Ñ °(€€€€€€€€€€€€™Ñ…Í­}‘•ÍÑ¥¹…Ñ¥½¸°(€€€€€€€€€€€Ñ…Í­}Á…ÍÍİ½É¹…Í}‘•É•˜ ¤°(€€€€€€€€€€€€™Ñ…Í­}¥¹½É•Ì°(€€€€€€€€€€€µ…á}Ñ½Ñ…°°(€€€€€€€€€€€€™Ñ…Í¬°(€€€€€€€€¤(€€€€€€€€¹µ…À¡ñ‘•ÍÑ¥¹…Ñ¥½¹ğ©Í½¸„¡ì€‰‘•ÍÑ¥¹…Ñ¥½¸ˆè‘•ÍÑ¥¹…Ñ¥½¸ô¤¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğì(€€€€€€€€€€€¥˜•ÉÉ½È€„ô…É¡¥Ù•Ìèé911ì(€€€€€€€€€€€€€€€±•Ğ|€ô(€€€€€€€€€€€€€€€€€€€Ñ…Í¬¹É•Á½ÉÑ}•ÉÉ½È ‰…É¡¥Ù”¹¡½½¬¹•áÑÉ…Ğˆ°€™¡½½­}•ÉÉ½É}µ•ÍÍ…” ™•ÉÉ½È¤°9½¹”¤ì(€€€€€€€€€€€ô(€€€€€€€€€€€…É¡¥Ù•}•ÉÉ½È¡•ÉÉ½È¤(€€€€€€€ô¤(€€€ô¤ì(€€€€€€€=¬¡¡…¹‘±”¤€ôøì(€€€€€€€€€€€€¼¼Mµ…±°…É¡¥Ù•Ì™¥¹¥Í ¥¹Í¥‘”Ñ¡”É…”İ¥¹‘½Ü°Í¼Ñ¡”…±±•ÈÌ(€€€€€€€€€€€€¼¼¥µµ•‘¥…Ñ”É•±½……±É•…‘äÍ¡½İÌÑ¡”•áÑÉ…Ñ•™½±‘•È¸1…É”½¹•Ì(€€€€€€€€€€€€¼¼­••ÀÉÕ¹¹¥¹œ¥¸Ñ¡”ÍÑ…ÑÕÌ•¹ÑÉ”¸	½Ñ ½¹ÍÕµ”Ñ¡”½Á•¸…¹(€€€€€€€€€€€€¼¼É•ÑÕÉ¸½¹±äÑ¡”¡…¹‘±•™±…œ°¹•Ù•ÈÑ…Í¬µÍ¡…Á•)M=8¸(€€€€€€€€€€€±•Ğ‘•…‘±¥¹”€ô%¹ÍÑ…¹Ğèé¹½Ü ¤€¬!==-}Me9}Iì(€€€€€€€€€€€İ¡¥±”€…¡…¹‘±”¹¥Í}™¥¹¥Í¡• ¤€˜˜%¹ÍÑ…¹Ğèé¹½Ü ¤€ğ‘•…‘±¥¹”ì(€€€€€€€€€€€€€€€ÍÑèéÑ¡É•…èéÍ±••À¡ÕÉ…Ñ¥½¸èé™É½µ}µ¥±±¥Ì ÄÀ¤¤ì(€€€€€€€€€€€ô(€€€€€€€€€€€=¬¡©Í½¸„¡ì€‰¡…¹‘±•ˆèÑÉÕ”ô¤¤(€€€€€€€ô(€€€€€€€ÉÈ¡•ÉÉ½È¤€ôøì(€€€€€€€€€€€±•Ğ|€ô¡½ÍĞ¹±½œ (€€€€€€€€€€€€€€€€‰İ…É¸ˆ°(€€€€€€€€€€€€€€€€‰	…­É½Õ¹•áÑÉ…Ñ¥½¸Õ¹…Ù…¥±…‰±”ìÑÉå¥¹œ¥¹±¥¹”•áÑÉ…Ñ¥½¸ˆ°(€€€€€€€€€€€€¤ì(€€€€€€€€€€€±•Ğ|€ô•ÉÉ½Èì(€€€€€€€€€€€€¼¼Q¡”Ñ…Í¬É•¥ÍÑÉä¥Ì•á¡…ÕÍÑ•½ÈÕ¹…Ù…¥±…‰±”¸áÑÉ…Ğ¥¹±¥¹”Í¼(€€€€€€€€€€€€¼¼Ñ¡”ÕÍ•ÈÌ½Á•¸¥ÌÍÑ¥±°½¹ÍÕµ•°Ñ¡•¸É•Á½ÉĞ…¹äÉ•…°™…¥±ÕÉ”¸(€€€€€€€€€€€µ…Ñ ¡½½­}•áÑÉ…Ğ¡Á…Ñ °€™‘•ÍÑ¥¹…Ñ¥½¸°Á…ÍÍİ½É°€™¥¹½É•Ì°µ…á}Ñ½Ñ…°°¡½ÍĞ¤ì(€€€€€€€€€€€€€€€=¬¡|¤€ôø=¬¡©Í½¸„¡ì€‰¡…¹‘±•ˆèÑÉÕ”ô¤¤°(€€€€€€€€€€€€€€€ÉÈ¡•ÉÉ½È¤€ôøì(€€€€€€€€€€€€€€€€€€€¥˜•ÉÉ½È€„ô…É¡¥Ù•Ìèé911ì(€€€€€€€€€€€€€€€€€€€€€€€±•Ğ|€ô¡½ÍĞ¹É•Á½ÉÑ}•ÉÉ½È (€€€€€€€€€€€€€€€€€€€€€€€€€€€€‰…É¡¥Ù”¹¡½½¬¹•áÑÉ…Ğˆ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€™¡½½­}•ÉÉ½É}µ•ÍÍ…” ™•ÉÉ½È¤°(€€€€€€€€€€€€€€€€€€€€€€€€€€€9½¹”°(€€€€€€€€€€€€€€€€€€€€€€€€¤ì(€€€€€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€€€€€€€€=¬¡©Í½¸„¡ì€‰¡…¹‘±•ˆèÑÉÕ”ô¤¤(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€ô(€€€€€€€ô(€€€ô)ô)™¸…É¡¥Ù•}µ•¹Ô¡Á…É…µÌè€™Y…±Õ”¤€´øY…±Õ”ì(€€€€¼¼M½ÕÉ”Í•µ…¹Ñ¥Ì…¹…Á…‰¥±¥Ñ¥•Ì…±½¹”‘•¥‘”…ÁÁ±¥…‰¥±¥Ñä¸(€€€€¼¼±…Õ¹ µ½¹±ä½‰©•Ğ½ÈÕ¹É•…‘…‰±”™¥±”…¹¹½Ğ‰”…É¡¥Ù•¸(€€€±•ĞÉ•…‘…‰±”€ôÁ…É…µÍl‰Ñ…É•ÑÌ‰t¹…Í}…ÉÉ…ä ¤¹¥Í}Í½µ•}…¹¡ñÑ…É•ÑÍğì(€€€€€€€€…Ñ…É•ÑÌ¹¥Í}•µÁÑä ¤(€€€€€€€€€€€€˜˜Ñ…É•ÑÌ¹¥Ñ•È ¤¹…±°¡ñÑ…É•Ñğì(€€€€€€€€€€€€€€€±•Ğµ•Ñ…‘…Ñ„€ô€™Ñ…É•Ñl‰µ•Ñ…‘…Ñ„‰tì(€€€€€€€€€€€€€€€±•Ğ½Á•É…Ñ¥½¸€ô¥˜µ•Ñ…‘…Ñ…l‰­¥¹‰t€ôô€‰‘¥É•Ñ½Éäˆì(€€€€€€€€€€€€€€€€€€€€‰±¥ÍĞˆ(€€€€€€€€€€€€€€€ô•±Í”ì(€€€€€€€€€€€€€€€€€€€€‰É•…ˆ(€€€€€€€€€€€€€€€ôì(€€€€€€€€€€€€€€€µ•Ñ…‘…Ñ…l‰­¥¹‰t€„ô€‰Íåµ±¥¹¬ˆ€˜˜µ•Ñ…‘…Ñ…l‰½Á•É…Ñ¥½¹Ì‰um½Á•É…Ñ¥½¹t€ôôÑÉÕ”(€€€€€€€€€€€ô¤(€€€ô¤ì(€€€¥˜€…É•…‘…‰±”ì(€€€€€€€É•ÑÕÉ¸©Í½¸„¡ì‰¥Ñ•µÌˆémuô¤ì(€€€ô((€€€±•ĞÁ…É•¹Ğ€ôÁ…É…µÌ¹•Ğ ‰Á…É•¹Ñ%ˆ¤¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÍÑÈ¤ì(€€€¥˜±•ĞM½µ”¡Á…É•¹Ğ¤€ôÁ…É•¹Ğì(€€€€€€€¥˜Á…É•¹Ğ€„ô€‰…É¡¥Ù”¹½µÁÉ•ÍÌˆì(€€€€€€€€€€€É•ÑÕÉ¸©Í½¸„¡ì‰¥Ñ•µÌˆémuô¤ì(€€€€€€€ô(€€€€€€€±•Ğ™½Éµ…ÑÌ€ôl(€€€€€€€€€€€€ ‰…É¡¥Ù”¹é¥Àˆ°€‰i%@ˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¹É…Èˆ°€‰IHˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¸İèˆ°€ˆİèˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¹Ñ…Èˆ°€‰QHˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¹Ñ…È¹èˆ°€‰QH¹hˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¹Ñ…È¹‰èÈˆ°€‰QH¹	hÈˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¹Ñ…È¹áèˆ°€‰QH¹ahˆ¤°(€€€€€€€€€€€€ ‰…É¡¥Ù”¹…‘Ù…¹•ˆ°É…Ñ”èé¤Äá¸èéĞ ‹¦®cêŸ–:/ò§Š˜ˆ¤¤°(€€€€€€€tì(€€€€€€€É•ÑÕÉ¸©Í½¸„¡ì‰¥Ñ•µÌˆé™½Éµ…ÑÌ¹¥¹Ñ½}¥Ñ•È ¤¹µ…À¡ğ¡¥°Ñ¥Ñ±”¥ğì(€€€€€€€€€€€©Í½¸„¡ì‰¥ˆé¥°‰Ñ¥Ñ±”ˆéÑ¥Ñ±”°‰­¥¹ˆè‰…Ñ¥½¸‰ô¤(€€€€€€€ô¤¹½±±•ĞèèñY•Œñ|øø ¥ô¤ì(€€€ô((€€€±•ĞÑ…É•ÑÌ€ôÁ…É…µÌ¹•Ğ ‰Ñ…É•ÑÌˆ¤¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}…ÉÉ…ä¤ì(€€€±•ĞÍ•±•Ñ¥½¸€ôÑ…É•ÑÌ¹µ…Á}½È À°Y•Œèé±•¸¤ì(€€€¥˜Í•±•Ñ¥½¸€ôô€Àì(€€€€€€€É•ÑÕÉ¸©Í½¸„¡ì‰¥Ñ•µÌˆémuô¤ì(€€€ô(€€€±•Ğ…É¡¥Ù”€ôñ¹…µ”è€™ÍÑÉğì(€€€€€€€l(€€€€€€€€€€€€‰é¥Àˆ°€‰É…Èˆ°€ˆİèˆ°€‰Ñ…Èˆ°€‰èˆ°€‰Ñèˆ°€‰‰èÈˆ°€‰Ñ‰èÈˆ°€‰áèˆ°€‰Ñáèˆ°(€€€€€€€t(€€€€€€€€¹¥Ñ•È ¤(€€€€€€€€¹…¹ä¡ñ•áÑğ¹…µ”¹Ñ½}…Í¥¥}±½İ•É…Í” ¤¹•¹‘Í}İ¥Ñ  ™™½Éµ…Ğ„ ˆ¹í•áÑôˆ¤¤¤(€€€ôì(€€€±•Ğ½¹±å}…É¡¥Ù”€ôÍ•±•Ñ¥½¸€ôô€Ä(€€€€€€€€˜˜Ñ…É•ÑÌ(€€€€€€€€€€€€¹…¹‘}Ñ¡•¸¡ñÑ…É•ÑÍğÑ…É•ÑÌ¹™¥ÉÍĞ ¤¤(€€€€€€€€€€€€¹…¹‘}Ñ¡•¸¡ñÑ…É•ÑğÑ…É•Ğ¹Á½¥¹Ñ•È ˆ½µ•Ñ…‘…Ñ„½¹…µ”ˆ¤¤(€€€€€€€€€€€€¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÍÑÈ¤(€€€€€€€€€€€€¹¥Í}Í½µ•}…¹¡…É¡¥Ù”¤ì(€€€¥˜½¹±å}…É¡¥Ù”ì(€€€€ƒm8ÖÚ$z{-®éÜj×:<sdk::ResourceRef>(value.clone())
                         .map_err(|error| RpcError::invalid_params(error.to_string()))?
                 } else {
                     host.directory()
@@ -511,7 +124,7 @@ mod context_menu_tests {
 mod provider_results;
 struct Archive;
 impl sdk::InfoProvider for Archive {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
@@ -520,12 +133,12 @@ impl sdk::InfoProvider for Archive {
     }
 }
 impl sdk::PreviewProvider for Archive {
-    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+    fn open(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::PreviewView, RpcError> {
         Ok(sdk::PreviewView::html("ui/dist/preview.html"))
     }
 }
 impl sdk::DecorationProvider for Archive {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         let mut decorations = Vec::new();
         {
             for target in ctx.targets() {
@@ -562,11 +175,11 @@ impl sdk::DecorationProvider for Archive {
     }
 }
 impl sdk::ContextMenuProvider for Archive {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         serde_json::from_value(archive_menu(ctx.params())["items"].clone())
             .map_err(|error| RpcError::internal(error.to_string()))
     }
-    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let mut params = ctx.params().clone();
         let operation = {
             let item = params["itemId"]
@@ -606,7 +219,7 @@ impl sdk::ContextMenuProvider for Archive {
     }
 }
 impl sdk::HookProvider for Archive {
-    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let p = ctx.params();
         let host = ctx;
 

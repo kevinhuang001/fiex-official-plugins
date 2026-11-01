@@ -1,10 +1,11 @@
 //! RFC 3744 current-user-privilege-set. OPTIONS/Allow only describes methods,
 //! so it must never be treated as the current account's write authorization.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{client, fs};
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use quick_xml::events::Event;
 
-pub fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOperation>, RpcError> {
+pub fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
     let cfg: client::StoredConnection = serde_json::from_value(ctx.params()["connection"].clone())
         .map_err(|e| RpcError::invalid_params(e.to_string()))?;
     let node = ctx.params()["nodeId"]
@@ -29,7 +30,7 @@ pub fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOperation>, RpcError>
 }
 
 fn resource_privileges(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     cfg: &client::StoredConnection,
     node: &str,
 ) -> Result<Vec<FsOperation>, RpcError> {

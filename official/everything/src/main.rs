@@ -1,11 +1,12 @@
 //! Optional Windows search adapter. The authorized ES command runs in Host;
 //! the plugin never contacts Everything's native IPC endpoint itself.
+use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]
-fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn query(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     if p.get("mode").and_then(Value::as_str).unwrap_or("name") != "name" {
         return Err(RpcError::invalid_params(
             "Everything only supports filename search",
@@ -71,7 +72,7 @@ fn query(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
     Ok(json!({"entries":entries,"truncated":truncated}))
 }
 #[cfg(not(windows))]
-fn query(_p: &Value, _host: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn query(_p: &Value, _host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     Err(RpcError::method_not_found("search.query"))
 }
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
@@ -99,7 +100,7 @@ fn main() {
 
 struct Everything;
 impl sdk::SearchProvider for Everything {
-    fn query(&self, ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+    fn query(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::SearchResults, RpcError> {
         serde_json::from_value(query(ctx.params(), ctx)?)
             .map_err(|error| RpcError::internal(error.to_string()))
     }

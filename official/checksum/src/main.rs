@@ -1,3 +1,4 @@
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod checksums;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
@@ -7,7 +8,7 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
 fn checksum_rows(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     path: &sdk::ResourceRef,
 ) -> Result<Vec<Value>, RpcError> {
     let files = ctx.files();
@@ -74,7 +75,7 @@ fn main() {
 mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;

@@ -6,7 +6,7 @@ use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use serde_json::{json, Value};
 
 pub fn discover(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     session: &Session,
 ) -> Result<Vec<FsOperation>, RpcError> {
     let cfg = client::config(ctx.params().get("connection"))?;

@@ -1,5 +1,6 @@
 //! Account settings for a connection or for the standalone toolbar panel.
 use fiex_plugin_sdk as sdk;
+use fiex_plugin_sdk::ProviderInvocationExt;
 use serde_json::Value;
 
 #[derive(Clone, Debug)]
@@ -42,7 +43,7 @@ impl Settings {
         Self::from_fields(None, value)
     }
 
-    pub fn from_params(ctx: &sdk::RequestContext, params: &Value) -> Result<Self, String> {
+    pub fn from_params(ctx: &dyn sdk::ProviderInvocation, params: &Value) -> Result<Self, String> {
         let id = params
             .get("connectionId")
             .and_then(Value::as_str)

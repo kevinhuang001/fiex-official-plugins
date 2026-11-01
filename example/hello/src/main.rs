@@ -5,6 +5,7 @@
 //! expects. Run it with:
 //!
 //!   cargo run --manifest-path example/hello/Cargo.toml
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, VfsProvider},
@@ -14,7 +15,7 @@ use serde_json::{json, Value};
 
 const HELLO: &[u8] = b"hello example\n";
 
-fn greeting(ctx: &sdk::RequestContext) -> String {
+fn greeting(ctx: &dyn sdk::ProviderInvocation) -> String {
     ctx.storage()
         .scoped("global")
         .get::<String>("greeting")
@@ -25,7 +26,7 @@ fn greeting(ctx: &sdk::RequestContext) -> String {
 
 struct HelloConnection;
 
-fn connection_open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn connection_open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let p = ctx.params();
     let factory = p.get("factoryId").and_then(Value::as_str).unwrap_or("");
     let mount = p.get("mountId").and_then(Value::as_str).unwrap_or("");
@@ -51,13 +52,13 @@ fn connection_open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
 }
 
 impl sdk::ConnectionProvider for HelloConnection {
-    fn validate(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn validate(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         Ok(json!({"valid": true}))
     }
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         connection_open(ctx)
     }
-    fn create(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         connection_open(ctx)
     }
 }
@@ -118,7 +119,10 @@ impl VfsProvider for HelloFiles {
 struct HelloInfo;
 
 impl sdk::InfoProvider for HelloInfo {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let meta = ctx
             .targets()
             .first()
@@ -162,7 +166,7 @@ impl sdk::InfoProvider for HelloInfo {
 struct HelloPreview;
 
 impl sdk::PreviewProvider for HelloPreview {
-    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+    fn open(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::PreviewView, RpcError> {
         Ok(sdk::PreviewView::html("ui/preview.html"))
     }
 }
@@ -170,7 +174,7 @@ impl sdk::PreviewProvider for HelloPreview {
 struct HelloDecorations;
 
 impl sdk::DecorationProvider for HelloDecorations {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         let mut decorations = Vec::new();
         for target in ctx.targets() {
             let Some(metadata) = target.metadata.as_ref() else {
@@ -205,7 +209,7 @@ impl sdk::DecorationProvider for HelloDecorations {
 struct HelloMenu;
 
 impl sdk::ContextMenuProvider for HelloMenu {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         if ctx.params().get("parentId").and_then(Value::as_str) == Some("example.more") {
             return Ok(vec![json!({
                 "id": "example.copy-path",
@@ -218,7 +222,7 @@ impl sdk::ContextMenuProvider for HelloMenu {
             json!({"id": "example.more", "title": "示例", "kind": "submenu"}),
         ])
     }
-    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let item = ctx.params()["itemId"]
             .as_str()
             .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
@@ -232,7 +236,7 @@ impl sdk::ContextMenuProvider for HelloMenu {
 struct HelloSearch;
 
 impl sdk::SearchProvider for HelloSearch {
-    fn query(&self, _ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+    fn query(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::SearchResults, RpcError> {
         Ok(sdk::SearchResults {
             entries: Vec::new(),
             truncated: false,
@@ -244,7 +248,7 @@ impl sdk::SearchProvider for HelloSearch {
 struct HelloHooks;
 
 impl sdk::HookProvider for HelloHooks {
-    fn invoke(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         Ok(json!({"handled": false}))
     }
 }
@@ -252,7 +256,7 @@ impl sdk::HookProvider for HelloHooks {
 struct HelloToolbar;
 
 impl sdk::ToolbarProvider for HelloToolbar {
-    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         Ok(json!({
             "refreshed": true,
             "directory": ctx.params().get("root").cloned().unwrap_or(Value::Null)

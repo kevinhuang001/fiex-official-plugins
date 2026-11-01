@@ -2,9 +2,10 @@
 //! write or delete grant. Unknown fields fail closed.
 //! https://developers.google.com/workspace/drive/api/reference/rest/v3/files
 use super::*;
+use fiex_plugin_sdk::ProviderInvocationExt;
 use sdk::filesystem::FsOperation;
 
-pub(super) fn discover(ctx: &sdk::RequestContext) -> Result<Vec<FsOperation>, RpcError> {
+pub(super) fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
     let connection = ctx
         .params()
         .get("connection")

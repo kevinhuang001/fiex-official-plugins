@@ -1,4 +1,5 @@
 //! RPC dispatch over the open-file cache.
+use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/resources.rs"]
 mod resources;
 use crate::open::{open, page_of, Cache};
@@ -8,7 +9,7 @@ use serde_json::Value;
 use std::sync::Mutex;
 
 fn cached_open(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     target: &sdk::ResourceContext,
     cache: &Mutex<Option<Cache>>,
 ) -> Result<Value, RpcError> {
@@ -36,7 +37,7 @@ fn cached_open(
 }
 
 fn info_rows(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     target: &sdk::ResourceContext,
     cache: &Mutex<Option<Cache>>,
 ) -> Result<Value, RpcError> {
@@ -122,14 +123,17 @@ pub(crate) fn dispatch(
 mod provider_results;
 pub(crate) struct Presentation(pub std::sync::Arc<Mutex<Option<Cache>>>);
 impl sdk::InfoProvider for Presentation {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = resources::input(ctx, "path")?;
         let rows = info_rows(ctx, &target, &self.0)?;
         provider_results::section("data", crate::i18n::t("数据表"), rows["rows"].clone())
     }
 }
 impl sdk::PreviewProvider for Presentation {
-    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+    fn open(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::PreviewView, RpcError> {
         Ok(sdk::PreviewView::html("ui/dist/index.html"))
     }
 }

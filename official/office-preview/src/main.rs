@@ -5,6 +5,7 @@
 //! slide boundaries. The plugin only sanitizes and styles that HTML; it never
 //! walks the XML by hand. Charts, SmartArt, animations, embedded objects and
 //! legacy `.doc/.xls/.ppt` remain out of scope.
+use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod pdf;
@@ -22,7 +23,7 @@ fn cache() -> &'static Mutex<Option<(String, Value)>> {
     static CACHE: OnceLock<Mutex<Option<(String, Value)>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(None))
 }
-fn page_limit(ctx: &sdk::RequestContext) -> Result<usize, RpcError> {
+fn page_limit(ctx: &dyn sdk::ProviderInvocation) -> Result<usize, RpcError> {
     Ok(ctx
         .storage()
         .scoped("global")
@@ -37,7 +38,7 @@ fn page_limit(ctx: &sdk::RequestContext) -> Result<usize, RpcError> {
 }
 
 fn cached_render(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     target: &sdk::ResourceContext,
 ) -> Result<Value, RpcError> {
     let pages = page_limit(ctx)?;
@@ -66,7 +67,10 @@ fn cached_render(
     Ok(value)
 }
 
-fn pdf_pages(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
+fn pdf_pages(
+    ctx: &dyn sdk::ProviderInvocation,
+    target: &sdk::ResourceContext,
+) -> Result<Value, RpcError> {
     let extension = render::extension(resources::name(target)?);
     if extension != "docx" && extension != "pptx" {
         return Err(RpcError::invalid_params(
@@ -87,7 +91,10 @@ fn pdf_pages(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result
     render::render_pdf_pages(bytes, &extension, page_limit(ctx)?)
 }
 
-fn info_rows(ctx: &sdk::RequestContext, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
+fn info_rows(
+    ctx: &dyn sdk::ProviderInvocation,
+    target: &sdk::ResourceContext,
+) -> Result<Value, RpcError> {
     let extension = render::extension(resources::name(target)?);
     let value = cached_render(ctx, target)?;
     let html = value["html"].as_str().unwrap_or("");
@@ -140,14 +147,17 @@ fn main() {
 mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = resources::input(ctx, "path")?;
         let rows = info_rows(ctx, &target)?;
         provider_results::section("office", crate::i18n::t("文档"), rows["rows"].clone())
     }
 }
 impl sdk::PreviewProvider for Presentation {
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::PreviewView, RpcError> {
         let target = resources::input(ctx, "path")?;
         let extension = render::extension(resources::name(&target)?);
         if extension == "docx" || extension == "pptx" {

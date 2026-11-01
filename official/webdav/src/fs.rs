@@ -3,6 +3,7 @@
 //! Core owns mount configuration, caching and conflict resolution; this
 //! provider translates the unified `vfs.*` requests into WebDAV calls.
 use super::client::{self, StoredConnection, DAV_BODY};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
@@ -86,7 +87,7 @@ fn display_name(path: &str) -> &str {
     }
 }
 
-pub(crate) fn validate(host: &sdk::RequestContext) -> Result<Value, RpcError> {
+pub(crate) fn validate(host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let cfg: StoredConnection = serde_json::from_value(
         host.params()
             .get("connection")
@@ -270,7 +271,11 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn aria2_read(host: &sdk::RequestContext, cfg: &StoredConnection, path: &str) -> Option<FsRead> {
+fn aria2_read(
+    host: &dyn sdk::ProviderInvocation,
+    cfg: &StoredConnection,
+    path: &str,
+) -> Option<FsRead> {
     let mut request = host
         .aria2()
         .get(&client::webdav_url(cfg, path))

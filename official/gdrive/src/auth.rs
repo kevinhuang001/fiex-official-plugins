@@ -1,5 +1,6 @@
 //! User-owned Google Cloud Desktop OAuth client; no embedded shared credentials.
 use crate::{error, http_request, text, API};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -68,7 +69,7 @@ pub(super) fn token(http: &sdk::HttpClient, cfg: &Value) -> Result<String, RpcEr
 }
 
 fn browser_authorization(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     cfg: &Value,
 ) -> Result<(String, String), RpcError> {
     let client_id = text(cfg, "clientId")?;
@@ -115,7 +116,7 @@ fn browser_authorization(
     Ok((refresh.into(), access.into()))
 }
 
-pub(super) fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+pub(super) fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let cfg = &ctx.params()["connection"];
     text(cfg, "clientId")?;
     text(cfg, "clientSecret")?;

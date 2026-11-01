@@ -5,7 +5,7 @@ mod ignores;
 mod listing;
 #[path = "../../../support/resources.rs"]
 mod resources;
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{self as sdk, ProviderInvocationExt, RpcError};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
@@ -20,7 +20,7 @@ fn param<'a>(p: &'a Value, k: &str) -> Result<&'a str, RpcError> {
 }
 /// Stored as a JSON array by the list setting; older installs may still hold a
 /// comma/newline separated string, which is accepted for compatibility.
-fn stored_ignores(host: &sdk::RequestContext, key: &str) -> Vec<String> {
+fn stored_ignores(host: &dyn sdk::ProviderInvocation, key: &str) -> Vec<String> {
     match host.storage().get::<Value>(key) {
         Ok(Some(Value::Array(items))) => items
             .iter()
@@ -68,7 +68,7 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-fn max_total_bytes(ctx: &sdk::RequestContext, p: &Value) -> u64 {
+fn max_total_bytes(ctx: &dyn sdk::ProviderInvocation, p: &Value) -> u64 {
     const GIB: u64 = 1024 * 1024 * 1024;
     let configured = ctx
         .storage()
@@ -120,7 +120,7 @@ fn hook_extract(
 fn before_open(
     path: &sdk::ResourceRef,
     params: &Value,
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Value, RpcError> {
     let stored = stored_ignores(host, "extractIgnores");
     let ignores = merge_ignores(params, stored);
@@ -130,7 +130,8 @@ fn before_open(
     let destination = host
         .directory()
         .ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?
-        .reference;
+        .reference
+        .clone();
     let task_destination = destination.clone();
     let task_ignores = ignores.clone();
     let task_password = password.map(str::to_owned);
@@ -171,7 +172,14 @@ fn before_open(
             let _ = error;
             // The task registry is exhausted or unavailable. Extract inline so
             // the user's open is still consumed, then report any real failure.
-            match hook_extract(path, &destination, password, &ignores, max_total, host) {
+            match hook_extract(
+                path,
+                &destination,
+                password,
+                &ignores,
+                max_total,
+                host.sdk_context(),
+            ) {
                 Ok(_) => Ok(json!({ "handled": true })),
                 Err(error) => {
                     if error != archives::CANCELLED {
@@ -252,11 +260,11 @@ fn archive_menu(params: &Value) -> Value {
     json!({"items":[{"id":"archive.compress","title":crate::i18n::t("压缩"),"kind":"submenu"}]})
 }
 
-fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn archive_info(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let target = resources::input(host, "path")?;
     let path = &target.reference;
     let password = p.get("password").and_then(Value::as_str);
-    let listing = listing::list(path, password, host).map_err(RpcError::internal)?;
+    let listing = listing::list(path, password, host.sdk_context()).map_err(RpcError::internal)?;
     let compressed = host
         .files()
         .metadata(path)
@@ -304,13 +312,13 @@ fn archive_info(p: &Value, host: &sdk::RequestContext) -> Result<Value, RpcError
 }
 
 fn run_operation(
-    ctx: &sdk::RequestContext,
+    ctx: &dyn sdk::ProviderInvocation,
     params: Value,
     operation: &str,
 ) -> Result<Value, RpcError> {
     let method = operation;
     let p = &params;
-    let host = &ctx;
+    let host = ctx;
     match operation {
         "archive.compress" => {
             let paths = if let Some(paths) = p.get("paths").filter(|value| value.is_array()) {
@@ -342,7 +350,7 @@ fn run_operation(
                             )
                             .map_err(|error| RpcError::internal(error.to_string()))?
                     } else {
-                        archives::default_destination(&paths, &format, host)
+                        archives::default_destination(&paths, &format, host.sdk_context())
                             .map_err(RpcError::internal)?
                     }
                 }
@@ -391,6 +399,7 @@ fn run_operation(
                     host.directory()
                         .ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?
                         .reference
+                        .clone()
                 };
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
             let max_total = max_total_bytes(host, p);
@@ -511,7 +520,10 @@ mod context_menu_tests {
 mod provider_results;
 struct Archive;
 impl sdk::InfoProvider for Archive {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
@@ -520,12 +532,12 @@ impl sdk::InfoProvider for Archive {
     }
 }
 impl sdk::PreviewProvider for Archive {
-    fn open(&self, _ctx: &sdk::RequestContext) -> Result<sdk::PreviewView, RpcError> {
+    fn open(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::PreviewView, RpcError> {
         Ok(sdk::PreviewView::html("ui/dist/preview.html"))
     }
 }
 impl sdk::DecorationProvider for Archive {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         let mut decorations = Vec::new();
         {
             for target in ctx.targets() {
@@ -562,11 +574,11 @@ impl sdk::DecorationProvider for Archive {
     }
 }
 impl sdk::ContextMenuProvider for Archive {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         serde_json::from_value(archive_menu(ctx.params())["items"].clone())
             .map_err(|error| RpcError::internal(error.to_string()))
     }
-    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let mut params = ctx.params().clone();
         let operation = {
             let item = params["itemId"]
@@ -606,7 +618,7 @@ impl sdk::ContextMenuProvider for Archive {
     }
 }
 impl sdk::HookProvider for Archive {
-    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let p = ctx.params();
         let host = ctx;
 

@@ -1,5 +1,6 @@
 //! Google Drive v3 adapter. All HTTP goes through Core's authorized network
 //! transport; the plugin has no filesystem, subprocess or socket permission.
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod auth;
 mod discovery;
 #[path = "../../../support/i18n.rs"]
@@ -119,7 +120,7 @@ struct Drive;
 impl VfsProvider for Drive {
     fn discover(
         &self,
-        ctx: &sdk::RequestContext,
+        ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::filesystem::FsOperation>, RpcError> {
         discovery::discover(ctx)
     }
@@ -164,7 +165,7 @@ impl VfsProvider for Drive {
     }
 }
 
-fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let mount = ctx.params()["mountId"]
         .as_str()
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
@@ -172,10 +173,13 @@ fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
 }
 
 impl sdk::ConnectionProvider for Drive {
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
         open(ctx)
     }
-    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<serde_json::Value, sdk::RpcError> {
         auth::validate(ctx)
     }
 }

@@ -23,7 +23,7 @@ struct OpenList {
 impl VfsProvider for OpenList {
     fn discover(
         &self,
-        ctx: &sdk::RequestContext,
+        ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::filesystem::FsOperation>, sdk::RpcError> {
         discovery::discover(ctx, &self.session)
     }
@@ -70,7 +70,7 @@ impl VfsProvider for OpenList {
 }
 
 impl sdk::ConnectionProvider for OpenList {
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
         let mount = ctx.params()["mountId"]
             .as_str()
             .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
@@ -78,7 +78,10 @@ impl sdk::ConnectionProvider for OpenList {
             serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
         )
     }
-    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<serde_json::Value, sdk::RpcError> {
         fs::validate(ctx, &self.session)
     }
 }

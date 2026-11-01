@@ -277,7 +277,7 @@ mod tests;
 
 pub struct GpgMenu;
 impl sdk::ContextMenuProvider for GpgMenu {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
         let count = ctx.targets().len();
         if count == 0 {
             return Ok(Vec::new());
@@ -300,7 +300,7 @@ impl sdk::ContextMenuProvider for GpgMenu {
             Some(_) => Err(RpcError::invalid_params("unknown GPG submenu")),
         }
     }
-    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let p = ctx.params();
 
         let item = p["itemId"]

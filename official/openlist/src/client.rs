@@ -3,6 +3,7 @@
 //! Every credential travels with the connection that owns the server address,
 //! so one profile can reach several servers. Bearer tokens are cached per
 //! (server, account) and refreshed once when the server reports them stale.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -121,7 +122,7 @@ pub(crate) fn post_http(
 }
 
 fn post(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     token: Option<&str>,
     endpoint: &str,
@@ -130,7 +131,7 @@ fn post(
     post_http(&host.http(), cfg, token, endpoint, body)
 }
 
-fn login(host: &sdk::RequestContext, cfg: &Config) -> Result<String, RpcError> {
+fn login(host: &dyn sdk::ProviderInvocation, cfg: &Config) -> Result<String, RpcError> {
     let parsed = post(
         host,
         cfg,
@@ -147,7 +148,7 @@ fn login(host: &sdk::RequestContext, cfg: &Config) -> Result<String, RpcError> {
 }
 
 pub(crate) fn token(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     session: &Session,
 ) -> Result<String, RpcError> {
@@ -171,7 +172,7 @@ pub(crate) fn token(
 }
 
 pub(crate) fn authorized(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     session: &Session,
     endpoint: &str,
@@ -194,7 +195,7 @@ pub(crate) fn authorized(
 }
 
 pub(crate) fn current_user(
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     cfg: &Config,
     session: &Session,
 ) -> Result<Value, RpcError> {

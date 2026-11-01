@@ -1,18 +1,19 @@
 //! GnuPG process invocation and status-stream parsing.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, ipc::ProcessResult, RpcError};
 
 /// Runs the user's approved `gpg` executable. A missing installation is
 /// reported as such rather than as a GnuPG command failure.
 pub(crate) fn invoke(
     args: &[String],
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<ProcessResult, RpcError> {
     invoke_with_stdin(args, host, None)
 }
 
 pub(crate) fn invoke_with_stdin(
     args: &[String],
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
     stdin: Option<&str>,
 ) -> Result<ProcessResult, RpcError> {
     host.process_run("gpg", args, stdin).map_err(|error| {

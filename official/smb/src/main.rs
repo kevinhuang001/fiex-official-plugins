@@ -4,6 +4,7 @@ mod discovery;
 mod i18n;
 mod sync;
 mod transport;
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
@@ -531,14 +532,14 @@ fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     Ok(FsRead::new(SmbReader { stream, offset: 0 }, Some(total)))
 }
 
-fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let mount = ctx.params()["mountId"]
         .as_str()
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
     Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
 }
 
-fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     let cfg: StoredConnection = serde_json::from_value(
         ctx.params()
             .get("connection")
@@ -556,7 +557,7 @@ struct Smb;
 impl VfsProvider for Smb {
     fn discover(
         &self,
-        ctx: &sdk::RequestContext,
+        ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::filesystem::FsOperation>, RpcError> {
         discovery::discover(ctx)
     }
@@ -603,10 +604,13 @@ impl VfsProvider for Smb {
 }
 
 impl sdk::ConnectionProvider for Smb {
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
         open(ctx)
     }
-    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<serde_json::Value, sdk::RpcError> {
         validate(ctx)
     }
 }

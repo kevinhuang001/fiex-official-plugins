@@ -3,6 +3,7 @@ use crate::{
     files::{Entry, Listing},
     git_host::run,
 };
+use fiex_plugin_sdk::ProviderInvocationExt;
 
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
@@ -31,7 +32,7 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
         relative: relative.into(),
     })
 }
-fn request_route(path: &str, host: &sdk::RequestContext) -> Result<Route, String> {
+fn request_route(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Route, String> {
     route(path, &host.params()["viewContext"])
         .ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
@@ -65,7 +66,7 @@ pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
 pub fn history(
     root: &sdk::ResourceRef,
     skip: usize,
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Value, String> {
     if run(host, root, &["rev-parse", "--verify", "HEAD"]).is_err() {
         return Ok(json!([]));
@@ -90,7 +91,7 @@ pub fn history(
 pub fn browse(
     root: &sdk::ResourceRef,
     reference: &str,
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Value, String> {
     if reference.is_empty() || reference.starts_with('-') {
         return Err(crate::i18n::t("无效版本").into());
@@ -115,7 +116,7 @@ fn entries(
     hidden: bool,
     ignores: &[String],
     recursive: bool,
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Vec<Entry>, String> {
     let r = request_route(path, host)?;
     let object = if r.relative.is_empty() {
@@ -183,7 +184,7 @@ pub fn list(
     path: &str,
     hidden: bool,
     ignores: &[String],
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Listing, String> {
     Ok(Listing {
         read_only: true,
@@ -193,7 +194,7 @@ pub fn list(
         warnings: vec![],
     })
 }
-pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
+pub fn info(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Entry, String> {
     if path.is_empty() {
         let r = request_route(path, host)?;
         run(
@@ -223,7 +224,7 @@ pub fn info(path: &str, host: &sdk::RequestContext) -> Result<Entry, String> {
         .find(|v| v.path == path)
         .ok_or(crate::i18n::t("历史文件不存在").into())
 }
-pub fn blob(path: &str, host: &sdk::RequestContext) -> Result<Vec<u8>, String> {
+pub fn blob(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Vec<u8>, String> {
     let r = request_route(path, host)?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
@@ -239,7 +240,7 @@ pub fn search(
     query: &str,
     hidden: bool,
     ignores: &[String],
-    host: &sdk::RequestContext,
+    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Vec<Entry>, String> {
     let query = query.to_lowercase();
     Ok(entries(path, hidden, ignores, true, host)?

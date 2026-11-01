@@ -2,7 +2,6 @@
 use crate::table::{kind_of, Column, Table};
 use calamine::{Data, Reader, Xls, Xlsx};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
 use std::io::Cursor;
 
 const MAX_ROWS: usize = 200_000;
@@ -102,17 +101,6 @@ pub fn sheet_names(bytes: &[u8], extension: &str) -> Result<Vec<String>, String>
     Ok(names)
 }
 
-#[allow(dead_code)]
-pub fn open(bytes: Vec<u8>, extension: &str) -> Result<BTreeMap<String, Table>, String> {
-    let mut sheets = BTreeMap::new();
-    for name in sheet_names(&bytes, extension)? {
-        if let Ok(table) = sheet(&bytes, extension, &name) {
-            sheets.insert(name, table);
-        }
-    }
-    Ok(sheets)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,9 +120,10 @@ mod fixture_tests {
     #[test]
     fn reads_the_committed_workbook() {
         let bytes = std::fs::read("tests/fixtures/sample.xlsx").unwrap();
-        let sheets = open(bytes, "xlsx").unwrap();
-        assert!(sheets.len() >= 2, "{:?}", sheets.keys());
-        let budget = sheets.get("预算").expect("预算 sheet");
+        let sheets = sheet_names(&bytes, "xlsx").unwrap();
+        assert!(sheets.len() >= 2, "{sheets:?}");
+        assert!(sheets.iter().any(|name| name == "预算"));
+        let budget = sheet(&bytes, "xlsx", "预算").unwrap();
         assert!(budget.rows.len() >= 3);
         assert_eq!(budget.columns[0].name, "项目");
         assert_eq!(budget.rows[0][0], "研发");

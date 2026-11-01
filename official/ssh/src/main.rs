@@ -1,3 +1,4 @@
+use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod sessions;
@@ -7,7 +8,7 @@ use serde_json::{json, Value};
 
 /// Panel-only presentation settings. They are stored in the plugin's private
 /// `global` scope by Core's settings sheet; no connection or credential is read.
-fn settings(ctx: &sdk::RequestContext) -> Value {
+fn settings(ctx: &dyn sdk::ProviderInvocation) -> Value {
     let value = |key: &str| ctx.storage().get::<Value>(key).ok().flatten();
     json!({
         "fontFamily": value("fontFamily").and_then(|value| value.as_str().map(str::to_owned)),
@@ -38,7 +39,7 @@ fn main() {
 
 struct SshConnection;
 impl sdk::ConnectionProvider for SshConnection {
-    fn validate(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let host = ctx
             .params()
             .pointer("/connection/host")
@@ -47,7 +48,7 @@ impl sdk::ConnectionProvider for SshConnection {
             .trim();
         Ok(json!({"valid":!host.is_empty()}))
     }
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         sessions::connection_view(ctx.params())
     }
 }

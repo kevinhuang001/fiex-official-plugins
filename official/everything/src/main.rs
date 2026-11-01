@@ -1,6 +1,5 @@
 //! Optional Windows search adapter. The authorized ES command runs in Host;
 //! the plugin never contacts Everything's native IPC endpoint itself.
-use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 use fiex_plugin_sdk::{self as sdk, RpcError};

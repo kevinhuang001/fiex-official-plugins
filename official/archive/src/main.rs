@@ -1,4 +1,3 @@
-use fiex_plugin_sdk::ProviderInvocationExt;
 mod archives;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
@@ -122,7 +121,7 @@ fn before_open(
     path: &sdk::ResourceRef,
     params: &Value,
     host: &dyn sdk::ProviderInvocation,
-) -> Result<sdk::HookResult, RpcError> {
+) -> Result<sdk::contracts::HookResult, RpcError> {
     let stored = stored_ignores(host, "extractIgnores");
     let ignores = merge_ignores(params, stored);
     let password = params.get("password").and_then(Value::as_str);
@@ -163,7 +162,7 @@ fn before_open(
             while !handle.is_finished() && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(10));
             }
-            Ok(sdk::HookResult { handled: true })
+            Ok(sdk::contracts::HookResult { handled: true })
         }
         Err(error) => {
             let _ = host.log(
@@ -173,8 +172,15 @@ fn before_open(
             let _ = error;
             // The task registry is exhausted or unavailable. Extract inline so
             // the user's open is still consumed, then report any real failure.
-            match hook_extract(path, &destination, password, &ignores, max_total, host) {
-                Ok(_) => Ok(sdk::HookResult { handled: true }),
+            match hook_extract(
+                path,
+                &destination,
+                password,
+                &ignores,
+                max_total,
+                host.sdk_context(),
+            ) {
+                Ok(_) => Ok(sdk::contracts::HookResult { handled: true }),
                 Err(error) => {
                     if error != archives::CANCELLED {
                         let _ = host.report_error(
@@ -183,7 +189,7 @@ fn before_open(
                             None,
                         );
                     }
-                    Ok(sdk::HookResult { handled: true })
+                    Ok(sdk::contracts::HookResult { handled: true })
                 }
             }
         }
@@ -262,7 +268,7 @@ fn archive_resource(target: &sdk::ResourceContext) -> Value {
         .capabilities
         .operations
         .iter()
-        .map(|operation| (operation.as_str(), Value::Bool(true)))
+        .map(|operation| (operation.as_str().to_string(), Value::Bool(true)))
         .collect::<serde_json::Map<_, _>>();
     json!({
         "metadata": {
@@ -307,6 +313,7 @@ fn archive_info(
         .iter()
         .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
         .sum::<u64>();
+    let target = resources::from_params(p, "path", host)?;
     let format = resources::name(&target)?
         .rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_uppercase())
@@ -405,7 +412,7 @@ fn run_operation(
         "archive.list" => match listing::list(
             &resources::from_params(p, "path", host)?.reference,
             p.get("password").and_then(Value::as_str),
-            host,
+            host.sdk_context(),
         ) {
             Ok(value) => Ok(value),
             Err(message) if listing::looks_encrypted(&message) => Ok(json!({
@@ -571,44 +578,12 @@ impl sdk::DecorationProvider for Archive {
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::DecorationContribution>, RpcError> {
         let mut decorations = Vec::new();
-        {
-            for target in ctx.targets() {
-                let Some(metadata) = target.metadata.as_ref() else {
-                    continue;
-                };
-                let entry = serde_json::to_value(metadata)
-                    .map_err(|e| RpcError::internal(e.to_string()))?;
-                if entry["kind"] == "directory" {
-                    continue;
-                }
-                let extension = entry
-                    .get("extension")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                let label = match extension.as_str() {
-                    "zip" => "ZIP",
-                    "rar" => "RAR",
-                    "7z" => "7Z",
-                    "tar" => "TAR",
-                    "gz" | "tgz" => "TGZ",
-                    "bz2" | "tbz2" => "TBZ",
-                    "xz" | "txz" => "TXZ",
-                    _ => continue,
-                };
-                let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
-                decoration.fields.insert(
-                    "name".into(),
-                    sdk::DecorationField {
-                        badges: vec![sdk::DecorationBadge {
-                            text: label.into(),
-                            color: "neutral".into(),
-                            tooltip: Some(crate::i18n::t("压缩包")),
-                        }],
-                        ..Default::default()
-                    },
-                );
-                decorations.push(decoration);
+        for target in ctx.targets() {
+            let Some(metadata) = target.metadata.as_ref() else {
+                continue;
+            };
+            if metadata.kind == "directory" {
+                continue;
             }
             let extension = metadata
                 .extension
@@ -625,13 +600,19 @@ impl sdk::DecorationProvider for Archive {
                 "xz" | "txz" => "TXZ",
                 _ => continue,
             };
-            let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
-            contribution.badges.push(sdk::DecorationBadge {
-                text: label.into(),
-                color: "neutral".into(),
-                tooltip: Some(crate::i18n::t("压缩包").to_string()),
-            });
-            decorations.push(contribution);
+            let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+            decoration.fields.insert(
+                "name".into(),
+                sdk::DecorationField {
+                    badges: vec![sdk::DecorationBadge {
+                        text: label.into(),
+                        color: "neutral".into(),
+                        tooltip: Some(crate::i18n::t("压缩包").to_string()),
+                    }],
+                    ..Default::default()
+                },
+            );
+            decorations.push(decoration);
         }
         Ok(decorations)
     }
@@ -706,13 +687,13 @@ impl sdk::ContextMenuProvider for Archive {
     }
 }
 impl sdk::HookProvider for Archive {
-    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
+    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::contracts::HookResult, RpcError> {
         let request = ctx
             .input()?
             .hook_request()
             .ok_or_else(|| RpcError::invalid_params("missing hook request"))?;
         if request.event != "beforeOpen" {
-            return Ok(sdk::HookResult { handled: false });
+            return Ok(sdk::contracts::HookResult { handled: false });
         }
         let target = ctx
             .target()

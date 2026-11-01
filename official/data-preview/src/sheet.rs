@@ -120,9 +120,10 @@ mod fixture_tests {
     #[test]
     fn reads_the_committed_workbook() {
         let bytes = std::fs::read("tests/fixtures/sample.xlsx").unwrap();
-        let sheets = open(bytes, "xlsx").unwrap();
-        assert!(sheets.len() >= 2, "{:?}", sheets.keys());
-        let budget = sheets.get("预算").expect("预算 sheet");
+        let sheets = sheet_names(&bytes, "xlsx").unwrap();
+        assert!(sheets.len() >= 2, "{sheets:?}");
+        assert!(sheets.iter().any(|name| name == "预算"));
+        let budget = sheet(&bytes, "xlsx", "预算").unwrap();
         assert!(budget.rows.len() >= 3);
         assert_eq!(budget.columns[0].name, "项目");
         assert_eq!(budget.rows[0][0], "研发");

@@ -2,8 +2,8 @@
 //!
 //! Core chooses the working directory (the focused explorer directory); this
 //! module only supplies command arguments and parses the returned output.
-use fiex_plugin_sdk as sdk;
 use fiex_plugin_sdk::ProviderInvocationExt;
+use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -86,10 +86,7 @@ pub fn refs(root: &sdk::ResourceRef, host: &dyn sdk::ProviderInvocation) -> Resu
     Ok(json!({"head": head.trim(), "current": current.trim(), "branches": branches, "tags": tags}))
 }
 
-pub fn identity(
-    root: &sdk::ResourceRef,
-    host: &dyn sdk::ProviderInvocation,
-) -> Result<Value, String> {
+pub fn identity(root: &sdk::ResourceRef, host: &dyn sdk::ProviderInvocation) -> Result<Value, String> {
     let name = run(host, root, &["config", "user.name"]).unwrap_or_default();
     let email = run(host, root, &["config", "user.email"]).unwrap_or_default();
     Ok(json!({"name": name.trim(), "email": email.trim()}))

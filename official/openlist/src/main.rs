@@ -2,6 +2,7 @@
 //!
 //! Every credential — server, account and timeout — belongs to the connection,
 //! so a profile can hold several servers without sharing a login.
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod client;
 mod discovery;
 mod fs;
@@ -70,18 +71,21 @@ impl VfsProvider for OpenList {
 }
 
 impl sdk::ConnectionProvider for OpenList {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
-        let mount = ctx.params()["mountId"]
-            .as_str()
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
+        let mount = ctx
+            .input()?
+            .connection_request()
+            .and_then(|request| request.mount_id.as_deref())
             .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
-        Ok(
-            serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
-        )
+        Ok(sdk::ConnectionOpenResult::Vfs {
+            mount_id: mount.into(),
+            node_ref: sdk::ResourceRef {
+                mount_id: mount.into(),
+                node_id: String::new(),
+            },
+        })
     }
-    fn validate(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
         fs::validate(ctx, &self.session)
     }
 }

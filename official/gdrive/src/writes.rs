@@ -206,12 +206,10 @@ impl io::Write for UploadWriter {
 /// inside this provider; the manifest has no sync/write-mode switches.
 pub(super) fn write(request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection()
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let size = request.size().ok_or_else(|| error("missing size"))?;
     let http = ctx.http();
-    let token = token(&http, cfg)?;
+    let token = token(&http, &cfg)?;
     let started = session::start(request, &http, &token, size)?;
     let upload = Arc::new(Mutex::new(Some(Upload {
         http,

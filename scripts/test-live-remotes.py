@@ -70,7 +70,7 @@ class Plugin:
     def response(self):
         while True:
             value = read_frame(self.child.stdout)
-            if not str(value.get("method", "")).startswith(("host.", "fs.")):
+            if not str(value.get("method", "")).startswith("host."):
                 return value
             try:
                 result = self.host_call(value["method"], value.get("params", {}))
@@ -84,14 +84,14 @@ class Plugin:
         # through the actual Core host in the core-integration job.
         if method in {"host.log.report", "host.error.report", "host.task.start", "host.task.progress", "host.task.finish", "host.task.cancel"}:
             return None
-        if method == "fs.openRead":
+        if method == "host.fs.openRead":
             assert params["ref"] == SOURCE_REF
             return {"handle":"snapshot", "size":len(self.upload_source)}
-        if method == "fs.readOpen":
+        if method == "host.fs.readOpen":
             assert params["handle"] == "snapshot"
             data=self.upload_source[params["offset"]:params["offset"]+params["length"]]
             return {"base64":base64.b64encode(data).decode(),"size":len(data),"eof":params["offset"]+len(data)>=len(self.upload_source)}
-        if method == "fs.closeRead": return None
+        if method == "host.fs.closeRead": return None
         if method == "host.net.http.open":
             url = params["url"]
             assert urllib.parse.urlparse(url).hostname in {"localhost", "127.0.0.1", "::1"}

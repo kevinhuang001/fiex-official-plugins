@@ -1,5 +1,5 @@
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk as sdk;
-use serde_json::{json, Value};
 
 fn badge(code: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
     if code == "??" {
@@ -23,14 +23,10 @@ fn normalize(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-pub fn list(_params: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, String> {
-    let directory = host
-        .directory()
-        .ok_or("missing directory ref")?
-        .reference
-        .clone();
+fn resolve(host: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::DecorationContribution>, String> {
+    let directory = host.directory().ok_or("missing directory ref")?.reference;
     let Some(status) = crate::git_host::status(&directory, host) else {
-        return Ok(json!({ "decorations": [] }));
+        return Ok(Vec::new());
     };
     let statuses = status["entries"]
         .as_object()
@@ -52,22 +48,35 @@ pub fn list(_params: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value
             let Some((text, color, tooltip, hex)) = badge(code) else {
                 continue;
             };
-            decorations.push(json!({
-                "ref": target.reference,
-                "badge": {"text": text, "color": color, "tooltip": tooltip},
-                "style": {"color": hex, "fontWeight": "600"}
-            }));
+            let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+            decoration.fields.insert(
+                "name".into(),
+                sdk::DecorationField {
+                    badges: vec![sdk::DecorationBadge {
+                        text: text.into(),
+                        color: color.into(),
+                        tooltip: Some(tooltip.into()),
+                    }],
+                    style: sdk::DecorationStyle {
+                        color: Some(hex.into()),
+                        font_weight: Some("600".into()),
+                        ..Default::default()
+                    },
+                },
+            );
+            decorations.push(decoration);
         }
     }
-    Ok(json!({ "decorations": decorations }))
+    Ok(decorations)
 }
 
 pub struct GitDecorations;
 impl sdk::DecorationProvider for GitDecorations {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, sdk::RpcError> {
-        let value = list(ctx.params(), ctx).map_err(sdk::RpcError::internal)?;
-        serde_json::from_value(value["decorations"].clone())
-            .map_err(|error| sdk::RpcError::internal(error.to_string()))
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::DecorationContribution>, sdk::RpcError> {
+        resolve(ctx).map_err(sdk::RpcError::internal)
     }
 }
 

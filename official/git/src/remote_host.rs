@@ -1,3 +1,4 @@
+use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::git_host::run;
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
@@ -13,10 +14,7 @@ fn valid(name: &str) -> Result<(), String> {
         Ok(())
     }
 }
-pub fn status(
-    root: &sdk::ResourceRef,
-    host: &dyn sdk::ProviderInvocation,
-) -> Result<Value, String> {
+pub fn status(root: &sdk::ResourceRef, host: &dyn sdk::ProviderInvocation) -> Result<Value, String> {
     let names = run(host, root, &["remote"])?;
     let mut remotes = Vec::new();
     for name in names.lines() {

@@ -1,9 +1,9 @@
 //! Git history logic lives in the plugin; Core only executes authorized commands.
+use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{
     files::{Entry, Listing},
     git_host::run,
 };
-use fiex_plugin_sdk::ProviderInvocationExt;
 
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};
@@ -32,8 +32,15 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
         relative: relative.into(),
     })
 }
-fn request_route(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Route, String> {
-    route(path, &host.params()["viewContext"])
+fn request_route(
+    path: &str,
+    request: &sdk::filesystem::FsRequest<'_>,
+) -> Result<Route, String> {
+    let context = request
+        .view_context()
+        .ok_or_else(|| crate::i18n::t("无效历史上下文"))?;
+    let context = serde_json::to_value(context).map_err(|error| error.to_string())?;
+    route(path, &context)
         .ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
@@ -116,9 +123,10 @@ fn entries(
     hidden: bool,
     ignores: &[String],
     recursive: bool,
-    host: &dyn sdk::ProviderInvocation,
+    request: &sdk::filesystem::FsRequest<'_>,
 ) -> Result<Vec<Entry>, String> {
-    let r = request_route(path, host)?;
+    let host = request.ctx();
+    let r = request_route(path, request)?;
     let object = if r.relative.is_empty() {
         r.commit.clone()
     } else {
@@ -181,22 +189,21 @@ fn entries(
     Ok(values)
 }
 pub fn list(
-    path: &str,
-    hidden: bool,
-    ignores: &[String],
-    host: &dyn sdk::ProviderInvocation,
+    request: &sdk::filesystem::FsRequest<'_>,
 ) -> Result<Listing, String> {
+    let path = request.node_id().unwrap_or("");
     Ok(Listing {
         read_only: true,
         virtual_volume: true,
         path: path.into(),
-        entries: entries(path, hidden, ignores, false, host)?,
+        entries(path, request.hidden(), &request.ignores(), false, request)?,
         warnings: vec![],
     })
 }
-pub fn info(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Entry, String> {
+pub fn info(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Entry, String> {
+    let host = request.ctx();
     if path.is_empty() {
-        let r = request_route(path, host)?;
+        let r = request_route(path, request)?;
         run(
             host,
             &r.root,
@@ -219,13 +226,14 @@ pub fn info(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Entry, Str
         });
     }
     let parent = path.rsplit_once('/').map(|(p, _)| p).unwrap_or("");
-    entries(parent, true, &[], false, host)?
+    entries(parent, true, &[], false, request)?
         .into_iter()
         .find(|v| v.path == path)
         .ok_or(crate::i18n::t("历史文件不存在").into())
 }
-pub fn blob(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Vec<u8>, String> {
-    let r = request_route(path, host)?;
+pub fn blob(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Vec<u8>, String> {
+    let host = request.ctx();
+    let r = request_route(path, request)?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
         .process_run_at(&r.root, "git", &["show".into(), object], None)
@@ -236,14 +244,17 @@ pub fn blob(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Vec<u8>, S
     result.stdout_bytes()
 }
 pub fn search(
-    path: &str,
+    request: &sdk::filesystem::FsRequest<'_>,
     query: &str,
-    hidden: bool,
-    ignores: &[String],
-    host: &dyn sdk::ProviderInvocation,
 ) -> Result<Vec<Entry>, String> {
     let query = query.to_lowercase();
-    Ok(entries(path, hidden, ignores, true, host)?
+    Ok(entries(
+        request.node_id().unwrap_or(""),
+        request.hidden(),
+        &request.ignores(),
+        true,
+        request,
+    )?
         .into_iter()
         .filter(|v| v.name.to_lowercase().contains(&query))
         .take(2000)

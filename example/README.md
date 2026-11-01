@@ -101,7 +101,7 @@ use serde_json::{json, Value};
 struct ExampleInfo;
 
 impl sdk::InfoProvider for ExampleInfo {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let name = ctx.targets().first().and_then(|t| t.metadata.as_ref())
             .map(|m| m.name.as_str()).unwrap_or("unknown");
         Ok(vec![sdk::InfoSection {
@@ -307,9 +307,10 @@ Manifest 只有动态模式：
 ```json
 "decorations": {
   "match": {
-    "contains": [".git"],
+    "view": {"types": ["fs"]},
     "extensions": ["ts", "js", "md"],
-    "mimeTypes": ["text/*"]
+    "mimeTypes": ["text/*"],
+    "kinds": ["file"]
   },
   "priority": 80
 }
@@ -317,9 +318,9 @@ Manifest 只有动态模式：
 
 - `decorations` 只有动态模式；不存在 `mode`、`method`、`scope`、`rules`；
 - Core 固定调用标准方法 `decorations.resolve`，**方法名不用写**；
-- `match` 是包含谓词：不满足时 Core 不会调用插件；
-  - `contains`：目录或祖先目录包含 `.git` 等名称（仅 decorations）；
-  - `extensions` / `mimeTypes` / `kinds`：当前可见成员中至少有一项匹配；
+- `match` 是统一的 `ProviderMatchRule`：`view` / `storage` 按受信位置身份匹配，
+  `extensions` / `mimeTypes` / `kinds` / `requiredOps` 按资源元数据与能力匹配；
+  不满足规则时 Core 不会调用插件；
   - 缺省/空 `match` 表示所有目录、所有成员都参与；
 - 动态 decorations 仍要求 `permissions.folders.read`；没有权限时 Core 直接跳过。
 
@@ -329,21 +330,26 @@ Manifest 只有动态模式：
 {
   "decorations": [
     {
-      "name": "main.ts",
-      "badge": { "text": "M", "color": "orange", "tooltip": "Git：已修改" },
-      "style": { "color": "#c2710c", "fontWeight": "600" }
+      "ref": {"mountId": "opaque-mount", "nodeId": "opaque-node"},
+      "fields": {
+        "name": {
+          "badges": [{ "text": "M", "color": "orange", "tooltip": "Git：已修改" }],
+          "style": { "color": "#c2710c", "fontWeight": "600" }
+        }
+      }
     }
   ]
 }
 ```
 
-响应只需要 `name`，Core 会在当前目录的可见成员里解析成真实 `path`；插件不要返回绝对路径。请求里的 entries 仍带 `path`，方便 Git 等插件做内部查询。
+响应必须携带目标的 `ref`；Core 只接受本次请求中的 ResourceRef，不按文件名或
+插件返回的路径猜测目标。插件无需也不应返回宿主绝对路径。
 
-`badge` / `style` 是“文件名单元格”的简写。要精确控制每一列，用 `fields`：
+所有列的装饰都通过 `fields` 声明：
 
 ```json
 {
-  "path": "/Users/me/project/notes.md",
+  "ref": {"mountId": "opaque-mount", "nodeId": "opaque-node"},
   "fields": {
     "name": {
       "badges": [{ "text": "M", "color": "orange" }],
@@ -420,7 +426,7 @@ const value = await invoke("plugin.invoke", {
 });
 ```
 
-`plugin.invoke` 只能调用插件自己的业务方法；`host.*`、`vfs.*`、`vfs.*`、`connection.*` 等宿主方法会被 Core 拒绝。
+`plugin.invoke` 只能调用插件自己的业务方法；`host.*`、`vfs.*`、`connection.*` 等宿主方法会被 Core 拒绝。
 
 ### 5.2 没有 panel：固定调用 `toolbar.invoke`
 
@@ -491,32 +497,34 @@ for (const [key, value] of Object.entries(tokens)) {
 | `preview`      | `{match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
 | `connections`  | `{title,fields}`                  | 添加连接 / 点击连接 → `connection.create/open`             |
 | `vfs`          | `{title,readOnly?}`               | Core Explorer 的文件树请求                                 |
-| `search`       | `{icon?,scope?}`                  | 搜索框 → 固定 `search.query`                               |
+| `search`       | `{icon?,modes?,match?,priority?}` | 搜索框 → 固定 `search.query`                               |
 | `toolbar`      | `{title,icon?,panel?}`            | 工具栏点击 → 固定 `toolbar.invoke`                         |
 | `settings`     | `[{id,label,type,...}]`           | 设置页渲染；值通过 `ctx.storage()` / `ctx.secrets()`       |
-| `hooks`        | `{event,priority?,extensions?,match?}` | 文件生命周期 → 固定 `hooks.invoke`                    |
+| `hooks`        | `{event,priority?,match?}`       | 文件生命周期 → 固定 `hooks.invoke`                    |
 | `themes`       | `[{path}]`                        | 主题包；声明式 JSON，不含代码                              |
 
 `match` 对所有带条件的扩展点通用：
 
 ```json
 "match": {
+  "view": {"types": ["fs", "vfs"]},
+  "storage": {"providerIds": ["core:local-fs"]},
   "extensions": ["md", "txt"],
   "mimeTypes": ["text/*"],
   "kinds": ["file"],
-  "contains": [".git"]
+  "requiredOps": ["read"]
 }
 ```
 
-- 同一字段内 OR，不同字段 AND；
+- 同一字段内 OR，不同字段/维度 AND；多选时每个目标都必须满足规则；
 - `extensions` 支持 `md`、`.md`、`*.md`、`*`；
 - `mimeTypes` 支持精确值或 `text/*`、`image/*`、`*/*`；
-- `kinds` 为 `file` / `directory`；
-- `contains` 仅用于 decorations：目录或其祖先包含这些名称；
-- `selection` 仅用于 contextMenus：`single` / `multi` / `any`（默认 any）；
+- `view` / `storage` 的 `types` 为 `fs` / `vfs`，`providerIds` / `mountIds` 匹配受信身份；
+- `kinds` 为 `file` / `directory` / `connection`；
+- `selection` 仅用于 contextMenus：`zero` / `single` / `multi` / `any`；空白处右键需明确声明 `zero`；
 - 不满足就不会调用插件；空 `match` 表示不过滤；
 - `info` / `preview` 只针对用户当前选中的**单个资源**评估，并且只在点击“显示简介 / 快速查看”时才调用；
-- `contextMenus` 的 `selection` 先按单选/多选过滤，再对选中项做类型过滤。
+- `contextMenus` 的 `selection` 先按选中数量过滤，再验证所有目标。
 
 ### 7.1 Info：标准事件 `info.resolve`
 
@@ -533,13 +541,16 @@ Manifest：
 }
 ```
 
-Core 为 `info.resolve` 构造统一 `EventContext`，目标资源保存在 `targets` 中：
+Core 为 `info.resolve` 构造 `ProviderInvocation`，权限投影后的目标资源保存在 `targets` 中：
 
 ```json
 {
   "sessionId": "opaque",
   "targets": [{
     "ref": { "mountId": "local", "nodeId": "fiex-resource:..." },
+    "view": { "type": "fs", "providerId": "core:local-fs", "mountId": "local" },
+    "storage": { "type": "fs", "providerId": "core:local-fs", "mountId": "local" },
+    "capabilities": { "operations": ["read", "stat"] },
     "metadata": {
       "name": "notes.md",
       "kind": "file",
@@ -594,7 +605,7 @@ Manifest：
 }
 ```
 
-Core 传入相同的 `EventContext`，事件类型直接由 JSON-RPC 的 `method: "preview.open"` 标识。插件返回 `PreviewView`：
+Core 传入相同的 `ProviderInvocation`，事件类型直接由 JSON-RPC 的 `method: "preview.open"` 标识。插件返回 `PreviewView`：
 
 ```json
 {
@@ -764,8 +775,8 @@ Manifest：
 ```rust
 struct ExampleHooks;
 impl sdk::HookProvider for ExampleHooks {
-    fn invoke(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"handled": false}))
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
+        Ok(sdk::HookResult { handled: false })
     }
 }
 ```

@@ -1,6 +1,6 @@
 //! User-owned Google Cloud Desktop OAuth client; no embedded shared credentials.
-use crate::{error, http_request, text, API};
 use fiex_plugin_sdk::ProviderInvocationExt;
+use crate::{error, http_request, text, API};
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -116,25 +116,31 @@ fn browser_authorization(
     Ok((refresh.into(), access.into()))
 }
 
-pub(super) fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let cfg = &ctx.params()["connection"];
-    text(cfg, "clientId")?;
-    text(cfg, "clientSecret")?;
+pub(super) fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    let cfg = ctx
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    text(&cfg, "clientId")?;
+    text(&cfg, "clientSecret")?;
     let existing = cfg["refreshToken"].as_str().is_some_and(|v| !v.is_empty());
     let (refresh, access) = if existing {
-        match token(&ctx.http(), cfg) {
+        match token(&ctx.http(), &cfg) {
             Ok(access) => (None, access),
             Err(error)
                 if error.data.as_ref().and_then(|data| data["reason"].as_str())
                     == Some("reauthorization_required") =>
             {
-                let (refresh, access) = browser_authorization(ctx, cfg)?;
+                let (refresh, access) = browser_authorization(ctx, &cfg)?;
                 (Some(refresh), access)
             }
             Err(error) => return Err(error),
         }
     } else {
-        let (refresh, access) = browser_authorization(ctx, cfg)?;
+        let (refresh, access) = browser_authorization(ctx, &cfg)?;
         (Some(refresh), access)
     };
     http_request(
@@ -146,9 +152,8 @@ pub(super) fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcEr
     .send()
     .and_then(|r| r.error_for_status())
     .map_err(error)?;
-    let result = sdk::ConnectionValidation::valid();
     Ok(match refresh {
-        Some(refresh) => result.credential("refreshToken", refresh).into_value(),
-        None => result.into_value(),
+        Some(refresh) => sdk::ConnectionValidation::valid().credential("refreshToken", refresh),
+        None => sdk::ConnectionValidation::valid(),
     })
 }

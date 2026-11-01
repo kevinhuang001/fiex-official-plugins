@@ -30,11 +30,23 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .invoke(id, "connection.validate", json!({"connection": config}))
         .is_err());
     plugin_host::set_network_domain(id, "127.0.0.1", true).unwrap();
+    let kind = if id == "org.fiex.webdav" { "webdav" } else { "smb" };
+    let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {
+        id: None,
+        name: "Network integration fixture".into(),
+        kind: kind.into(),
+        plugin_id: Some(id.into()),
+        settings: config.as_object().unwrap().clone(),
+    })
+    .expect("Core connection authorization failed");
+    let mount_id = fiex_lib::plugins::mounts::parse(&connection.mount_path)
+        .expect("Core connection mount path")
+        .mount_id;
     let listing = plugin_host::global()
         .invoke(
             id,
             "vfs.list",
-            json!({"connection": config, "directoryId": "", "limit": 200}),
+            json!({"connection": config, "mountId": mount_id, "directoryId": "", "limit": 200}),
         )
         .expect("network listing through Core failed");
     assert!(listing["entries"]
@@ -46,7 +58,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .invoke(
             id,
             "vfs.openRead",
-            json!({"connection": config, "nodeId": "hello.txt"}),
+            json!({"connection": config, "mountId": mount_id, "nodeId": "hello.txt"}),
         )
         .unwrap();
     let stream = opened["streamId"].as_str().unwrap();
@@ -54,7 +66,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .invoke(
             id,
             "vfs.readStream",
-            json!({"streamId": stream, "offset": 0, "maxBytes": 262144}),
+            json!({"mountId": mount_id, "streamId": stream, "offset": 0, "maxBytes": 262144}),
         )
         .unwrap();
     assert_eq!(
@@ -63,13 +75,17 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     );
     assert_eq!(result["eof"], true);
     plugin_host::global()
-        .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
+        .invoke(id, "vfs.closeRead", json!({"mountId": mount_id, "streamId": stream}))
         .unwrap();
     // The anonymous WebDAV fixture does not expose RFC 3744 grants; Core
     // must not infer write permission from the server accepting PUT.
     if id == "org.fiex.webdav" {
         let discovered = plugin_host::global()
-            .invoke(id, "vfs.discover", json!({"connection":config,"nodeId":"hello.txt"}))
+            .invoke(
+                id,
+                "vfs.discover",
+                json!({"connection": config, "mountId": mount_id, "nodeId": "hello.txt"}),
+            )
             .unwrap();
         assert!(!discovered["operations"]
             .as_array()
@@ -86,14 +102,20 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 .invoke(
                     id,
                     "vfs.stat",
-                    json!({"connection":config,"nodeId":"hello.txt"}),
+                    json!({"connection": config, "mountId": mount_id, "nodeId": "hello.txt"}),
                 )
                 .unwrap();
             let begin = plugin_host::global()
                 .invoke(
                     id,
                     "vfs.beginWrite",
-                    json!({"connection":config,"nodeId":"hello.txt","size":contents.len(),"ifRevision":baseline["revision"]}),
+                    json!({
+                        "connection": config,
+                        "mountId": mount_id,
+                        "nodeId": "hello.txt",
+                        "size": contents.len(),
+                        "ifRevision": baseline["revision"]
+                    }),
                 )
                 .unwrap();
             let stream = begin["streamId"].as_str().unwrap().to_string();
@@ -103,27 +125,33 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                     .invoke(
                         id,
                         "vfs.writeStream",
-                        json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
+                        json!({"mountId":mount_id,"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
                     )
                     .unwrap();
                 offset += chunk.len();
             }
             let committed = plugin_host::global()
-                .invoke(id, "vfs.commit", json!({"streamId":stream}))
+                .invoke(id, "vfs.commit", json!({"mountId":mount_id,"streamId":stream}))
                 .unwrap();
             assert_ne!(committed["revision"], baseline["revision"]);
             assert!(plugin_host::global()
                 .invoke(
                     id,
                     "vfs.beginWrite",
-                    json!({"connection":config,"nodeId":"hello.txt","size":1,"ifRevision":baseline["revision"]}),
+                    json!({
+                        "connection": config,
+                        "mountId": mount_id,
+                        "nodeId": "hello.txt",
+                        "size": 1,
+                        "ifRevision": baseline["revision"]
+                    }),
                 )
                 .is_err());
             let opened = plugin_host::global()
                 .invoke(
                     id,
                     "vfs.openRead",
-                    json!({"connection":config,"nodeId":"hello.txt"}),
+                    json!({"connection": config, "mountId": mount_id, "nodeId": "hello.txt"}),
                 )
                 .unwrap();
             let stream = opened["streamId"].as_str().unwrap();
@@ -131,7 +159,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 .invoke(
                     id,
                     "vfs.readStream",
-                    json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
+                    json!({"mountId":mount_id,"streamId":stream,"offset":0,"maxBytes":1048576}),
                 )
                 .unwrap();
             assert_eq!(
@@ -141,19 +169,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 contents
             );
             plugin_host::global()
-                .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
+                .invoke(id, "vfs.closeRead", json!({"mountId": mount_id, "streamId": stream}))
                 .unwrap();
         }
     }
     if id == "org.fiex.webdav" {
-        let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {
-            id: None,
-            name: "Broker fixture".into(),
-            kind: "webdav".into(),
-            plugin_id: Some(id.into()),
-            settings: config.as_object().unwrap().clone(),
-        })
-        .expect("Core connection authorization failed");
         let listing = futures::executor::block_on(fiex_lib::remote::list_listing(
             &connection.mount_path,
             false,
@@ -172,12 +192,12 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         // live in Core's cache and are resolved through the public API.
         let cached = fiex_lib::remote::cached_path(&hello).unwrap();
         assert_eq!(std::fs::read(cached).unwrap(), expected);
-        fiex_lib::remote::remove_connection(&connection.id).unwrap();
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();
     assert!(plugin_host::global()
         .invoke(id, "connection.validate", json!({"connection":config}))
         .is_err());
+    fiex_lib::remote::remove_connection(&connection.id).unwrap();
 }
 
 fn main() {

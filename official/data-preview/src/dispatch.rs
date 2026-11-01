@@ -80,15 +80,15 @@ pub(crate) fn dispatch(
     let p = ctx.params();
     match method {
         "data.info" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::request_input(&ctx, "path")?;
             info_rows(&ctx, &target, cache)
         }
         "data.open" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::request_input(&ctx, "path")?;
             cached_open(&ctx, &target, cache)
         }
         "data.page" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::request_input(&ctx, "path")?;
             let dataset = p.get("dataset").and_then(Value::as_str).unwrap_or("data");
             let mut cached = cache
                 .lock()
@@ -123,11 +123,8 @@ pub(crate) fn dispatch(
 mod provider_results;
 pub(crate) struct Presentation(pub std::sync::Arc<Mutex<Option<Cache>>>);
 impl sdk::InfoProvider for Presentation {
-    fn resolve(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
-        let target = resources::input(ctx, "path")?;
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        let target = resources::target(ctx)?;
         let rows = info_rows(ctx, &target, &self.0)?;
         provider_results::section("data", crate::i18n::t("数据表"), rows["rows"].clone())
     }

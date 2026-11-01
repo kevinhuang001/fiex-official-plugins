@@ -2,8 +2,8 @@
 
 ## 原理
 
-`connections` 只负责“用户怎么添加/打开一个连接”。文件列表由同一插件的
-`ConnectionProvider`（`vfs.*`）或 `VfsProvider`（`vfs.*`）提供。
+`ConnectionProvider` 只负责验证和打开/创建连接；文件列表与读写由插件的
+`VfsProvider` 提供。Core 通过同一插件注册的 VFS mount 处理文件访问。
 
 ```
 用户点 + / 连接项
@@ -52,48 +52,40 @@ NavigationTarget: { kind: "vfs" } | { kind: "pluginView" }
 struct ExampleConnection;
 
 impl sdk::ConnectionProvider for ExampleConnection {
-    fn validate(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"valid": true}))
+    fn validate(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+        Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        let factory = ctx.params()["factoryId"].as_str().unwrap_or("");
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+        let request = ctx.input()?.connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+        let factory = request.factory_id.as_deref().unwrap_or("");
         if factory == "example-account" {
-            return Ok(json!({
-                "kind": "pluginView",
-                "view": {"source": "package", "entry": "ui/account.html"},
-                "state": {"connectionId": ctx.params()["connectionId"]}
-            }));
+            return Ok(sdk::ConnectionOpenResult::PluginView {
+                view: sdk::PackageView {
+                    source: "package".into(),
+                    entry: "ui/account.html".into(),
+                },
+                state: json!({"connectionId": request.connection_id}),
+                tab_title: None,
+            });
         }
-        Ok(json!({
-            "kind": "vfs",
-            "mountId": ctx.params()["mountId"],
-            "nodeRef": {"mountId": ctx.params()["mountId"], "nodeId": "root"}
-        }))
+        let mount_id = request.mount_id.as_deref()
+            .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+        Ok(sdk::ConnectionOpenResult::Vfs {
+            mount_id: mount_id.into(),
+            node_ref: sdk::ResourceRef {
+                mount_id: mount_id.into(),
+                node_id: "root".into(),
+            },
+        })
     }
-    fn create(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
         self.open(ctx)
-    }
-    fn list(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"entries": [{
-            "name": "README.md", "nodeId": "readme", "kind": "file",
-            "size": 14, "modified": 0, "revision": "1"
-        }], "nextCursor": null}))
-    }
-    fn stat(&self, _ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        Ok(json!({"revision": "1", "size": 14}))
-    }
-    fn open_read(&self, _ctx: &sdk::RequestContext)
-        -> Result<sdk::ConnectionReader, RpcError>
-    {
-        Ok(sdk::ConnectionReader::new(
-            std::io::Cursor::new(b"hello example\n".to_vec()),
-            Some(14),
-        ))
     }
 }
 ```
 
-`vfs.openRead` / `vfs.readStream` / `vfs.closeRead` 不需要自己实现：返回
-`ConnectionReader` 后，SDK 负责 stream ID、offset、分块和关闭。
+连接返回 `vfs` 导航结果后，Core 通过 `VfsProvider` 的强类型 `list`、`stat`、
+`read` 等方法访问挂载内容。SDK 负责将流映射到 `vfs.*` RPC。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloConnection`。

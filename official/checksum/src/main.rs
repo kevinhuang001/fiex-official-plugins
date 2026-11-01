@@ -35,7 +35,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     match method {
         "checksum.calculate" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::request_input(&ctx, "path")?;
             let path = &target.reference;
             let files = ctx.files();
             let metadata = files
@@ -53,7 +53,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             Ok(result)
         }
         "checksum.info" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::request_input(&ctx, "path")?;
             let path = &target.reference;
             Ok(json!({"rows": checksum_rows(&ctx, path)?}))
         }
@@ -75,10 +75,7 @@ fn main() {
 mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn resolve(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;

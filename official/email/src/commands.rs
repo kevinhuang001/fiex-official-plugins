@@ -1,6 +1,6 @@
 //! Connection provider plus mailbox methods.
-use crate::{config::Settings, imap, smtp};
 use fiex_plugin_sdk::ProviderInvocationExt;
+use crate::{config::Settings, imap, smtp};
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
@@ -35,7 +35,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     match method {
-        "email.test" => test_mailbox(&ctx, false),
+        "email.test" => test_mailbox(&ctx, settings(&ctx, p)?),
         "email.list" => {
             let settings = settings(&ctx, p)?;
             let limit = p
@@ -89,16 +89,8 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 
 fn test_mailbox(
     ctx: &dyn sdk::ProviderInvocation,
-    from_connection: bool,
+    settings: Settings,
 ) -> Result<Value, RpcError> {
-    let p = ctx.params();
-
-    let connection = p.get("connection").unwrap_or(p);
-    let settings = if from_connection {
-        Settings::from_connection(connection).map_err(RpcError::invalid_params)?
-    } else {
-        settings(ctx, p)?
-    };
     let mut session = imap_session(ctx, &settings).map_err(RpcError::internal)?;
     let _ = session
         .select("INBOX")
@@ -119,28 +111,46 @@ fn test_mailbox(
 }
 pub struct EmailConnection;
 impl sdk::ConnectionProvider for EmailConnection {
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        test_mailbox(ctx, true)
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+        let request = ctx
+            .input()?
+            .connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+        let connection = request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+        let settings = Settings::from_connection(&connection).map_err(RpcError::invalid_params)?;
+        test_mailbox(ctx, settings)?;
+        Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        let p = ctx.params();
-
-        let settings = Settings::from_connection(
-            p.get("connection")
-                .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-        )
-        .map_err(RpcError::invalid_params)?;
-        let connection_id = text(p, "connectionId")?;
-        Ok(json!({
-            "kind": "pluginView",
-            "view": {"source": "package", "entry": "ui/dist/index.html"},
-            "tabTitle": fiex_plugin_sdk::i18n::format(crate::i18n::t("邮箱 · {0}"), &[("0", settings.email.clone())]),
-            "state": {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+        let request = ctx
+            .input()?
+            .connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+        let connection = request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+        let settings = Settings::from_connection(&connection).map_err(RpcError::invalid_params)?;
+        let connection_id = request
+            .connection_id
+            .as_deref()
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| RpcError::invalid_params("missing connectionId"))?;
+        Ok(sdk::ConnectionOpenResult::PluginView {
+            view: sdk::PackageView {
+                source: "package".into(),
+                entry: "ui/dist/index.html".into(),
+            },
+            tab_title: Some(fiex_plugin_sdk::i18n::format(crate::i18n::t("邮箱 · {0}"), &[("0", settings.email.clone())])),
+            state: json!({
                 "connectionId": connection_id,
                 "email": settings.email,
                 "imapHost": settings.imap_host,
                 "smtpHost": settings.smtp_host
-            }
-        }))
+            }),
+        })
     }
 }

@@ -24,7 +24,7 @@ pub(crate) struct RemoteFile {
     pub(crate) name: String,
     pub(crate) path: String,
     pub(crate) is_dir: bool,
-    pub(crate) size: u64,
+    pub(crate) size: Option<u64>,
     pub(crate) modified: u64,
     pub(crate) revision: String,
 }
@@ -83,7 +83,7 @@ pub(crate) fn parse_dav(url: &str, _rel: &str, xml: &str) -> Result<Vec<RemoteFi
                             name: String::new(),
                             path: String::new(),
                             is_dir: false,
-                            size: 0,
+                            size: None,
                             modified: 0,
                             revision: String::new(),
                         })
@@ -131,7 +131,8 @@ pub(crate) fn parse_dav(url: &str, _rel: &str, xml: &str) -> Result<Vec<RemoteFi
                             }
                         }
                         Some("revision") => item.revision = text.trim().into(),
-                        Some("size") => item.size = text.trim().parse().unwrap_or(0),
+                        // Unknown length must not masquerade as a 0-byte file.
+                        Some("size") => item.size = text.trim().parse::<u64>().ok(),
                         Some("modified") => {
                             if let Ok(time) = httpdate::parse_http_date(text.trim()) {
                                 item.modified = time
@@ -150,7 +151,7 @@ pub(crate) fn parse_dav(url: &str, _rel: &str, xml: &str) -> Result<Vec<RemoteFi
                         // Keep the requested resource itself: `list` filters it
                         // out and `stat` needs its metadata.
                         if item.is_dir {
-                            item.size = 0;
+                            item.size = Some(0);
                         }
                         out.push(item);
                     }
@@ -167,4 +168,39 @@ pub(crate) fn parse_dav(url: &str, _rel: &str, xml: &str) -> Result<Vec<RemoteFi
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod content_length_tests {
+    use super::parse_dav;
+
+    fn document(length: &str) -> String {
+        let property = if length.is_empty() {
+            String::new()
+        } else {
+            format!("<d:getcontentlength>{length}</d:getcontentlength>")
+        };
+        format!(
+            "<d:multistatus xmlns:d=\"DAV:\"><d:response><d:href>/files/a.txt</d:href>\
+             <d:propstat><d:prop>{property}</d:prop></d:propstat></d:response></d:multistatus>"
+        )
+    }
+
+    #[test]
+    fn missing_content_length_is_unknown_not_empty() {
+        let result = parse_dav("https://example.test/files/", "", &document("")).unwrap();
+        assert_eq!(result[0].size, None);
+    }
+
+    #[test]
+    fn explicit_zero_length_is_preserved() {
+        let result = parse_dav("https://example.test/files/", "", &document("0")).unwrap();
+        assert_eq!(result[0].size, Some(0));
+    }
+
+    #[test]
+    fn reported_content_length_is_used() {
+        let result = parse_dav("https://example.test/files/", "", &document("8388608")).unwrap();
+        assert_eq!(result[0].size, Some(8 * 1024 * 1024));
+    }
 }

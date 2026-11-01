@@ -39,16 +39,31 @@ fn main() {
 
 struct SshConnection;
 impl sdk::ConnectionProvider for SshConnection {
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        let host = ctx
-            .params()
-            .pointer("/connection/host")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim();
-        Ok(json!({"valid":!host.is_empty()}))
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+        let request = ctx
+            .input()?
+            .connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+        let host = request
+            .connection
+            .as_ref()
+            .and_then(|connection| connection.get("host"))
+            .and_then(|value| match value {
+                sdk::ConnectionFieldValue::String(value) => Some(value.trim()),
+                _ => None,
+            })
+            .unwrap_or("");
+        Ok(if host.is_empty() { sdk::ConnectionValidation::invalid() } else { sdk::ConnectionValidation::valid() })
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        sessions::connection_view(ctx.params())
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+        let request = ctx
+            .input()?
+            .connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+        let connection = request
+            .connection
+            .as_ref()
+            .ok_or_else(|| RpcError::invalid_params("missing SSH connection"))?;
+        sessions::connection_view(connection)
     }
 }

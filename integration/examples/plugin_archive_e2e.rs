@@ -14,7 +14,7 @@
 #[path = "../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
-use fiex_lib::plugins::resource::resource_context::ResourceSnapshot;
+use fiex_lib::plugins::resolvers::{context_menu, hooks};
 use serde_json::{json, Value};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -76,34 +76,29 @@ fn wait_until(what: &str, seconds: u64, mut done: impl FnMut() -> bool) {
 }
 
 fn execute_menu(info: &plugin_host::PluginInfo, item: &str, selected: &Path, root: &Path) -> Value {
-    let resource = ResourceSnapshot::new(selected.to_str().unwrap(), selected);
-    fiex_lib::plugins::events::call_owner(
-        "contextMenu.execute",
-        &info.id,
-        json!({
-            "menuSessionId": "archive-e2e",
-            "itemId": item,
-            "interactionId": "archive-e2e",
-            "paths": [selected],
-            "path": selected,
-            "root": fixtures::reference(std::path::Path::new(&root)),
+    let paths = vec![selected.to_string_lossy().into_owned()];
+    let menus = context_menu::query_plugins(root.to_str().unwrap(), &paths)
+        .unwrap_or_else(|error| panic!("plugin menu query failed: {error}"));
+    let menu = menus
+        .iter()
+        .find(|menu| menu["pluginId"] == info.id)
+        .unwrap_or_else(|| panic!("plugin menu for {} was not offered", info.id));
+    let session = menu["menuSessionId"]
+        .as_str()
+        .expect("Core menu session id");
+    assert!(
+        menu["items"].as_array().is_some_and(|items| {
+            items.iter().any(|value| value["id"] == item)
         }),
-        std::slice::from_ref(&resource),
-        Some(root.to_str().unwrap()),
-    )
-    .unwrap_or_else(|error| panic!("{item} failed: {error}"))
+        "plugin menu did not offer {item}: {menu}"
+    );
+    context_menu::execute(session, item)
+        .unwrap_or_else(|error| panic!("{item} failed: {error}"))
 }
 
-fn before_open(info: &plugin_host::PluginInfo, path: &Path) -> Value {
-    let resource = ResourceSnapshot::new(path.to_str().unwrap(), path);
-    fiex_lib::plugins::events::invoke_resources(
-        info,
-        "hooks.invoke",
-        json!({"event": "beforeOpen"}),
-        std::slice::from_ref(&resource),
-        None,
-    )
-    .unwrap_or_else(|error| panic!("beforeOpen failed: {error}"))
+fn before_open(path: &Path) -> Value {
+    hooks::before_open(path.to_str().unwrap())
+        .unwrap_or_else(|error| panic!("beforeOpen failed: {error}"))
 }
 
 fn main() {
@@ -184,7 +179,7 @@ fn main() {
     //    never leaks a task payload. Extraction happens in the background.
     let hooked = root.join("hooked.zip");
     std::fs::copy(&archive, &hooked).unwrap();
-    let response = before_open(&info, &hooked);
+    let response = before_open(&hooked);
     assert_eq!(response["handled"], true, "hook must consume the open");
     assert!(
         response.get("taskId").is_none(),
@@ -204,7 +199,7 @@ fn main() {
     let broken = root.join("broken.zip");
     std::fs::write(&broken, b"this is not a zip").unwrap();
     fiex_lib::plugins::errors::clear("org.fiex.archive");
-    let response = before_open(&info, &broken);
+    let response = before_open(&broken);
     assert_eq!(response["handled"], true);
     assert!(response.get("taskId").is_none());
     wait_until("hook failure report", 30, || {

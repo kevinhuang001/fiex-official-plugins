@@ -1,12 +1,18 @@
-//! Helpers for the official providers' ref-only request parameters.
+//! Helpers for typed provider resources and custom RPC resource refs.
 use fiex_plugin_sdk::ProviderInvocationExt;
-use fiex_plugin_sdk::{ResourceContext, ResourceRef, RpcError};
+use fiex_plugin_sdk::{RequestContext, ResourceContext, ResourceRef, RpcError};
+use serde_json::Value;
 
-pub fn input(
-    ctx: &dyn fiex_plugin_sdk::ProviderInvocation,
+pub fn request_input(ctx: &RequestContext, key: &str) -> Result<ResourceContext, RpcError> {
+    from_params(ctx.params(), key, ctx)
+}
+
+pub fn from_params(
+    params: &Value,
     key: &str,
+    ctx: &dyn fiex_plugin_sdk::ProviderInvocation,
 ) -> Result<ResourceContext, RpcError> {
-    let value = &ctx.params()[key];
+    let value = &params[key];
     if !value.is_null() && !value.is_object() {
         return Err(RpcError::invalid_params(
             "resource arguments must be ResourceRefs",
@@ -41,6 +47,17 @@ pub fn input(
             .map(|target| target.capabilities.clone())
             .unwrap_or_default(),
     })
+}
+
+pub fn target(ctx: &dyn fiex_plugin_sdk::ProviderInvocation) -> Result<ResourceContext, RpcError> {
+    let target = ctx
+        .target()
+        .ok_or_else(|| RpcError::invalid_params("missing resource ref"))?;
+    let mut target = target.clone();
+    if target.metadata.is_none() {
+        target.metadata = ctx.files().metadata(&target.reference).ok();
+    }
+    Ok(target)
 }
 pub fn name(target: &ResourceContext) -> Result<&str, RpcError> {
     target

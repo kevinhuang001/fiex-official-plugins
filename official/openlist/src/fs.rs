@@ -2,8 +2,8 @@
 //!
 //! Files are read through `/api/fs/get`, which returns a storage URL. The SDK
 //! owns chunk offsets and stream ids, so a plain HTTP response is the reader.
-use super::client::{self, Config, Session};
 use fiex_plugin_sdk::ProviderInvocationExt;
+use super::client::{self, Config, Session};
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest},
@@ -58,7 +58,7 @@ fn raw_url(
     cfg: &Config,
     session: &Session,
     relative: &str,
-) -> Result<String, RpcError> {
+) -> Result<(String, Option<u64>), RpcError> {
     let parsed = client::authorized(
         host,
         cfg,
@@ -66,12 +66,14 @@ fn raw_url(
         "/api/fs/get",
         &json!({ "path": api_path(relative), "password": "" }),
     )?;
-    parsed
+    let url = parsed
         .pointer("/data/raw_url")
         .and_then(Value::as_str)
         .filter(|value| value.starts_with("http://") || value.starts_with("https://"))
         .map(str::to_string)
-        .ok_or_else(|| RpcError::internal(crate::i18n::t("服务器未返回下载地址")))
+        .ok_or_else(|| RpcError::internal(crate::i18n::t("服务器未返回下载地址")))?;
+    let size = parsed.pointer("/data/size").and_then(Value::as_u64);
+    Ok((url, size))
 }
 
 /// Revision string used for `ifRevision`; changes with content or metadata.
@@ -125,11 +127,15 @@ pub(crate) fn object(
     )
 }
 
-pub(crate) fn validate(
-    host: &dyn sdk::ProviderInvocation,
-    session: &Session,
-) -> Result<Value, RpcError> {
-    let cfg = client::config(host.params().get("connection"))?;
+pub(crate) fn validate(host: &dyn sdk::ProviderInvocation, session: &Session) -> Result<sdk::ConnectionValidation, RpcError> {
+    let request = host
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?;
+    let cfg = client::config(connection.as_ref())?;
     client::authorized(
         host,
         &cfg,
@@ -143,12 +149,13 @@ pub(crate) fn validate(
             "refresh": false
         }),
     )?;
-    Ok(json!({ "valid": true }))
+    Ok(sdk::ConnectionValidation::valid())
 }
 
 pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListing, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let connection = request.connection_value()?;
+    let cfg = client::config(connection.as_ref())?;
     let directory = request.node_id().unwrap_or("").to_owned();
     safe_relative(&directory)?;
     let parsed = client::authorized(
@@ -191,21 +198,14 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
         .collect::<Vec<_>>();
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|error| RpcError::invalid_params(error.to_string()))?;
     if start > entries.len() {
         return Err(RpcError::invalid_params("cursor out of range"));
     }
-    let limit = request
-        .params()
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let total = entries.len();
     let end = start.saturating_add(limit).min(total);
     let next_cursor = (end < total).then(|| end.to_string());
@@ -220,7 +220,8 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
 
 pub(crate) fn stat(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let connection = request.connection_value()?;
+    let cfg = client::config(connection.as_ref())?;
     let node = request.node_id().unwrap_or("");
     safe_relative(node)?;
     stat_node(host, &cfg, session, node)
@@ -255,31 +256,27 @@ pub(crate) fn stat_http(
 
 pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let connection = request.connection_value()?;
+    let cfg = client::config(connection.as_ref())?;
     let relative = request.node_id().unwrap_or("").to_owned();
     safe_relative(&relative)?;
     if relative.is_empty() {
         return Err(RpcError::invalid_params("missing node ID"));
     }
-    let url = raw_url(host, &cfg, session, &relative)?;
-    if let Ok(reader) = host
+    let (url, size) = raw_url(host, &cfg, session, &relative)?;
+    // Core handles all parallelism and HTTP Range decisions. Unknown sizes
+    // naturally remain single-connection streams until metadata is available.
+    let mut download = host
         .aria2()
         .get(&url)
-        .timeout(std::time::Duration::from_secs(3600))
-        .send()
-    {
-        return Ok(FsRead::new(reader, None));
+        .timeout(std::time::Duration::from_secs(3600));
+    if let Some(size) = size {
+        download = download.size(size);
     }
-    let response = host
-        .http()
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(3600))
+    let reader = download
         .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status != 206 && response.status != 200 {
-        return Err(RpcError::internal("storage did not honor range"));
-    }
-    Ok(FsRead::new(response, None))
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(FsRead::new(reader, size))
 }
 
 /// RFC 3339 (openlist returns `2024-01-02T03:04:05Z`) to epoch seconds.

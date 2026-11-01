@@ -1,16 +1,21 @@
 //! Read the access actually granted by an authenticated MAXIMUM_ALLOWED open.
 //! Never use the library's optimistic maximal-access-context fallback.
-use crate::{close, connect, fail, safe_relative, smb_path, StoredConnection};
 use fiex_plugin_sdk::ProviderInvocationExt;
+use crate::{close, connect, fail, safe_relative, smb_path, StoredConnection};
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 
 pub fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
-    let cfg: StoredConnection = serde_json::from_value(ctx.params()["connection"].clone())
+    let request = ctx
+        .input()?
+        .vfs_request()
+        .ok_or_else(|| RpcError::invalid_params("missing VFS request"))?;
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg: StoredConnection = serde_json::from_value(connection)
         .map_err(|e| RpcError::invalid_params(e.to_string()))?;
-    let node = ctx.params()["nodeId"]
-        .as_str()
-        .or_else(|| ctx.params()["parentId"].as_str())
-        .unwrap_or("");
+    let node = request.node_id.as_deref().or(request.parent_id.as_deref()).unwrap_or("");
     safe_relative(node)?;
     safe_relative(&cfg.base)?;
     let (connection, session, tree) = connect(&ctx.tcp(), &cfg).map_err(fail)?;

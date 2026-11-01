@@ -1,10 +1,10 @@
 //! SMB protocol implementation. All socket operations are brokered by Core.
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod discovery;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod sync;
 mod transport;
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
@@ -179,13 +179,11 @@ fn revision(file: &smb::File) -> Result<String, RpcError> {
 }
 
 fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
-    serde_json::from_value(
-        request
-            .connection()
-            .cloned()
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|e| RpcError::invalid_params(e.to_string()))
+    let connection = request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    serde_json::from_value(connection)
+        .map_err(|e| RpcError::invalid_params(e.to_string()))
 }
 
 fn directory_entries(
@@ -254,21 +252,14 @@ fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     safe_relative(&cfg.base)?;
     let entries = directory_entries(&request.ctx().tcp(), &cfg, &path)?;
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|e| fail(e.to_string()))?;
     if start > entries.len() {
         return Err(fail("invalid pagination cursor"));
     }
-    let limit = request
-        .params()
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let end = start.saturating_add(limit).min(entries.len());
     let next_cursor = (end < entries.len()).then(|| end.to_string());
     Ok(FsListing {
@@ -532,24 +523,34 @@ fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     Ok(FsRead::new(SmbReader { stream, offset: 0 }, Some(total)))
 }
 
-fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let mount = ctx.params()["mountId"]
-        .as_str()
+fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    let mount = ctx
+        .input()?
+        .connection_request()
+        .and_then(|request| request.mount_id.as_deref())
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-    Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
+    Ok(sdk::ConnectionOpenResult::Vfs {
+        mount_id: mount.into(),
+        node_ref: sdk::ResourceRef {
+            mount_id: mount.into(),
+            node_id: String::new(),
+        },
+    })
 }
 
-fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let cfg: StoredConnection = serde_json::from_value(
-        ctx.params()
-            .get("connection")
-            .cloned()
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    let connection = ctx
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg: StoredConnection = serde_json::from_value(connection)
+        .map_err(|e| RpcError::invalid_params(e.to_string()))?;
     safe_relative(&cfg.base)?;
     directory_entries(&ctx.tcp(), &cfg, "")?;
-    Ok(json!({"valid":true}))
+    Ok(sdk::ConnectionValidation::valid())
 }
 
 struct Smb;
@@ -604,13 +605,10 @@ impl VfsProvider for Smb {
 }
 
 impl sdk::ConnectionProvider for Smb {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
         open(ctx)
     }
-    fn validate(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
         validate(ctx)
     }
 }

@@ -2,14 +2,14 @@
 //!
 //! Core owns mount configuration, caching and conflict resolution; this
 //! provider translates the unified `vfs.*` requests into WebDAV calls.
-use super::client::{self, StoredConnection, DAV_BODY};
 use fiex_plugin_sdk::ProviderInvocationExt;
+use super::client::{self, StoredConnection, DAV_BODY};
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     io,
     sync::{Arc, Mutex},
@@ -27,13 +27,11 @@ pub(crate) fn safe_relative(value: &str) -> Result<(), RpcError> {
 }
 
 pub(crate) fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
-    serde_json::from_value(
-        request
-            .connection()
-            .cloned()
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|error| RpcError::invalid_params(error.to_string()))
+    let connection = request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    serde_json::from_value(connection)
+        .map_err(|error| RpcError::invalid_params(error.to_string()))
 }
 
 fn propfind(
@@ -70,7 +68,7 @@ fn entry(node: &client::RemoteFile, node_id: String, fallback_name: &str) -> FsE
     } else {
         FsEntry::file(node_id, name)
     };
-    entry.size = Some(if node.is_dir { 0 } else { node.size });
+    entry.size = if node.is_dir { Some(0) } else { node.size };
     entry.modified = Some(node.modified as i64);
     entry.revision = strong_etag(&node.revision);
     if !node.is_dir {
@@ -87,17 +85,20 @@ fn display_name(path: &str) -> &str {
     }
 }
 
-pub(crate) fn validate(host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let cfg: StoredConnection = serde_json::from_value(
-        host.params()
-            .get("connection")
-            .cloned()
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+pub(crate) fn validate(host: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    let request = host
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg: StoredConnection = serde_json::from_value(connection)
+        .map_err(|error| RpcError::invalid_params(error.to_string()))?;
     let url = format!("{}/", client::webdav_url(&cfg, "").trim_end_matches('/'));
     propfind(&host.http(), &cfg, &url, "", "1")?;
-    Ok(json!({"valid":true}))
+    Ok(sdk::ConnectionValidation::valid())
 }
 
 pub(crate) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
@@ -112,21 +113,14 @@ pub(crate) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     nodes.retain(|f| !f.path.is_empty() && f.path.trim_matches('/') != path.trim_matches('/'));
     nodes.sort_by(|a, b| a.name.cmp(&b.name));
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|e| RpcError::invalid_params(e.to_string()))?;
     if start > nodes.len() {
         return Err(RpcError::invalid_params("cursor out of range"));
     }
-    let limit = request
-        .params()
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let end = start.saturating_add(limit).min(nodes.len());
     let entries = nodes[start..end]
         .iter()
@@ -271,21 +265,15 @@ pub(crate) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     Ok(())
 }
 
-fn aria2_read(
-    host: &dyn sdk::ProviderInvocation,
-    cfg: &StoredConnection,
-    path: &str,
-) -> Option<FsRead> {
+fn aria2_read(host: &dyn sdk::ProviderInvocation, cfg: &StoredConnection, path: &str) -> Option<FsRead> {
     let mut request = host
         .aria2()
-        .get(&client::webdav_url(cfg, path))
-        .timeout(std::time::Duration::from_secs(3600));
-    if cfg.allow_invalid_certs {
-        request = request.allow_invalid_certs(true);
-    }
+        .get(&client::webdav_url(&cfg, path))
+        .timeout(std::time::Duration::from_secs(3600))
+        .allow_invalid_certs(cfg.allow_invalid_certs);
     if !cfg.username.is_empty() || !cfg.password.is_empty() {
         use base64::{engine::general_purpose::STANDARD, Engine};
-        request = request.header(
+        download = download.header(
             "authorization",
             format!(
                 "Basic {}",
@@ -293,34 +281,13 @@ fn aria2_read(
             ),
         );
     }
-    request.send().ok().map(|reader| FsRead::new(reader, None))
-}
-
-pub(crate) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
-    let host = request.ctx();
-    let cfg = connection(request)?;
-    let path = request
-        .node_id()
-        .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
-    safe_relative(path)?;
-    if let Some(reader) = aria2_read(host, &cfg, path) {
-        return Ok(reader);
+    if let Some(size) = size {
+        download = download.size(size);
     }
-    let response = client::request(&host.http(), &cfg, "GET", &client::webdav_url(&cfg, path))
-        .timeout(std::time::Duration::from_secs(3600))
+    let reader = download
         .send()
-        .map_err(|e| RpcError::internal(e.to_string()))?;
-    if response.status != 200 && response.status != 206 {
-        return Err(RpcError::internal(format!(
-            "WebDAV read HTTP {}",
-            response.status
-        )));
-    }
-    let size = response
-        .headers
-        .get("content-length")
-        .and_then(|value| value.parse::<u64>().ok());
-    Ok(FsRead::new(response, size))
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(FsRead::new(reader, size))
 }
 
 /// Strong-ETag HEAD used by conditional writes and the commit result.

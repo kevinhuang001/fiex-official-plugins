@@ -16,7 +16,7 @@
 # Fiex plugins 0.5.5 — protocol 6
 
 Official storage plugins implement `VfsProvider` over `vfs.*`; Feature plugins use
-ResourceRef-only `Files` over `fs.*`. Deploy with the protocol-6 Core and Rust SDK
+ResourceRef-only `Files` over `host.fs.*`. Deploy with the protocol-6 Core and Rust SDK
 0.3.0. Old protocol-5 packages cannot be activated against this contract.
 
 Checksum, Archive, Data Preview and Office Preview declare their required read
@@ -30,7 +30,7 @@ USB hotplug and external drag/drop still require supported-platform validation.
 
 # Previous plugin release notes
 
-SSH owns its terminal UI and sessions in a self-contained PluginView. Every native plugin uses the typed Providers API with protocol 5 and SDK 0.1.1. CI uses sccache on all Rust jobs and tests actual process protocols, encrypted SSH and installed plugins against Core.
+SSH owns its terminal UI and sessions in a self-contained PluginView. Every native plugin uses the shared typed Providers API with protocol 6 and SDK 0.3.x. CI uses sccache on all Rust jobs and tests actual process protocols, encrypted SSH and installed plugins against Core.
 
 # Fiex plugins 0.5.0
 

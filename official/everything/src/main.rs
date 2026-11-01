@@ -1,37 +1,31 @@
 //! Optional Windows search adapter. The authorized ES command runs in Host;
 //! the plugin never contacts Everything's native IPC endpoint itself.
+use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 #[cfg(windows)]
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 #[cfg(windows)]
-fn query(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    if p.get("mode").and_then(Value::as_str).unwrap_or("name") != "name" {
+fn query(
+    request: &sdk::SearchQueryRequest,
+    host: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::SearchResults, RpcError> {
+    if request.mode != sdk::SearchMode::Name {
         return Err(RpcError::invalid_params(
             "Everything only supports filename search",
         ));
     }
-    let query = p.get("query").and_then(Value::as_str).unwrap_or("").trim();
+    let query = request.query.trim();
     // Core now sends the search root as an opaque ref. The ES adapter must
     // not receive host paths; `process_run` resolves command args that carry
     // the SDK's `fiex-ref:` prefix inside the operation scope.
-    let root = p
-        .get("root")
-        .and_then(|value| {
-            serde_json::from_value::<sdk::ResourceRef>(
-                value.get("ref").cloned().unwrap_or(value.clone()),
-            )
-            .ok()
-        })
+    let root = request
+        .root
+        .as_ref()
         .ok_or_else(|| RpcError::invalid_params("search root ResourceRef is required"))?;
-    let hidden = p.get("hidden").and_then(Value::as_bool).unwrap_or(false);
-    let limit = p
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let hidden = request.hidden;
+    let limit = request.limit.unwrap_or(200).clamp(1, 500);
     let mut entries = Vec::new();
     for (filter, is_dir) in [("/ad", true), ("/a-d", false)] {
         let mut args = vec!["-n".into(), (limit + 1).to_string(), filter.into()];
@@ -64,16 +58,43 @@ fn query(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcErro
                 .extension()
                 .unwrap_or_default()
                 .to_string_lossy();
-            entries.push(json!({"path":path,"name":name,"isDir":is_dir,"isSymlink":false,"size":0,"modified":0,"created":0,"extension":extension,"mime":if is_dir{"inode/directory".into()}else{mime_guess::from_path(name).first_or_octet_stream().to_string()},"readonly":false,"linkTarget":null,"tags":[],"sync":null}));
+            entries.push(sdk::SearchEntry {
+                path: path.to_string(),
+                name: name.to_string(),
+                is_dir,
+                is_symlink: false,
+                size: 0,
+                modified: 0,
+                created: 0,
+                extension: extension.into_owned(),
+                mime: if is_dir {
+                    "inode/directory".into()
+                } else {
+                    mime_guess::from_path(name)
+                        .first_or_octet_stream()
+                        .to_string()
+                },
+                readonly: false,
+                link_target: None,
+                allowed_ops: Vec::new(),
+                tags: Vec::new(),
+                has_cache: false,
+                pinned: false,
+                uploaded: false,
+                sync: None,
+            });
         }
     }
-    entries.sort_by_key(|v| v["path"].as_str().unwrap_or("").to_lowercase());
+    entries.sort_by_key(|entry| entry.path.to_lowercase());
     let truncated = entries.len() > limit;
     entries.truncate(limit);
-    Ok(json!({"entries":entries,"truncated":truncated}))
+    Ok(sdk::SearchResults { entries, truncated, next_cursor: None })
 }
 #[cfg(not(windows))]
-fn query(_p: &Value, _host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+fn query(
+    _request: &sdk::SearchQueryRequest,
+    _host: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::SearchResults, RpcError> {
     Err(RpcError::method_not_found("search.query"))
 }
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
@@ -102,7 +123,10 @@ fn main() {
 struct Everything;
 impl sdk::SearchProvider for Everything {
     fn query(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::SearchResults, RpcError> {
-        serde_json::from_value(query(ctx.params(), ctx)?)
-            .map_err(|error| RpcError::internal(error.to_string()))
+        let request = ctx
+            .input()?
+            .search_request()
+            .ok_or_else(|| RpcError::invalid_params("missing search request"))?;
+        query(request, ctx)
     }
 }

@@ -26,39 +26,49 @@ fn greeting(ctx: &dyn sdk::ProviderInvocation) -> String {
 
 struct HelloConnection;
 
-fn connection_open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let p = ctx.params();
-    let factory = p.get("factoryId").and_then(Value::as_str).unwrap_or("");
-    let mount = p.get("mountId").and_then(Value::as_str).unwrap_or("");
+fn connection_open(
+    ctx: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    let request = ctx
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+    let factory = request.factory_id.as_deref().unwrap_or("");
+    let mount = request.mount_id.as_deref().unwrap_or("");
     match factory {
         // The account factory has no file tree: it returns a full-width
         // pluginView that replaces the right content area.
-        "example-account" => Ok(json!({
-            "kind": "pluginView",
-            "view": {"source": "package", "entry": "ui/account.html"},
-            "state": {
-                "connectionId": p.get("connectionId").cloned().unwrap_or(Value::Null)
+        "example-account" => Ok(sdk::ConnectionOpenResult::PluginView {
+            view: sdk::PackageView {
+                source: "package".into(),
+                entry: "ui/account.html".into(),
             },
-            "tabTitle": "示例账号"
-        })),
+            state: json!({
+                "connectionId": request.connection_id
+            }),
+            tab_title: Some("示例账号".into()),
+        }),
         // The files factory navigates to Core's native Explorer. Core validates
         // that this plugin registered extensions.vfs and owns the mount.
-        _ => Ok(json!({
-            "kind": "vfs",
-            "mountId": mount,
-            "nodeRef": {"mountId": mount, "nodeId": "root"}
-        })),
+        _ if mount.is_empty() => Err(RpcError::invalid_params("missing mountId")),
+        _ => Ok(sdk::ConnectionOpenResult::Vfs {
+            mount_id: mount.into(),
+            node_ref: sdk::ResourceRef {
+                mount_id: mount.into(),
+                node_id: "root".into(),
+            },
+        }),
     }
 }
 
 impl sdk::ConnectionProvider for HelloConnection {
-    fn validate(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({"valid": true}))
+    fn validate(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+        Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
         connection_open(ctx)
     }
-    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
         connection_open(ctx)
     }
 }
@@ -119,10 +129,7 @@ impl VfsProvider for HelloFiles {
 struct HelloInfo;
 
 impl sdk::InfoProvider for HelloInfo {
-    fn resolve(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let meta = ctx
             .targets()
             .first()
@@ -174,7 +181,10 @@ impl sdk::PreviewProvider for HelloPreview {
 struct HelloDecorations;
 
 impl sdk::DecorationProvider for HelloDecorations {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::DecorationContribution>, RpcError> {
         let mut decorations = Vec::new();
         for target in ctx.targets() {
             let Some(metadata) = target.metadata.as_ref() else {
@@ -182,24 +192,48 @@ impl sdk::DecorationProvider for HelloDecorations {
             };
             let name = &metadata.name;
             if name.ends_with(".md") {
-                decorations.push(json!({
-                    "name": name,
-                    "badge": {
-                        "text": "MD",
-                        "color": "blue",
-                        "tooltip": "示例：Markdown 文件"
+                let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+                decoration.fields.insert(
+                    "name".into(),
+                    sdk::DecorationField {
+                        badges: vec![sdk::DecorationBadge {
+                            text: "MD".into(),
+                            color: "blue".into(),
+                            tooltip: Some("示例：Markdown 文件".into()),
+                        }],
+                        style: sdk::DecorationStyle {
+                            color: Some("#2f6f9f".into()),
+                            font_weight: Some("600".into()),
+                            ..Default::default()
+                        },
                     },
-                    "style": {"color": "#2f6f9f", "fontWeight": "600"}
-                }));
+                );
+                decorations.push(decoration);
             }
             if name.contains("todo") {
-                decorations.push(json!({
-                    "name": name,
-                    "fields": {
-                        "modified": {"style": {"color": "#b4443d"}},
-                        "size": {"badges": [{"text": "TODO", "color": "orange"}]}
-                    }
-                }));
+                let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+                decoration.fields.insert(
+                    "modified".into(),
+                    sdk::DecorationField {
+                        style: sdk::DecorationStyle {
+                            color: Some("#b4443d".into()),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+                decoration.fields.insert(
+                    "size".into(),
+                    sdk::DecorationField {
+                        badges: vec![sdk::DecorationBadge {
+                            text: "TODO".into(),
+                            color: "orange".into(),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    },
+                );
+                decorations.push(decoration);
             }
         }
         Ok(decorations)
@@ -209,27 +243,35 @@ impl sdk::DecorationProvider for HelloDecorations {
 struct HelloMenu;
 
 impl sdk::ContextMenuProvider for HelloMenu {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
-        if ctx.params().get("parentId").and_then(Value::as_str) == Some("example.more") {
-            return Ok(vec![json!({
-                "id": "example.copy-path",
-                "title": "示例：复制路径",
-                "kind": "action"
-            })]);
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
+        if ctx
+            .input()?
+            .context_menu_resolve()
+            .ok_or_else(|| RpcError::invalid_params("missing context-menu request"))?
+            .parent_id
+            .as_deref()
+            == Some("example.more")
+        {
+            return Ok(vec![sdk::MenuItem::action(
+                "example.copy-path",
+                "示例：复制路径",
+            )]);
         }
         Ok(vec![
-            json!({"id": "example.inspect", "title": "示例：检查文件", "kind": "action"}),
-            json!({"id": "example.more", "title": "示例", "kind": "submenu"}),
+            sdk::MenuItem::action("example.inspect", "示例：检查文件"),
+            sdk::MenuItem::submenu("example.more", "示例"),
         ])
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        let item = ctx.params()["itemId"]
-            .as_str()
+    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::MenuExecuteResult, RpcError> {
+        let item = ctx
+            .input()?
+            .context_menu_execute()
+            .and_then(|request| request.item_id.as_deref())
             .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
         if !matches!(item, "example.inspect" | "example.copy-path") {
             return Err(RpcError::invalid_params("unknown example menu item"));
         }
-        Ok(json!({"ok": true, "itemId": item}))
+        Ok(sdk::MenuExecuteResult::Custom(json!({"ok": true, "itemId": item})))
     }
 }
 
@@ -248,19 +290,16 @@ impl sdk::SearchProvider for HelloSearch {
 struct HelloHooks;
 
 impl sdk::HookProvider for HelloHooks {
-    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({"handled": false}))
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
+        Ok(sdk::HookResult { handled: false })
     }
 }
 
 struct HelloToolbar;
 
 impl sdk::ToolbarProvider for HelloToolbar {
-    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({
-            "refreshed": true,
-            "directory": ctx.params().get("root").cloned().unwrap_or(Value::Null)
-        }))
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ToolbarResult, RpcError> {
+        Ok(sdk::ToolbarResult::default())
     }
 }
 

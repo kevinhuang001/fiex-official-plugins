@@ -568,7 +568,7 @@ impl sdk::DecorationProvider for Archive {
             contribution.badges.push(sdk::DecorationBadge {
                 text: label.into(),
                 color: "neutral".into(),
-                tooltip: Some(crate::i18n::t("压缩包")),
+                tooltip: Some(crate::i18n::t("压缩包").to_string()),
             });
             decorations.push(contribution);
         }

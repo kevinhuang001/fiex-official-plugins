@@ -331,7 +331,7 @@ impl sdk::ContextMenuProvider for GpgMenu {
             entry: Some("ui/dist/index.html".into()),
             asset_path: None,
             panel_id: Some(item.into()),
-            title: Some(title),
+            title: Some(title.into()),
             size: Some(sdk::PluginPanelSize { width, height }),
         }))
     }

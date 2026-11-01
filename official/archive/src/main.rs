@@ -171,7 +171,14 @@ fn before_open(
             let _ = error;
             // The task registry is exhausted or unavailable. Extract inline so
             // the user's open is still consumed, then report any real failure.
-            match hook_extract(path, &destination, password, &ignores, max_total, host) {
+            match hook_extract(
+                path,
+                &destination,
+                password,
+                &ignores,
+                max_total,
+                host.sdk_context(),
+            ) {
                 Ok(_) => Ok(json!({ "handled": true })),
                 Err(error) => {
                     if error != archives::CANCELLED {
@@ -391,6 +398,7 @@ fn run_operation(
                     host.directory()
                         .ok_or_else(|| RpcError::invalid_params("missing output directory ref"))?
                         .reference
+                        .clone()
                 };
             let password = p.get("password").and_then(Value::as_str).map(str::to_owned);
             let max_total = max_total_bytes(host, p);
@@ -420,7 +428,7 @@ fn main() {
         .context_menu(Archive)
         .hooks(Archive)
         .serve_with("org.fiex.archive", |ctx| {
-            run_operation(ctx, ctx.params().clone(), ctx.method())
+            run_operation(&ctx, ctx.params().clone(), ctx.method())
         })
     {
         eprintln!("Archive plugin failed: transport closed ({:?})", e.kind());

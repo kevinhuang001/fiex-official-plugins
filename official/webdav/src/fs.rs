@@ -3,6 +3,7 @@
 //! Core owns mount configuration, caching and conflict resolution; this
 //! provider translates the unified `vfs.*` requests into WebDAV calls.
 use super::client::{self, StoredConnection, DAV_BODY};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},

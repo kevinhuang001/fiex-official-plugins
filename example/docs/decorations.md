@@ -25,16 +25,18 @@ Decorations 是只读展示层。Core 在目录变化后调用固定事件
 struct ExampleDecorations;
 
 impl sdk::DecorationProvider for ExampleDecorations {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::DecorationContribution>, RpcError> {
         let mut values = Vec::new();
         for target in ctx.targets() {
             let Some(meta) = target.metadata.as_ref() else { continue };
             if meta.name.ends_with(".md") {
-                values.push(json!({
-                    "name": meta.name,
-                    "badge": {"text": "MD", "color": "blue", "tooltip": "Markdown"},
-                    "style": {"color": "#2f6f9f", "fontWeight": "600"}
-                }));
+                let mut value = sdk::DecorationContribution::new(target.reference.clone());
+                value.badges.push(sdk::DecorationBadge {
+                    text: "MD".into(), color: "blue".into(), tooltip: Some("Markdown".into()),
+                });
+                value.style.color = Some("#2f6f9f".into());
+                value.style.font_weight = Some("600".into());
+                values.push(value);
             }
         }
         Ok(values)
@@ -42,7 +44,7 @@ impl sdk::DecorationProvider for ExampleDecorations {
 }
 ```
 
-返回项只需要 `name`；Core 在当前目录可见成员里解析。字段级样式用
+每项通过 Core 提供的 opaque `ResourceRef` 指向目标；插件不返回路径或名称作为目标。字段级样式用
 `fields.modified/size/kind/row`，规则不变。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloDecorations`。

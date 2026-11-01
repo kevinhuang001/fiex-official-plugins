@@ -177,7 +177,10 @@ impl sdk::PreviewProvider for HelloPreview {
 struct HelloDecorations;
 
 impl sdk::DecorationProvider for HelloDecorations {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::DecorationContribution>, RpcError> {
         let mut decorations = Vec::new();
         for target in ctx.targets() {
             let Some(metadata) = target.metadata.as_ref() else {
@@ -185,24 +188,40 @@ impl sdk::DecorationProvider for HelloDecorations {
             };
             let name = &metadata.name;
             if name.ends_with(".md") {
-                decorations.push(json!({
-                    "name": name,
-                    "badge": {
-                        "text": "MD",
-                        "color": "blue",
-                        "tooltip": "示例：Markdown 文件"
-                    },
-                    "style": {"color": "#2f6f9f", "fontWeight": "600"}
-                }));
+                let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
+                contribution.badges.push(sdk::DecorationBadge {
+                    text: "MD".into(),
+                    color: "blue".into(),
+                    tooltip: Some("示例：Markdown 文件".into()),
+                });
+                contribution.style.color = Some("#2f6f9f".into());
+                contribution.style.font_weight = Some("600".into());
+                decorations.push(contribution);
             }
             if name.contains("todo") {
-                decorations.push(json!({
-                    "name": name,
-                    "fields": {
-                        "modified": {"style": {"color": "#b4443d"}},
-                        "size": {"badges": [{"text": "TODO", "color": "orange"}]}
-                    }
-                }));
+                let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
+                contribution.fields.insert(
+                    "modified".into(),
+                    sdk::DecorationField {
+                        style: sdk::DecorationStyle {
+                            color: Some("#b4443d".into()),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+                contribution.fields.insert(
+                    "size".into(),
+                    sdk::DecorationField {
+                        badges: vec![sdk::DecorationBadge {
+                            text: "TODO".into(),
+                            color: "orange".into(),
+                            tooltip: None,
+                        }],
+                        ..Default::default()
+                    },
+                );
+                decorations.push(contribution);
             }
         }
         Ok(decorations)

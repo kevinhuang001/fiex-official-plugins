@@ -66,7 +66,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .invoke(
             id,
             "vfs.readStream",
-            json!({"streamId": stream, "offset": 0, "maxBytes": 262144}),
+            json!({"mountId": mount_id, "streamId": stream, "offset": 0, "maxBytes": 262144}),
         )
         .unwrap();
     assert_eq!(
@@ -75,7 +75,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     );
     assert_eq!(result["eof"], true);
     plugin_host::global()
-        .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
+        .invoke(id, "vfs.closeRead", json!({"mountId": mount_id, "streamId": stream}))
         .unwrap();
     // The anonymous WebDAV fixture does not expose RFC 3744 grants; Core
     // must not infer write permission from the server accepting PUT.
@@ -125,13 +125,13 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                     .invoke(
                         id,
                         "vfs.writeStream",
-                        json!({"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
+                        json!({"mountId":mount_id,"streamId":stream,"offset":offset,"base64":STANDARD.encode(chunk)}),
                     )
                     .unwrap();
                 offset += chunk.len();
             }
             let committed = plugin_host::global()
-                .invoke(id, "vfs.commit", json!({"streamId":stream}))
+                .invoke(id, "vfs.commit", json!({"mountId":mount_id,"streamId":stream}))
                 .unwrap();
             assert_ne!(committed["revision"], baseline["revision"]);
             assert!(plugin_host::global()
@@ -159,7 +159,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 .invoke(
                     id,
                     "vfs.readStream",
-                    json!({"streamId":stream,"offset":0,"maxBytes":1048576}),
+                    json!({"mountId":mount_id,"streamId":stream,"offset":0,"maxBytes":1048576}),
                 )
                 .unwrap();
             assert_eq!(
@@ -169,7 +169,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 contents
             );
             plugin_host::global()
-                .invoke(id, "vfs.closeRead", json!({"streamId": stream}))
+                .invoke(id, "vfs.closeRead", json!({"mountId": mount_id, "streamId": stream}))
                 .unwrap();
         }
     }

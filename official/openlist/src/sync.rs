@@ -4,6 +4,7 @@ use super::{
     client::{self, Session},
     fs,
 };
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     filesystem::{FsRequest, FsWrite},
     http::StreamingBody,

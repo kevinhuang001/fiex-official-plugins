@@ -99,7 +99,8 @@ pub fn default_destination(
     let parent = host
         .directory()
         .ok_or(crate::i18n::t("请选择输出文件夹"))?
-        .reference;
+        .reference
+        .clone();
     let files = host.files();
     let metadata = files
         .metadata(paths.first().ok_or(crate::i18n::t("请选择文件"))?)

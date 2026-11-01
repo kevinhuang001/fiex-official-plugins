@@ -2,6 +2,7 @@
 //! reader never sees a partially written target.
 use super::*;
 use fiex_plugin_sdk::filesystem::{FsEntry, FsRequest, FsWrite};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use std::sync::{Arc, Mutex};
 
 struct Upload {

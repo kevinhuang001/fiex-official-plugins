@@ -2,7 +2,6 @@
 //!
 //! Every credential — server, account and timeout — belongs to the connection,
 //! so a profile can hold several servers without sharing a login.
-use fiex_plugin_sdk::ProviderInvocationExt;
 mod client;
 mod discovery;
 mod fs;

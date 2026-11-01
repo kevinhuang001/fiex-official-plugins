@@ -3,6 +3,7 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{RequestContext, ResourceContext, ResourceRef, RpcError};
 use serde_json::Value;
 
+#[allow(dead_code)] // Shared by feature crates that include this module.
 pub fn request_input(ctx: &RequestContext, key: &str) -> Result<ResourceContext, RpcError> {
     from_params(ctx.params(), key, ctx)
 }
@@ -49,6 +50,7 @@ pub fn from_params(
     })
 }
 
+#[allow(dead_code)] // Shared by feature crates that include this module.
 pub fn target(ctx: &dyn fiex_plugin_sdk::ProviderInvocation) -> Result<ResourceContext, RpcError> {
     let target = ctx
         .target()

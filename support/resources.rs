@@ -21,20 +21,25 @@ pub fn input(
             .reference
             .clone()
     };
-    let metadata = ctx
+    let authorized = ctx
         .targets()
         .iter()
         .find(|target| target.reference == reference)
-        .and_then(|target| target.metadata.clone())
         .or_else(|| {
             ctx.directory()
                 .filter(|target| target.reference == reference)
-                .and_then(|target| target.metadata)
-        })
+        });
+    let metadata = authorized
+        .and_then(|target| target.metadata.clone())
         .or_else(|| ctx.files().metadata(&reference).ok());
     Ok(ResourceContext {
         reference,
         metadata,
+        view: authorized.and_then(|target| target.view.clone()),
+        storage: authorized.and_then(|target| target.storage.clone()),
+        capabilities: authorized
+            .map(|target| target.capabilities.clone())
+            .unwrap_or_default(),
     })
 }
 pub fn name(target: &ResourceContext) -> Result<&str, RpcError> {

@@ -1,171 +1,627 @@
-YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíëûN‹Z–‹­¦ëeŠw¬Ô¼¼„M5ÁÉ½Ñ½½°¥µÁ±•µ•¹Ñ…Ñ¥½¸¸±°Í½­•Ğ½Á•É…Ñ¥½¹Ì…É”‰É½­•É•‰ä½É”¸)ÕÍ”™¥•á}Á±Õ¥¹}Í‘¬èéAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¹áĞì)µ½‘¥Í½Ù•Éäì(mÁ…Ñ €ô€ˆ¸¸¼¸¸¼¸¸½ÍÕÁÁ½ÉĞ½¤Äá¸¹ÉÌ‰t)µ½¤Äá¸ì)µ½Íå¹Œì)µ½ÑÉ…¹ÍÁ½ÉĞì)ÕÍ”™¥•á}Á±Õ¥¹}Í‘¬èéì(€€€Í•±˜…ÌÍ‘¬°(€€€™¥±•ÍåÍÑ•´èéíÍ¹ÑÉä°Í1¥ÍÑ¥¹œ°ÍI•…°ÍI•ÅÕ•ÍĞ°Í]É¥Ñ”°Y™ÍAÉ½Ù¥‘•Éô°(€€€IÁÉÉ½È°)ôì)ÕÍ”Í•É‘”èé•Í•É¥…±¥é”ì)ÕÍ”Í•É‘•}©Í½¸èéí©Í½¸°Y…±Õ•ôì)ÕÍ”Íµˆèéí•Ñ1•¸°I•…‘Ñôì)ÕÍ”ÍÑèéí¥¼°ÍÑÈèéÉ½µMÑÉôì((m‘•É¥Ù”¡±½¹”°•™…Õ±Ğ°•Í•É¥…±¥é”¥t(mÍ•É‘”¡É•¹…µ•}…±°€ô€‰…µ•±…Í”ˆ¥t)ÍÑÉÕĞMÑ½É•‘½¹¹•Ñ¥½¸ì(€€€¡½ÍĞèMÑÉ¥¹œ°(€€€Í¡…É”èMÑÉ¥¹œ°(€€€€mÍ•É‘”¡‘•™…Õ±Ğ¥t(€€€‰…Í”èMÑÉ¥¹œ°(€€€€mÍ•É‘”¡‘•™…Õ±Ğ¥t(€€€ÕÍ•É¹…µ”èMÑÉ¥¹œ°(€€€€mÍ•É‘”¡‘•™…Õ±Ğ¥t(€€€Á…ÍÍİ½ÉèMÑÉ¥¹œ°(€€€Á½ÉĞè=ÁÑ¥½¸ñÔÄØø°)ô((¼¼¼É•…°É•µ½Ñ”™¥±”­•ÁĞ½Á•¸™½ÈÑ¡”±¥™•Ñ¥µ”½˜½¹”Ù™Ì¹½Á•¹I•…‘€ÍÑÉ•…´¸(¼¼¼I•ÕÍ¥¹œÑ¡”½¹¹•Ñ¥½¸°…ÕÑ¡•¹Ñ¥…Ñ•Í•ÍÍ¥½¸°ÑÉ•”…¹™¥±”¡…¹‘±”…Ù½¥‘Ì(¼¼¼É•½¹¹•Ñ¥¹œ…¹É”µ…ÕÑ¡•¹Ñ¥…Ñ¥¹œ™½È•Ù•ÉäÉ•…¡Õ¹¬¸)ÍÑÉÕĞ=Á•¹MÑÉ•…´ì(€€€½¹¹•Ñ¥½¸èÍµˆèé½¹¹•Ñ¥½¸°(€€€Í•ÍÍ¥½¸èÍµˆèéM•ÍÍ¥½¸°(€€€ÑÉ•”èÍµˆèéQÉ•”°(€€€™¥±”èÍµˆèé¥±”°(€€€Ñ½Ñ…°èÔØĞ°)ô()¥µÁ°É½À™½È=Á•¹MÑÉ•…´ì(€€€™¸‘É½À ™µÕĞÍ•±˜¤ì(€€€€€€€±•Ğ|€ôÍ•±˜¹™¥±”¹±½Í” ¤ì(€€€€€€€±•Ğ|€ôÍ•±˜¹ÑÉ•”¹‘¥Í½¹¹•Ğ ¤ì(€€€€€€€±•Ğ|€ôÍ•±˜¹Í•ÍÍ¥½¸¹±½½™˜ ¤ì(€€€€€€€±•Ğ|€ôÍ•±˜¹½¹¹•Ñ¥½¸¹±½Í” ¤ì(€€€ô)ô((¼¼¼MÑ…¹‘…ÉI•…‘€½Ù•ÈÑ¡”½Á•¸M5¡…¹‘±”ìÑ¡”M,½İ¹Ì½™™Í•ÑÌ…¹¡Õ¹­Ì¸)ÍÑÉÕĞMµ‰I•…‘•Èì(€€€ÍÑÉ•…´è=Á•¹MÑÉ•…´°(€€€½™™Í•ĞèÔØĞ°)ô()¥µÁ°¥¼èéI•…™½ÈMµ‰I•…‘•Èì(€€€™¸É•… ™µÕĞÍ•±˜°½ÕÑÁÕĞè€™µÕĞmÔát¤€´ø¥¼èéI•ÍÕ±ĞñÕÍ¥é”øì(€€€€€€€±•ĞÉ•…€ôÍ•±˜(€€€€€€€€€€€€¹ÍÑÉ•…´(€€€€€€€€€€€€¹™¥±”(€€€€€€€€€€€€¹É•…‘}…Ğ¡½ÕÑÁÕĞ°Í•±˜¹½™™Í•Ğ¤(€€€€€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ¥¼èéÉÉ½Èèé½Ñ¡•È¡•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤¤üì(€€€€€€€Í•±˜¹½™™Í•Ğ€¬ôÉ•……ÌÔØĞì(€€€€€€€=¬¡É•…¤(€€€ô)ô()™¸™…¥°¡”è¥µÁ°ÍÑèé™µĞèé¥ÍÁ±…ä¤€´øIÁÉÉ½Èì(€€€IÁÉÉ½Èèé¥¹Ñ•É¹…°¡”¹Ñ½}ÍÑÉ¥¹œ ¤¤)ô()™¸½¹¹•Ğ (€€€ÑÀè€™Í‘¬èéQÁ±¥•¹Ğ°(€€€™œè€™MÑ½É•‘½¹¹•Ñ¥½¸°(¤€´øI•ÍÕ±Ğğ¡Íµˆèé½¹¹•Ñ¥½¸°ÍµˆèéM•ÍÍ¥½¸°ÍµˆèéQÉ•”¤°MÑÉ¥¹œøì(€€€±•ĞÁ½ÉĞ€ô™œ¹Á½ÉĞ¹Õ¹İÉ…Á}½È ĞĞÔ¤ì(€€€±•ĞÑÉ…¹ÍÁ½ÉĞ€ô(€€€€€€€ÑÉ…¹ÍÁ½ÉĞèé!½ÍÑQÉ…¹ÍÁ½ÉĞèé½Á•¸¡ÑÀ°€™™œ¹¡½ÍĞ°Á½ÉĞ¤¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤üì(€€€±•Ğ½¹¹•Ñ¥½¸€ôÍµˆèé½¹¹•Ñ¥½¸èé™É½µ}ÑÉ…¹ÍÁ½ÉĞ (€€€€€€€	½àèé¹•Ü¡ÑÉ…¹ÍÁ½ÉĞ¤°(€€€€€€€€™™œ¹¡½ÍĞ°(€€€€€€€ÍµˆèéÕ¥èé•¹•É…Ñ” ¤°(€€€€€€€Íµˆèé½¹¹•Ñ¥½¹½¹™¥œèé‘•™…Õ±Ğ ¤°(€€€€¤(€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤üì(€€€±•Ğ¥‘•¹Ñ¥Ñä€ôÍÍÁ¤èéÕÑ¡%‘•¹Ñ¥Ñäì(€€€€€€€ÕÍ•É¹…µ”èÍÍÁ¤èéUÍ•É¹…µ”èéÁ…ÉÍ” ™™œ¹ÕÍ•É¹…µ”¤¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤ü°(€€€€€€€Á…ÍÍİ½ÉèÍÍÁ¤èéM•É•Ğèé™É½´¡™œ¹Á…ÍÍİ½É¹±½¹” ¤¤°(€€€ôì(€€€±•ĞÍ•ÍÍ¥½¸€ô½¹¹•Ñ¥½¸(€€€€€€€€¹…ÕÑ¡•¹Ñ¥…Ñ”¡¥‘•¹Ñ¥Ñä¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤üì(€€€±•ĞÕ¹Œ€ôÍµˆèéU¹A…Ñ èé™É½µ}ÍÑÈ ™™½Éµ…Ğ„ ‰qqqqíõqqíôˆ°™œ¹¡½ÍĞ°™œ¹Í¡…É”¤¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤üì(€€€±•ĞÑÉ•”€ôÍ•ÍÍ¥½¸(€€€€€€€€¹ÑÉ••}½¹¹•Ğ ™Õ¹Œ¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½Éğ•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤üì(€€€=¬ ¡½¹¹•Ñ¥½¸°Í•ÍÍ¥½¸°ÑÉ•”¤¤)ô()™¸±½Í”¡½¹¹•Ñ¥½¸èÍµˆèé½¹¹•Ñ¥½¸°Í•ÍÍ¥½¸èÍµˆèéM•ÍÍ¥½¸°ÑÉ•”èÍµˆèéQÉ•”¤ì(€€€±•Ğ|€ôÑÉ•”¹‘¥Í½¹¹•Ğ ¤ì(€€€±•Ğ|€ôÍ•ÍÍ¥½¸¹±½½™˜ ¤ì(€€€±•Ğ|€ô½¹¹•Ñ¥½¸¹±½Í” ¤ì)ô()™¸½Á•¹}ÍÑÉ•…´ (€€€ÑÀè€™Í‘¬èéQÁ±¥•¹Ğ°(€€€™œè€™MÑ½É•‘½¹¹•Ñ¥½¸°(€€€Á…Ñ è€™ÍÑÈ°(¤€´øI•ÍÕ±Ğñ=Á•¹MÑÉ•…´°IÁÉÉ½Èøì(€€€±•Ğ€¡½¹¹•Ñ¥½¸°Í•ÍÍ¥½¸°ÑÉ•”¤€ô½¹¹•Ğ¡ÑÀ°™œ¤¹µ…Á}•ÉÈ¡IÁÉÉ½Èèé¥¹Ñ•É¹…°¤üì(€€€±•ĞÁ…Ñ €ôÍµ‰}Á…Ñ ¡™œ°Á…Ñ ¤ì(€€€±•Ğ™¥±”€ôÑÉ•”(€€€€€€€€¹É•…Ñ” (€€€€€€€€€€€€™Á…Ñ °(€€€€€€€€€€€€™Íµˆèé¥±•É•…Ñ•ÉÌèéµ…­•}½Á•¹}•á¥ÍÑ¥¹œ (€€€€€€€€€€€€€€€Íµˆèé¥±••ÍÍ5…Í¬èé¹•Ü ¤¹İ¥Ñ¡}•¹•É¥}É•…¡ÑÉÕ”¤°(€€€€€€€€€€€€¤°(€€€€€€€€¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½ÉğIÁÉÉ½Èèé¥¹Ñ•É¹…°¡•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤¤ü(€€€€€€€€¹Õ¹İÉ…Á}™¥±” ¤ì(€€€±•ĞÑ½Ñ…°€ô™¥±”(€€€€€€€€¹•Ñ}±•¸ ¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ÉÉ½ÉğIÁÉÉ½Èèé¥¹Ñ•É¹…°¡•ÉÉ½È¹Ñ½}ÍÑÉ¥¹œ ¤¤¤üì(€€€=¬¡=Á•¹MÑÉ•…´ì(€€€€€€€½¹¹•Ñ¥½¸°(€€€€€€€Í•ÍÍ¥½¸°(€€€€€€€ÑÉ•”°(€€€€€€€™¥±”°(€€€€€€€Ñ½Ñ…°°(€€€ô¤)ô()™¸Í…™•}É•±…Ñ¥Ù”¡Á…Ñ è€™ÍÑÈ¤€´øI•ÍÕ±Ğğ ¤°IÁÉÉ½Èøì(€€€¥˜Á…Ñ ¹ÍÑ…ÉÑÍ}İ¥Ñ  œ¼œ¤(€€€€€€€ñğÁ…Ñ ¹½¹Ñ…¥¹Ì¡lqpœ°€pÀt¤(€€€€€€€ñğÁ…Ñ ¹ÍÁ±¥Ğ œ¼œ¤¹…¹ä¡ñÁğÀ€ôô€ˆ¸ˆñğÀ€ôô€ˆ¸¸ˆ¤(€€€ì(€€€€€€€É•ÑÕÉ¸ÉÈ¡IÁÉÉ½Èèé¥¹Ù…±¥‘}Á…É…µÌ ‰¥¹Ù…±¥É•µ½Ñ”Á…Ñ ˆ¤¤ì(€€€ô(€€€=¬  ¤¤)ô()™¸Íµ‰}Á…Ñ ¡™œè€™MÑ½É•‘½¹¹•Ñ¥½¸°Á…Ñ è€™ÍÑÈ¤€´øMÑÉ¥¹œì(€€€m™œ¹‰…Í”¹ÑÉ¥µ}µ…Ñ¡•Ì œ¼œ¤°Á…Ñ ¹ÑÉ¥µ}µ…Ñ¡•Ì œ¼œ¥t(€€€€€€€€¹¥¹Ñ½}¥Ñ•È ¤(€€€€€€€€¹™¥±Ñ•È¡ñÁğ€…À¹¥Í}•µÁÑä ¤¤(€€€€€€€€¹½±±•ĞèèñY•Œñ|øø ¤(€€€€€€€€¹©½¥¸ ‰qpˆ¤)ô()™¸‘¥ÍÁ±…å}¹…µ”¡Á…Ñ è€™ÍÑÈ¤€´øMÑÉ¥¹œì(€€€¥˜Á…Ñ ¹¥Í}•µÁÑä ¤ì(€€€€€€€€‰É½½Ğˆ¹¥¹Ñ¼ ¤(€€€ô•±Í”ì(€€€€€€€Á…Ñ ¹ÑÉ¥µ}µ…Ñ¡•Ì œ¼œ¤(€€€€€€€€€€€€¹ÉÍÁ±¥Ğ œ¼œ¤(€€€€€€€€€€€€¹¹•áĞ ¤(€€€€€€€€€€€€¹Õ¹İÉ…Á}½È¡Á…Ñ ¤(€€€€€€€€€€€€¹Ñ½}ÍÑÉ¥¹œ ¤(€€€ô)ô()™¸É•Ù¥Í¥½¸¡™¥±”è€™Íµˆèé¥±”¤€´øI•ÍÕ±ĞñMÑÉ¥¹œ°IÁÉÉ½Èøì(€€€±•Ğ‰…Í¥Œ€ô™¥±”(€€€€€€€€¹ÅÕ•Éå}¥¹™¼èèñÍµˆèé¥±•	…Í¥%¹™½Éµ…Ñ¥½¸ø ¤(€€€€€€€€¹µ…Á}•ÉÈ¡™…¥°¤üì(€€€±•ĞÍ¥é”€ô™¥±”(€€€€€€€€¹ÅÕ•Éå}¥¹™¼èèñÍµˆèé¥±•MÑ…¹‘…É‘%¹™½Éµ…Ñ¥½¸ø ¤(€€€€€€€€¹µ…Á}•ÉÈ¡™…¥°¤ü(€€€€€€€€¹•¹‘}½™}™¥±”ì(€€€=¬¡™½Éµ…Ğ„ (€€€€€€€€‰ìèıôéìèıôéíÍ¥é•ôˆ°(€€€€€€€‰…Í¥Œ¹±…ÍÑ}İÉ¥Ñ•}Ñ¥µ”°‰…Í¥Œ¹¡…¹•}Ñ¥µ”(€€€€¤¤)ô()™¸½¹¹•Ñ¥½¸¡É•ÅÕ•ÍĞè€™ÍI•ÅÕ•ÍĞğ|ø¤€´øI•ÍÕ±ĞñMÑ½É•‘½¹¹•Ñ¥½¸°IÁÉÉ½Èøì(€€€Í•É‘•}©Í½¸èé™É½µ}Ù…±Õ” (€€€€€€€É•ÅÕ•ÍĞ(€€€€€€€€€€€€¹½¹¹•Ñ¥½¸ ¤(€€€€€€€€€€€€¹±½¹• ¤(€€€€€€€€€€€€¹½­}½É}•±Í”¡ñğIÁÉÉ½Èèé¥¹Ù…±¥‘}Á…É…µÌ ‰µ¥ÍÍ¥¹œ½¹¹•Ñ¥½¸ˆ¤¤ü°(€€€€¤(€€€€¹µ…Á}•ÉÈ¡ñ•ğIÁÉÉ½Èèé¥¹Ù…±¥‘}Á…É…µÌ¡”¹Ñ½}ÍÑÉ¥¹œ ¤¤¤)ô()™¸‘¥É•Ñ½Éå}•¹ÑÉ¥•Ì (€€€ÑÀè€™Í‘¬èéQÁ±¥•¹Ğ°(€€€™œè€™MÑ½É•‘½¹¹•Ñ¥½¸°(€€€Á…Ñ è€™ÍÑÈ°(¤€´øI•ÍÕ±ĞñY•ŒñÍ¹ÑÉäø°IÁÉÉ½Èøì(€€€±•Ğ€¡½¹¹•Ñ¥½¸°Í•ÍÍ¥½¸°ÑÉ•”¤€ô½¹¹•Ğ¡ÑÀ°™œ¤¹µ…Á}•ÉÈ¡™…¥°¤üì(€€€±•ĞÉ•ÍÕ±Ğ€ô€¡ñğì(€€€€€€€±•Ğ‘¥È€ôÑÉ•”(€€€€€€€€€€€€¹É•…Ñ” (€€€€€€€€€€€€€€€€™Íµ‰}Á…Ñ ¡™œ°Á…Ñ ¤°(€€€€€€€€€€€€€€€€™Íµˆèé¥±•É•…Ñ•ÉÌèéµ…­•}½Á•¹}•á¥ÍÑ¥¹œ (€€€€€€€€€€€€€€€€€€€Íµˆèé¥É•ÍÍ5…Í¬èé¹•Ü ¤(€€€€€€€€€€€€€€€€€€€€€€€€¹İ¥Ñ¡}±¥ÍÑ}‘¥É•Ñ½Éä¡ÑÉÕ”¤(€€€€€€€€€€€€€€€€€€€€€€€€¹İ¥Ñ¡}Íå¹¡É½¹¥é”¡ÑÉÕ”¤(€€€€€€€€€€€€€€€€€€€€€€€€¹¥¹Ñ¼ ¤°(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€¤(€€€€€€€€€€€€¹µ…Á}•ÉÈ¡™…¥°¤ü(€€€€€€€€€€€€¹Õ¹İÉ…Á}‘¥È ¤ì(€€€€€€€±•ĞµÕĞ•¹ÑÉ¥•Ì€ôY•Œèé¹•Ü ¤ì(€€€€€€€™½È¥Ñ•´¥¸‘¥È(€€€€€€€€€€€€¹ÅÕ•ÉäèèñÍµˆèé¥±•Õ±±¥É•Ñ½Éå%¹™½Éµ…Ñ¥½¸ø ˆ¨ˆ¤(€€€€€€€€€€€€¹µ…Á}•ÉÈ¡™…¥°¤ü(€€€€€€€ì(€€€€€€€€€€€±•Ğ¥Ñ•´€ô¥Ñ•´¹µ…Á}•ÉÈ¡™…¥°¤üì(€€€€€€€€€€€±•Ğ¹…µ”€ô¥Ñ•´¹™¥±•}¹…µ”¹Ñ½}ÍÑÉ¥¹œ ¤ì(€€€€€€€€€€€¥˜¹…µ”€ôô€ˆ¸ˆñğ¹…µ”€ôô€ˆ¸¸ˆì(€€€€€€€€€€€€€€€½¹Ñ¥¹Õ”ì(€€€€€€€€€€€ô(€€€€€€€€€€€¥˜•¹ÑÉ¥•Ì¹±•¸ ¤€øô€ÄÀÀÀÀÀì(€€€€€€€€€€€€€€€É•ÑÕÉ¸ÉÈ¡™…¥° ‰É•µ½Ñ”‘¥É•Ñ½ÉäÑ½¼±…É”ˆ¤¤ì(€€€€€€€€€€€ô(€€€€€€€€€€€±•Ğ‘¥É•Ñ½Éä€ô¥Ñ•´¹™¥±•}…ÑÑÉ¥‰ÕÑ•Ì¹‘¥É•Ñ½Éä ¤ì(€€€€€€€€€€€±•Ğ¹½‘”€ô¥˜Á…Ñ ¹¥Í}•µÁÑä ¤ì(€€€€€€€€€€€€€€€¹…µ”¹±½¹” ¤(€€€€€€€€€€€ô•±Í”ì(€€€€€€€€€€€€€€€™½Éµ…Ğ„ ‰íÁ…Ñ¡ô½í¹…µ•ôˆ¤(€€€€€€€€€€€ôì(€€€€€€€€€€€±•ĞµÕĞ•¹ÑÉä€ô¥˜‘¥É•Ñ½Éäì(€€€€€€€€€€€€€€€Í¹ÑÉäèé‘¥É•Ñ½Éä¡¹½‘”°¹…µ”¤(€€€€€€€€€€€ô•±Í”ì(€€€€€€€€€€€€€€€Í¹ÑÉäèé™¥±”¡¹½‘”°¹…µ”¤(€€€€€€€€€€€ôì(€€€€€€€€€€€•¹ÑÉä¹Í¥é”€ôM½µ”¡¥Ñ•´¹•¹‘}½™}™¥±”¤ì(€€€€€€€€€€€•¹ÑÉä¹µ½‘¥™¥•€ôM½µ” À¤ì(€€€€€€€€€€€•¹ÑÉä¹É•Ù¥Í¥½¸€ôM½µ”¡™½Éµ…Ğ„ (€€€€€€€€€€€€€€€€‰ìèıôéìèıôéíôˆ°(€€€€€€€€€€€€€€€¥Ñ•´¹±…ÍÑ}İÉ¥Ñ•}Ñ¥µ”°¥Ñ•´¹¡…¹•}Ñ¥µ”°¥Ñ•´¹•¹‘}½™}™¥±”(€€€€€€€€€€€€¤¤ì(€€€€€€€€€€€•¹ÑÉ¥•Ì¹ÁÕÍ ¡•¹ÑÉä¤ì(€€€€€€€ô(€€€€€€€±•Ğ|€ô‘¥È¹±½Í” ¤ì(€€€€€€€•¹ÑÉ¥•Ì¹Í½ÉÑ}‰ä¡ñ„°‰ğ„¹¹…µ”¹µÀ ™ˆ¹¹…µ”¤¤ì(€€€€€€€=¬¡•¹ÑÉ¥•Ì¤(€€€ô¤ ¤ì(€€€±½Í”¡½¹¹•Ñ¥½¸°Í•ÍÍ¥½¸°ÑÉ•”¤ì(€€€É•ÍÕ±Ğ)ô()™¸±¥ÍĞ¡É•ÅÕ•ÍĞè€™ÍI•ÅÕ•ÍĞğ|ø¤€´øI•ÍÕ±ĞñÍ1¥ÍÑ¥¹œ°IÁÉÉ½Èøì(€€€±•Ğ™œ€ô½¹¹•Ñ¥½¸¡É•ÅÕ•ÍĞ¤üì(€€€±•ĞÁ…Ñ €ôÉ•ÅÕ•ÍĞ¹¹½‘•}¥ ¤¹Õ¹İÉ…Á}½È ˆˆ¤¹Ñ½}½İ¹• ¤ì(€€€Í…™•}É•±…Ñ¥Ù” ™Á…Ñ ¤üì(€€€Í…™•}É•±…Ñ¥Ù” ™™œ¹‰…Í”¤üì(€€€±•Ğ•¹ÑÉ¥•Ì€ô‘¥É•Ñ½Éå}•¹ÑÉ¥•Ì ™É•ÅÕ•ÍĞ¹Ñà ¤¹ÑÀ ¤°€™™œ°€™Á…Ñ ¤üì(€€€±•ĞÍÑ…ÉĞ€ôÉ•ÅÕ•ÍĞ(€€€€€€€€¹Á…É…µÌ ¤(€€€€€€€€¹•Ğ ‰ÕÉÍ½Èˆ¤(€€€€€€€€¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÍÑÈ¤(€€€€€€€€¹Õ¹İÉ…Á}½È ˆÀˆ¤(€€€€€€€€¹Á…ÉÍ”èèñÕÍ¥é”ø ¤(€€€€€€€€¹µ…Á}•ÉÈ¡ñ•ğ™…¥°¡”¹Ñ½}ÍÑÉ¥¹œ ¤¤¤üì(€€€¥˜ÍÑ…ÉĞ€ø•¹ÑÉ¥•Ì¹±•¸ ¤ì(€€€€€€€É•ÑÕÉ¸ÉÈ¡™…¥° ‰¥¹Ù…±¥Á…¥¹…Ñ¥½¸ÕÉÍ½Èˆ¤¤ì(€€€ô(€€€±•Ğ±¥µ¥Ğ€ôÉ•ÅÕ•ÍĞ(€€€€€€€€¹Á…É…µÌ ¤(€€€€€€€€¹•Ğ ‰±¥µ¥Ğˆ¤(€€€€€€€€¹…¹‘}Ñ¡•¸¡Y…±Õ”èé…Í}ÔØĞ¤(€€€€€€€€¹Õ¹İÉ…Á}½È ÈÀÀ¤(€€€€€€€€¹±…µÀ Ä°€ÔÀÀ¤…ÌÕÍ¥é”ì(€€€±•Ğ•¹€ôÍÑ…ÉĞ¹Í…ÑÕÉ…Ñ¥¹}…‘¡±¥µ¥Ğ¤¹µ¥¸¡•¹ÑÉ¥•Ì¹±•¸ ¤¤ì(€€€±•Ğ¹•áÑ}ÕÉÍ½È€ô€¡•¹€ğ•¹ÑÉ¥•Ì¹±•¸ ¤¤¹Ñ¡•¸¡ñğ•¹¹Ñ½}ÍÑÉ¥¹œ ¤¤ì(€€€=¬¡Í1¥ÍÑ¥¹œì(€€€€€€€•¹ÑÉ¥•Ìè•¹ÑÉ¥•ÍmÍÑ…ÉĞ¸¹•¹‘t¹Ñ½}Ù•Œ ¤°(€€€€€€€¹•áÑ}ÕÉÍ½È°(€€€€€€€İ…É¹¥¹ÌèY•Œèé¹•Ü ¤°(€€€€€€€ÑÉÕ¹…Ñ•è™…±Í”°(€€€ô¤)ô()™¸ÍÑ…Ñ}Á…Ñ  (€€€ÑÀè€™Í‘¬èéQÁ±¥•¹Ğ°(€€€™œè€™MÑ½É•‘½¹¹•Ñ¥½¸°(€€€¹½‘”è€™ÍÑÈ°(¤€´øI•ÍÕ±ĞñÍ¹ÑÉä°IÁÉÉ½Èøì(€€€±•Ğ€¡½¹¹•Ñ¥½¸°Í•ÍÍ¥½¸°ÑÉ•”¤€ô½¹¹•Ğ¡ÑÀ°™œ¤¹µ…Á}•ÉÈ¡™…¥°¤üì(€€€±•ĞÉ•ÍÕ±Ğ€ô€¡ñğì(€€€€€€€±•ĞÑ…É•Ğ€ôÍµ‰}Á…Ñ ¡™œ°¹½‘”¤ì(€€€€€€€±•ĞÉ•Í½ÕÉ”€ôÑÉ•”(€€€€€€€€€€€€¹É•…Ñ” (€€€€€€€€€€€€€€€€™Ñ…É•Ğ°(€€€€€€€€€€€€€€€€™Íµˆèé¥±•É•…Ñ•ÉÌèéµ…­•}½Á•¹}•á¥ÍÑ¥¹œ (€€€€€€€€€€€€€€€€€€€Íµˆèé¥±••ÍÍ5…Í¬èé¹•Ü ¤¹İ¥Ñ¡}•¹•É¥}É•…¡ÑÉÕ”¤°(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€¤(€€€€€€€€€€€€¹½É}•±Í”¡ñ}ğì(€€€€€€€€€€€€€€€ÑÉ•”¹É•…Ñ” (€€€€€€€€€€€€€€€€€€€€™Ñ…É•Ğ°(€€€€€€€€€€€€€€€€€€€€™Íµˆèé¥±•É•…Ñ•ÉÌèéµ…­•}½Á•¹}•á¥ÍÑ¥¹œ (€€€€€€€€€€€€€€€€€€€€€€€Íµˆèé¥É•ÍÍ5…Í¬èé¹•Ü ¤(€€€€€€€€€€€€€€€€€€€€€€€€€€€€¹İ¥Ñ¡}±¥Ïû¶‰Ëkºwµç]Üš]Wİ[YK˜\ÚXË˜Ú[™ÙWİ[YBˆ
-JBŸB‚™›ˆ™\Ûİ\˜ÙWÜ™]š\Ú[ÛŠ™\Ûİ\˜ÙNˆ	œÛX”™\Ûİ\˜ÙJHOˆ™\İ[İš[™ËœÑ\œ›ÜˆÂˆYˆ]ÛÛYJš[JHH™\Ûİ\˜ÙK˜\×Ùš[J
-HÂˆ™]š\Ú[ÛŠš[JBˆH[ÙHYˆ]ÛÛYJ\ŠHH™\Ûİ\˜ÙK˜\×Ù\Š
-HÂˆ\™XİÜWÜ™]š\Ú[ÛŠ\ŠBˆH[ÙHÂˆ\œŠ˜Z[
-[œİ\ÜYÓPˆ™\Ûİ\˜ÙHŠJBˆBŸB‚™›ˆ]]ÛÜ[Š™YNˆ	œÛX•™YK\™Ù]ˆ	œİŠHOˆ™\İ[ÛX”™\Ûİ\˜ÙKœÑ\œ›ÜˆÂˆ™YK˜Ü™X]Jˆ\™Ù]ˆ	œÛX‘š[PÜ™X]P\™ÜÎ›XZÙWÛÜ[—Ù^\İ[™ÊÛX‘š[PXØÙ\ÜÓX\ÚÎ›™]Ê
-KÚ]ÙÙ[™\šX×Ø[
-YJJKˆ
-Bˆ›X\Ù\œŠ˜Z[
-BŸB‚™›ˆZÙ\Š™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÑ[KœÑ\œ›ÜˆÂˆ]Ù™ÈHÛÛ›™Xİ[ÛŠ™\]Y\İ
-OÎÂˆ]\™[H™\]Y\İœ\™[ÚY
+//! SMB protocol implementation. All socket operations are brokered by Core.
+mod discovery;
+#[path = "../../../support/i18n.rs"]
+mod i18n;
+mod sync;
+mod transport;
+use fiex_plugin_sdk::{
+    self as sdk,
+    filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
+    RpcError,
+};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use smb::{GetLen, ReadAt};
+use std::{io, str::FromStr};
 
-K[Ü˜\ÛÜŠˆŠNÂˆØY™WÜ™[]]™J\™[
-OÎÂˆ]˜[YHH™\]Y\İ›˜[YJ
-K›Ú×ÛÜ—Ù[ÙJ˜Z[
-›Z\ÜÚ[™È˜[YHŠJOÎÂˆ˜[YÛ˜[YJ˜[YJOÎÂˆ]›ÙHH›Ú[—Ü]
-\™[˜[YJNÂˆØY™WÜ™[]]™J	››ÙJOÎÂˆØY™WÜ™[]]™J	˜Ù™Ë˜˜\ÙJOÎÂˆ]
-ÛÛ›™Xİ[Û‹Ù\ÜÚ[Û‹™YJHHÛÛ›™Xİ
-	œ™\]Y\İ˜İ
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredConnection {
+    host: String,
+    share: String,
+    #[serde(default)]
+    base: String,
+    #[serde(default)]
+    username: String,
+    #[serde(default)]
+    password: String,
+    port: Option<u16>,
+}
 
-KÜ
+/// A real remote file kept open for the lifetime of one `vfs.openRead` stream.
+/// Reusing the connection, authenticated session, tree and file handle avoids
+/// reconnecting and re-authenticating for every read chunk.
+struct OpenStream {
+    connection: smb::Connection,
+    session: smb::Session,
+    tree: smb::Tree,
+    file: smb::File,
+    total: u64,
+}
 
-K	˜Ù™ÊK›X\Ù\œŠ˜Z[
-OÎÂˆ]™\İ[H
-Âˆ]\ˆH™YBˆ˜Ü™X]WÙ\™XİÜJˆ	œÛX—Ü]
-	˜Ù™Ë	››ÙJKˆÛXÜ™X]Q\ÜÜÚ][ÛÜ™X]KˆÛX‘š[PXØÙ\ÜÓX\ÚÎ›™]Ê
-KÚ]ÙÙ[™\šX×Ø[
-YJKˆ
-Bˆ›X\Ù\œŠ˜Z[
-OÂˆ[Ü˜\Ù\Š
-NÂˆ]™]š\Ú[ÛˆH\™XİÜWÜ™]š\Ú[ÛŠ	™\ŠOÎÂˆ]ÈH\‹˜ÛÜÙJ
-NÂˆÚÊœÑ[N™\™XİÜJ›ÙK˜ÛÛ™J
-K˜[YK×Üİš[™Ê
-JBˆÚ]ÜÚ^™J
-BˆÚ]Ü™]š\Ú[ÛŠ™]š\Ú[ÛŠJBˆJJ
-NÂˆÛÜÙJÛÛ›™Xİ[Û‹Ù\ÜÚ[Û‹™YJNÂˆ™\İ[ŸB‚™›ˆ™[˜[YJ™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÑ[KœÑ\œ›ÜˆÂˆ]Ù™ÈHÛÛ›™Xİ[ÛŠ™\]Y\İ
-OÎÂˆ]›ÙHH™\]Y\İ››ÙWÚY
+impl Drop for OpenStream {
+    fn drop(&mut self) {
+        let _ = self.file.close();
+        let _ = self.tree.disconnect();
+        let _ = self.session.logoff();
+        let _ = self.connection.close();
+    }
+}
 
-K›Ú×ÛÜ—Ù[ÙJ˜Z[
-›Z\ÜÚ[™È›ÙRYŠJOÎÂˆYˆ›ÙKš\×Ù[\J
-HÂˆ™]\›ˆ\œŠ˜Z[
-˜Ø[››İ™[˜[YHH[İ[›ÛİŠJNÂˆBˆØY™WÜ™[]]™J›ÙJOÎÂˆØY™WÜ™[]]™J	˜Ù™Ë˜˜\ÙJOÎÂˆ]
-ÛÜ\™[ÛÛ˜[YJHHÜ]Ü]
-›ÙJNÂˆ]™]×Û˜[YHH™\]Y\İ›˜[YJ
-K[Ü˜\ÛÜŠÛÛ˜[YJNÂˆ˜[YÛ˜[YJ™]×Û˜[YJOÎÂˆ]™]×Ü\™[H™\]Y\İœ\™[ÚY
+/// Standard `Read` over the open SMB handle; the SDK owns offsets and chunks.
+struct SmbReader {
+    stream: OpenStream,
+    offset: u64,
+}
 
-K[Ü˜\ÛÜŠÛÜ\™[
-NÂˆØY™WÜ™[]]™J™]×Ü\™[
-OÎÂˆ]™]×Û›ÙHH›Ú[—Ü]
-™]×Ü\™[™]×Û˜[YJNÂˆØY™WÜ™[]]™J	›™]×Û›ÙJOÎÂˆ]ÜH™\]Y\İ˜İ
+impl io::Read for SmbReader {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        let read = self
+            .stream
+            .file
+            .read_at(output, self.offset)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        self.offset += read as u64;
+        Ok(read)
+    }
+}
 
-KÜ
+fn fail(e: impl std::fmt::Display) -> RpcError {
+    RpcError::internal(e.to_string())
+}
 
-NÂˆYˆ™]×Û›ÙHOH›ÙHÂˆ™]\›ˆİ]Ü]
-	Ü	˜Ù™Ë	›™]×Û›ÙJNÂˆBˆ]
-ÛÛ›™Xİ[Û‹Ù\ÜÚ[Û‹™YJHHÛÛ›™Xİ
-	Ü	˜Ù™ÊK›X\Ù\œŠ˜Z[
-OÎÂˆ]™\İ[H
-Âˆ]Ûİ\˜ÙHH]]ÛÜ[Š	™YK	œÛX—Ü]
-	˜Ù™Ë›ÙJJOÎÂˆYˆ]ÛÛYJ™]š\Ú[ÛŠHH™\]Y\İšY—Ü™]š\Ú[ÛŠ
-HÂˆYˆ™\Ûİ\˜ÙWÜ™]š\Ú[ÛŠ	œÛİ\˜ÙJOÈOH™]š\Ú[ÛˆÂˆ™]\›ˆ\œŠ˜Z[
-Ü˜]NšLN
-¹d#9«iya¬¹ê {ï&º/ç9êëùmì¹/ë¹¥.HŠJJNÂˆBˆBˆ][™›ÈHÛX‘š[T™[˜[YR[™›Ü›X][ÛˆÂˆ™\XÙWÚY—Ù^\İÎˆ˜[ÙKš[Ê
-Kˆ›ÛİÙ\™XİÜNˆˆš[WÛ˜[YNˆÛX—Ü]
-	˜Ù™Ë	›™]×Û›ÙJK˜\×ÜİŠ
-Kš[Ê
-KˆNÂˆX]ÚÛİ\˜ÙHÂˆÛX”™\Ûİ\˜ÙN‘š[Jš[JHOˆÂˆš[KœÙ]Ú[™›Ê[™›ÊK›X\Ù\œŠ˜Z[
-OÎÂˆ]ÈHš[K˜ÛÜÙJ
-NÂˆBˆÛX”™\Ûİ\˜ÙN‘\™XİÜJ\ŠHOˆÂˆ\‹œÙ]Ú[™›Ê[™›ÊK›X\Ù\œŠ˜Z[
-OÎÂˆ]ÈH\‹˜ÛÜÙJ
-NÂˆBˆÈOˆ™]\›ˆ\œŠ˜Z[
-[œİ\ÜYÓPˆ™\Ûİ\˜ÙHŠJKˆBˆÚÊ
+fn connect(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+) -> Result<(smb::Connection, smb::Session, smb::Tree), String> {
+    let port = cfg.port.unwrap_or(445);
+    let transport =
+        transport::HostTransport::open(tcp, &cfg.host, port).map_err(|error| error.to_string())?;
+    let connection = smb::Connection::from_transport(
+        Box::new(transport),
+        &cfg.host,
+        smb::Guid::generate(),
+        smb::ConnectionConfig::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    let identity = sspi::AuthIdentity {
+        username: sspi::Username::parse(&cfg.username).map_err(|error| error.to_string())?,
+        password: sspi::Secret::from(cfg.password.clone()),
+    };
+    let session = connection
+        .authenticate(identity)
+        .map_err(|error| error.to_string())?;
+    let unc = smb::UncPath::from_str(&format!("\\\\{}\\{}", cfg.host, cfg.share))
+        .map_err(|error| error.to_string())?;
+    let tree = session
+        .tree_connect(&unc)
+        .map_err(|error| error.to_string())?;
+    Ok((connection, session, tree))
+}
 
-JBˆJJ
-NÂˆÛÜÙJÛÛ›™Xİ[Û‹Ù\ÜÚ[Û‹™YJNÂˆ™\İ[ÎÂˆİ]Ü]
-	Ü	˜Ù™Ë	›™]×Û›ÙJBŸB‚™›ˆ™[[İ™J™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[
+fn close(connection: smb::Connection, session: smb::Session, tree: smb::Tree) {
+    let _ = tree.disconnect();
+    let _ = session.logoff();
+    let _ = connection.close();
+}
 
-KœÑ\œ›ÜˆÂˆ]Ù™ÈHÛÛ›™Xİ[ÛŠ™\]Y\İ
-OÎÂˆ]›ÙHH™\]Y\İ››ÙWÚY
+fn open_stream(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+    path: &str,
+) -> Result<OpenStream, RpcError> {
+    let (connection, session, tree) = connect(tcp, cfg).map_err(RpcError::internal)?;
+    let path = smb_path(cfg, path);
+    let file = tree
+        .create(
+            &path,
+            &smb::FileCreateArgs::make_open_existing(
+                smb::FileAccessMask::new().with_generic_read(true),
+            ),
+        )
+        .map_err(|error| RpcError::internal(error.to_string()))?
+        .unwrap_file();
+    let total = file
+        .get_len()
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    Ok(OpenStream {
+        connection,
+        session,
+        tree,
+        file,
+        total,
+    })
+}
 
-K›Ú×ÛÜ—Ù[ÙJ˜Z[
-›Z\ÜÚ[™È›ÙRYŠJOÎÂˆYˆ›ÙKš\×Ù[\J
-HÂˆ™]\›ˆ\œŠ˜Z[
-˜Ø[››İ™[[İ™HH[İ[›ÛİŠJNÂˆBˆØY™WÜ™[]]™J›ÙJOÎÂˆØY™WÜ™[]]™J	˜Ù™Ë˜˜\ÙJOÎÂˆ]
-ÛÛ›™Xİ[Û‹Ù\ÜÚ[Û‹™YJHHÛÛ›™Xİ
-	œ™\]Y\İ˜İ
+fn safe_relative(path: &str) -> Result<(), RpcError> {
+    if path.starts_with('/')
+        || path.contains(['\\', '\0'])
+        || path.split('/').any(|p| p == "." || p == "..")
+    {
+        return Err(RpcError::invalid_params("invalid remote path"));
+    }
+    Ok(())
+}
 
-KÜ
+fn smb_path(cfg: &StoredConnection, path: &str) -> String {
+    [cfg.base.trim_matches('/'), path.trim_matches('/')]
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("\\")
+}
 
-K	˜Ù™ÊK›X\Ù\œŠ˜Z[
-OÎÂˆ]™\İ[H
-Âˆ]™\Ûİ\˜ÙHH]]ÛÜ[Š	™YK	œÛX—Ü]
-	˜Ù™Ë›ÙJJOÎÂˆYˆ]ÛÛYJ™]š\Ú[ÛŠHH™\]Y\İšY—Ü™]š\Ú[ÛŠ
-HÂˆYˆ™\Ûİ\˜ÙWÜ™]š\Ú[ÛŠ	œ™\Ûİ\˜ÙJOÈOH™]š\Ú[ÛˆÂˆ™]\›ˆ\œŠ˜Z[
-Ü˜]NšLN
-¹d#9«iya¬¹ê {ï&º/ç9êëùmì¹/ë¹¥.HŠJJNÂˆBˆBˆYˆ™\Ûİ\˜ÙKš\×Ù\Š
-HÂˆ]\ˆH™\Ûİ\˜ÙK[Ü˜\Ù\Š
-NÂˆ]›Û—Ù[\HH\‚ˆœ]Y\NÛX‘š[Q[\™XİÜR[™›Ü›X][ÛŠŠˆŠBˆ›X\Ù\œŠ˜Z[
-OÂˆ™š[\—ÛX\
-][_][K›ÚÊ
-JBˆ˜[J][_Âˆ]˜[YHH][K™š[WÛ˜[YK×Üİš[™Ê
-NÂˆ˜[YHOH‹ˆˆ	‰ˆ˜[YHOH‹‹ˆ‚ˆJNÂˆYˆ›Û—Ù[\HÂˆ]ÈH\‹˜ÛÜÙJ
-NÂˆ™]\›ˆ\œŠ˜Z[
-Ü˜]NšLN
-¹æë¹oey.#y..¹ên»ï#9¥è9¬åyb(:fiŠJJNÂˆBˆ\‹œÙ]Ú[™›ÊÛX‘š[Q\ÜÜÚ][Û’[™›Ü›X][ÛˆÂˆ[]WÜ[™[™ÎˆYKš[Ê
-KˆJBˆ›X\Ù\œŠ˜Z[
-OÎÂˆ]ÈH\‹˜ÛÜÙJ
-NÂˆH[ÙHÂˆ]š[HH™\Ûİ\˜ÙK[Ü˜\Ùš[J
-NÂˆš[KœÙ]Ú[™›ÊÛX‘š[Q\ÜÜÚ][Û’[™›Ü›X][ÛˆÂˆ[]WÜ[™[™ÎˆYKš[Ê
-KˆJBˆ›X\Ù\œŠ˜Z[
-OÎÂˆ]ÈHš[K˜ÛÜÙJ
-NÂˆBˆÚÊ
+fn display_name(path: &str) -> String {
+    if path.is_empty() {
+        "root".into()
+    } else {
+        path.trim_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .to_string()
+    }
+}
 
-JBˆJJ
-NÂˆÛÜÙJÛÛ›™Xİ[Û‹Ù\ÜÚ[Û‹™YJNÂˆ™\İ[ŸB‚™›ˆ˜[YÛ˜[YJ˜[YNˆ	œİŠHOˆ™\İ[
+fn revision(file: &smb::File) -> Result<String, RpcError> {
+    let basic = file
+        .query_info::<smb::FileBasicInformation>()
+        .map_err(fail)?;
+    let size = file
+        .query_info::<smb::FileStandardInformation>()
+        .map_err(fail)?
+        .end_of_file;
+    Ok(format!(
+        "{:?}:{:?}:{size}",
+        basic.last_write_time, basic.change_time
+    ))
+}
 
-KœÑ\œ›ÜˆÂˆYˆ˜[YKš\×Ù[\J
-H˜[YHOH‹ˆˆ˜[YHOH‹‹ˆˆ˜[YK˜ÛÛZ[œÊÉËÉË	×	Ë	Î‰Ë	×	×JHÂˆ™]\›ˆ\œŠœÑ\œ›Üš[˜[YÜ\˜[\Êš[˜[Y˜[YHŠJNÂˆBˆÚÊ
+fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
+    serde_json::from_value(
+        request
+            .connection()
+            .cloned()
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+    )
+    .map_err(|e| RpcError::invalid_params(e.to_string()))
+}
 
-JBŸB‚™›ˆ›Ú[—Ü]
-\™[ˆ	œİ‹˜[YNˆ	œİŠHOˆİš[™ÈÂˆYˆ\™[š\×Ù[\J
-HÂˆ˜[YK×Üİš[™Ê
-BˆH[ÙHÂˆ›Ü›X]JßKŞßH‹\™[š[WÛX]Ú\Ê	ËÉÊK˜[YJBˆBŸB‚™›ˆÜ]Ü]
-›ÙNˆ	œİŠHOˆ
-	œİ‹	œİŠHÂˆ›ÙKœœÜ]ÛÛ˜ÙJ	ËÉÊK[Ü˜\ÛÜŠ
-ˆ‹›ÙJJBŸB‚™›ˆ™XY
-™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÔ™XYœÑ\œ›ÜˆÂˆ]Ù™ÈHÛÛ›™Xİ[ÛŠ™\]Y\İ
-OÎÂˆ]›ÙHH™\]Y\İˆ››ÙWÚY
+fn directory_entries(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+    path: &str,
+) -> Result<Vec<FsEntry>, RpcError> {
+    let (connection, session, tree) = connect(tcp, cfg).map_err(fail)?;
+    let result = (|| {
+        let dir = tree
+            .create(
+                &smb_path(cfg, path),
+                &smb::FileCreateArgs::make_open_existing(
+                    smb::DirAccessMask::new()
+                        .with_list_directory(true)
+                        .with_synchronize(true)
+                        .into(),
+                ),
+            )
+            .map_err(fail)?
+            .unwrap_dir();
+        let mut entries = Vec::new();
+        for item in dir
+            .query::<smb::FileFullDirectoryInformation>("*")
+            .map_err(fail)?
+        {
+            let item = item.map_err(fail)?;
+            let name = item.file_name.to_string();
+            if name == "." || name == ".." {
+                continue;
+            }
+            if entries.len() >= 100000 {
+                return Err(fail("remote directory too large"));
+            }
+            let directory = item.file_attributes.directory();
+            let node = if path.is_empty() {
+                name.clone()
+            } else {
+                format!("{path}/{name}")
+            };
+            let mut entry = if directory {
+                FsEntry::directory(node, name)
+            } else {
+                FsEntry::file(node, name)
+            };
+            entry.size = Some(item.end_of_file);
+            entry.modified = Some(0);
+            entry.revision = Some(format!(
+                "{:?}:{:?}:{}",
+                item.last_write_time, item.change_time, item.end_of_file
+            ));
+            entries.push(entry);
+        }
+        let _ = dir.close();
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(entries)
+    })();
+    close(connection, session, tree);
+    result
+}
 
-Bˆ›Ú×ÛÜ—Ù[ÙJœÑ\œ›Üš[˜[YÜ\˜[\Ê›Z\ÜÚ[™È›ÙHQŠJOÎÂˆØY™WÜ™[]]™J›ÙJOÎÂˆØY™WÜ™[]]™J	˜Ù™Ë˜˜\ÙJOÎÂˆ]İ™X[HHÜ[—Üİ™X[J	œ™\]Y\İ˜İ
+fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+    let cfg = connection(request)?;
+    let path = request.node_id().unwrap_or("").to_owned();
+    safe_relative(&path)?;
+    safe_relative(&cfg.base)?;
+    let entries = directory_entries(&request.ctx().tcp(), &cfg, &path)?;
+    let start = request
+        .params()
+        .get("cursor")
+        .and_then(Value::as_str)
+        .unwrap_or("0")
+        .parse::<usize>()
+        .map_err(|e| fail(e.to_string()))?;
+    if start > entries.len() {
+        return Err(fail("invalid pagination cursor"));
+    }
+    let limit = request
+        .params()
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(200)
+        .clamp(1, 500) as usize;
+    let end = start.saturating_add(limit).min(entries.len());
+    let next_cursor = (end < entries.len()).then(|| end.to_string());
+    Ok(FsListing {
+        entries: entries[start..end].to_vec(),
+        next_cursor,
+        warnings: Vec::new(),
+        truncated: false,
+    })
+}
 
-KÜ
+fn stat_path(
+    tcp: &sdk::TcpClient,
+    cfg: &StoredConnection,
+    node: &str,
+) -> Result<FsEntry, RpcError> {
+    let (connection, session, tree) = connect(tcp, cfg).map_err(fail)?;
+    let result = (|| {
+        let target = smb_path(cfg, node);
+        let resource = tree
+            .create(
+                &target,
+                &smb::FileCreateArgs::make_open_existing(
+                    smb::FileAccessMask::new().with_generic_read(true),
+                ),
+            )
+            .or_else(|_| {
+                tree.create(
+                    &target,
+                    &smb::FileCreateArgs::make_open_existing(
+                        smb::DirAccessMask::new()
+                            .with_list_directory(true)
+                            .with_synchronize(true)
+                            .into(),
+                    ),
+                )
+            })
+            .map_err(fail)?;
+        if resource.is_dir() {
+            let dir = resource.unwrap_dir();
+            let revision = directory_revision(&dir)?;
+            let _ = dir.close();
+            return Ok(FsEntry::directory(node.to_string(), display_name(node))
+                .with_size(0)
+                .with_revision(revision));
+        }
+        let file = resource.unwrap_file();
+        let size = file
+            .query_info::<smb::FileStandardInformation>()
+            .map_err(fail)?
+            .end_of_file;
+        let revision = revision(&file)?;
+        let _ = file.close();
+        Ok(FsEntry::file(node.to_string(), display_name(node))
+            .with_size(size)
+            .with_revision(revision))
+    })();
+    close(connection, session, tree);
+    result
+}
 
-K	˜Ù™Ë›ÙJOÎÂˆ]İ[Hİ™X[Kİ[ÂˆÚÊœÔ™XY›™]ÊÛX”™XY\ˆÈİ™X[KÙ™œÙ]ˆKÛÛYJİ[
-JJBŸB‚™›ˆÜ[Šİˆ	™[ˆÙÎ”›İšY\’[›ØØ][ÛŠHOˆ™\İ[˜[YKœÑ\œ›ÜˆÂˆ][İ[Hİœ\˜[\Ê
-VÈ›[İ[Y—Bˆ˜\×ÜİŠ
-Bˆ›Ú×ÛÜ—Ù[ÙJœÑ\œ›Üš[˜[YÜ\˜[\Ê›Z\ÜÚ[™È[İ[YŠJOÎÂˆÚÊœÛÛˆJÈšÚ[™ˆ™œÈ‹›[İ[Y›[İ[››ÙT™YˆÈ›[İ[Y›[İ[››ÙRYˆˆŸ_JJBŸB‚™›ˆ˜[Y]Jİˆ	™[ˆÙÎ”›İšY\’[›ØØ][ÛŠHOˆ™\İ[˜[YKœÑ\œ›ÜˆÂˆ]Ù™ÎˆİÜ™YÛÛ›™Xİ[ÛˆHÙ\™WÚœÛÛ™œ›ÛWİ˜[YJˆİœ\˜[\Ê
-Bˆ™Ù]
-˜ÛÛ›™Xİ[ÛˆŠBˆ˜ÛÛ™Y
+fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let cfg = connection(request)?;
+    let node = request.node_id().unwrap_or("").to_owned();
+    safe_relative(&node)?;
+    safe_relative(&cfg.base)?;
+    // The mount root is the configured base directory.
+    if node.is_empty() {
+        return Ok(FsEntry::directory("", "root").with_size(0));
+    }
+    stat_path(&request.ctx().tcp(), &cfg, &node)
+}
 
-Bˆ›Ú×ÛÜ—Ù[ÙJœÑ\œ›Üš[˜[YÜ\˜[\Ê›Z\ÜÚ[™ÈÛÛ›™Xİ[ÛˆŠJOËˆ
-Bˆ›X\Ù\œŠ_œÑ\œ›Üš[˜[YÜ\˜[\ÊK×Üİš[™Ê
-JJOÎÂˆØY™WÜ™[]]™J	˜Ù™Ë˜˜\ÙJOÎÂˆ\™XİÜWÙ[šY\Ê	˜İÜ
+fn directory_revision(dir: &smb::Directory) -> Result<String, RpcError> {
+    let basic = dir
+        .query_info::<smb::FileBasicInformation>()
+        .map_err(fail)?;
+    let size = dir
+        .query_info::<smb::FileStandardInformation>()
+        .map_err(fail)?
+        .end_of_file;
+    Ok(format!(
+        "{:?}:{:?}:{size}",
+        basic.last_write_time, basic.change_time
+    ))
+}
 
-K	˜Ù™ËˆŠOÎÂˆÚÊœÛÛˆJÈ˜[YY_JJBŸB‚œİXİÛXÂ‚š[\™œÔ›İšY\ˆ›ÜˆÛXˆÂˆ›ˆ\ØÛİ™\Šˆ	œÙ[‹ˆİˆ	™[ˆÙÎ”›İšY\’[›ØØ][Û‹ˆ
-HOˆ™\İ[™XÏÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û‹œÑ\œ›ÜˆÂˆ\ØÛİ™\N™\ØÛİ™\Šİ
-BˆB‚ˆ›ˆÜ\˜][ÛœÊ	œÙ[ŠHOˆ	‰Üİ]XÈÜÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û—HÂˆ	–ÂˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û“\İˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û”İ]ˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û”™XYˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û•Üš]KˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û“ZÙ\‹ˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û”™[˜[YKˆÙÎ™š[\Ş\İ[N‘œÓÜ\˜][Û”™[[İ™KˆBˆB‚ˆ›ˆ\İ
-	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÓ\İ[™ËœÑ\œ›ÜˆÂˆ\İ
-™\]Y\İ
-BˆB‚ˆ›ˆİ]
-	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÑ[KœÑ\œ›ÜˆÂˆİ]
-™\]Y\İ
-BˆB‚ˆ›ˆ™XY
-	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÔ™XYœÑ\œ›ÜˆÂˆ™XY
-™\]Y\İ
-BˆB‚ˆ›ˆÜš]J	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÕÜš]KœÑ\œ›ÜˆÂˆŞ[˜ÎÜš]J™\]Y\İ
-BˆB‚ˆ›ˆZÙ\Š	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÑ[KœÑ\œ›ÜˆÂˆZÙ\Š™\]Y\İ
-BˆB‚ˆ›ˆ™[˜[YJ	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[œÑ[KœÑ\œ›ÜˆÂˆ™[˜[YJ™\]Y\İ
-BˆB‚ˆ›ˆ™[[İ™J	œÙ[‹™\]Y\İˆ	‘œÔ™\]Y\İ	×ÏŠHOˆ™\İ[
+fn resource_revision(resource: &smb::Resource) -> Result<String, RpcError> {
+    if let Some(file) = resource.as_file() {
+        revision(file)
+    } else if let Some(dir) = resource.as_dir() {
+        directory_revision(dir)
+    } else {
+        Err(fail("unsupported SMB resource"))
+    }
+}
 
-KœÑ\œ›ÜˆÂˆ™[[İ™J™\]Y\İ
-BˆBŸB‚š[\ÙÎÛÛ›™Xİ[Û”›İšY\ˆ›ÜˆÛXˆÂˆ›ˆÜ[Š	œÙ[‹İˆ	™[ˆÙÎ”›İšY\’[›ØØ][ÛŠHOˆ™\İ[Ù\™WÚœÛÛ•˜[YKÙÎ”œÑ\œ›ÜˆÂˆÜ[Šİ
-BˆBˆ›ˆ˜[Y]J	œÙ[‹İˆ	™[ˆÙÎ”›İšY\’[›ØØ][ÛŠHOˆ™\İ[Ù\™WÚœÛÛ•˜[YKÙÎ”œÑ\œ›ÜˆÂˆ˜[Y]Jİ
-BˆBŸB‚™›ˆXZ[Š
-HÂˆ]›İšY\œÈHÙÎ”›İšY\œÎ›™]Ê
-Bˆ™XYÛ›ÜİXÜÊ
-Bˆ™š[\Ş\İ[JÛXŠBˆ˜ÛÛ›™Xİ[ÛŠÛXŠNÂˆ]™\İ[H›İšY\œËœÙ\™J›Ü™Ë™šY^œÛXˆŠNÂˆYˆ]\œŠ\œ›ÜŠHH™\İ[Âˆ\š[ˆJˆ”ÓPˆYÚ[ˆTÈ˜Z[Yˆ˜[œÜÜÛÜÙY
-ÎßJH‹ˆ\œ›Ü‹šÚ[™
+fn mut_open(tree: &smb::Tree, target: &str) -> Result<smb::Resource, RpcError> {
+    tree.create(
+        target,
+        &smb::FileCreateArgs::make_open_existing(smb::FileAccessMask::new().with_generic_all(true)),
+    )
+    .map_err(fail)
+}
 
-Bˆ
-NÂˆİœ›ØÙ\ÜÎ™^]
-JNÂˆBŸB
+fn mkdir(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let cfg = connection(request)?;
+    let parent = request.parent_id().unwrap_or("");
+    safe_relative(parent)?;
+    let name = request.name().ok_or_else(|| fail("missing name"))?;
+    valid_name(name)?;
+    let node = join_path(parent, name);
+    safe_relative(&node)?;
+    safe_relative(&cfg.base)?;
+    let (connection, session, tree) = connect(&request.ctx().tcp(), &cfg).map_err(fail)?;
+    let result = (|| {
+        let dir = tree
+            .create_directory(
+                &smb_path(&cfg, &node),
+                smb::CreateDisposition::Create,
+                smb::FileAccessMask::new().with_generic_all(true),
+            )
+            .map_err(fail)?
+            .unwrap_dir();
+        let revision = directory_revision(&dir)?;
+        let _ = dir.close();
+        Ok(FsEntry::directory(node.clone(), name.to_string())
+            .with_size(0)
+            .with_revision(revision))
+    })();
+    close(connection, session, tree);
+    result
+}
+
+fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+    let cfg = connection(request)?;
+    let node = request.node_id().ok_or_else(|| fail("missing nodeId"))?;
+    if node.is_empty() {
+        return Err(fail("cannot rename the mount root"));
+    }
+    safe_relative(node)?;
+    safe_relative(&cfg.base)?;
+    let (old_parent, old_name) = split_path(node);
+    let new_name = request.name().unwrap_or(old_name);
+    valid_name(new_name)?;
+    let new_parent = request.parent_id().unwrap_or(old_parent);
+    safe_relative(new_parent)?;
+    let new_node = join_path(new_parent, new_name);
+    safe_relative(&new_node)?;
+    let tcp = request.ctx().tcp();
+    if new_node == node {
+        return stat_path(&tcp, &cfg, &new_node);
+    }
+    let (connection, session, tree) = connect(&tcp, &cfg).map_err(fail)?;
+    let result = (|| {
+        let source = mut_open(&tree, &smb_path(&cfg, node))?;
+        if let Some(revision) = request.if_revision() {
+            if resource_revision(&source)? != revision {
+                return Err(fail(crate::i18n::t("åŒæ­¥å†²çªï¼šè¿œç«¯å·²ä¿®æ”¹")));
+            }
+        }
+        let info = smb::FileRenameInformation {
+            replace_if_exists: false.into(),
+            root_directory: 0,
+            file_name: smb_path(&cfg, &new_node).as_str().into(),
+        };
+        match source {
+            smb::Resource::File(file) => {
+                file.set_info(info).map_err(fail)?;
+                let _ = file.close();
+            }
+            smb::Resource::Directory(dir) => {
+                dir.set_info(info).map_err(fail)?;
+                let _ = dir.close();
+            }
+            _ => return Err(fail("unsupported SMB resource")),
+        }
+        Ok(())
+    })();
+    close(connection, session, tree);
+    result?;
+    stat_path(&tcp, &cfg, &new_node)
+}
+
+fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
+    let cfg = connection(request)?;
+    let node = request.node_id().ok_or_else(|| fail("missing nodeId"))?;
+    if node.is_empty() {
+        return Err(fail("cannot remove the mount root"));
+    }
+    safe_relative(node)?;
+    safe_relative(&cfg.base)?;
+    let (connection, session, tree) = connect(&request.ctx().tcp(), &cfg).map_err(fail)?;
+    let result = (|| {
+        let resource = mut_open(&tree, &smb_path(&cfg, node))?;
+        if let Some(revision) = request.if_revision() {
+            if resource_revision(&resource)? != revision {
+                return Err(fail(crate::i18n::t("åŒæ­¥å†²çªï¼šè¿œç«¯å·²ä¿®æ”¹")));
+            }
+        }
+        if resource.is_dir() {
+            let dir = resource.unwrap_dir();
+            let non_empty = dir
+                .query::<smb::FileFullDirectoryInformation>("*")
+                .map_err(fail)?
+                .filter_map(|item| item.ok())
+                .any(|item| {
+                    let name = item.file_name.to_string();
+                    name != "." && name != ".."
+                });
+            if non_empty {
+                let _ = dir.close();
+                return Err(fail(crate::i18n::t("ç›®å½•ä¸ä¸ºç©ºï¼Œæ— æ³•åˆ é™¤")));
+            }
+            dir.set_info(smb::FileDispositionInformation {
+                delete_pending: true.into(),
+            })
+            .map_err(fail)?;
+            let _ = dir.close();
+        } else {
+            let file = resource.unwrap_file();
+            file.set_info(smb::FileDispositionInformation {
+                delete_pending: true.into(),
+            })
+            .map_err(fail)?;
+            let _ = file.close();
+        }
+        Ok(())
+    })();
+    close(connection, session, tree);
+    result
+}
+
+fn valid_name(name: &str) -> Result<(), RpcError> {
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', ':', '\0']) {
+        return Err(RpcError::invalid_params("invalid name"));
+    }
+    Ok(())
+}
+
+fn join_path(parent: &str, name: &str) -> String {
+    if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}/{}", parent.trim_matches('/'), name)
+    }
+}
+
+fn split_path(node: &str) -> (&str, &str) {
+    node.rsplit_once('/').unwrap_or(("", node))
+}
+
+fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+    let cfg = connection(request)?;
+    let node = request
+        .node_id()
+        .ok_or_else(|| RpcError::invalid_params("missing node ID"))?;
+    safe_relative(node)?;
+    safe_relative(&cfg.base)?;
+    let stream = open_stream(&request.ctx().tcp(), &cfg, node)?;
+    let total = stream.total;
+    Ok(FsRead::new(SmbReader { stream, offset: 0 }, Some(total)))
+}
+
+fn open(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let mount = ctx.params()["mountId"]
+        .as_str()
+        .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
+    Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
+}
+
+fn validate(ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
+    let cfg: StoredConnection = serde_json::from_value(
+        ctx.params()
+            .get("connection")
+            .cloned()
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+    )
+    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    safe_relative(&cfg.base)?;
+    directory_entries(&ctx.tcp(), &cfg, "")?;
+    Ok(json!({"valid":true}))
+}
+
+struct Smb;
+
+impl VfsProvider for Smb {
+    fn discover(
+        &self,
+        ctx: &sdk::RequestContext,
+    ) -> Result<Vec<sdk::filesystem::FsOperation>, RpcError> {
+        discovery::discover(ctx)
+    }
+
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] {
+        &[
+            sdk::filesystem::FsOperation::List,
+            sdk::filesystem::FsOperation::Stat,
+            sdk::filesystem::FsOperation::Read,
+            sdk::filesystem::FsOperation::Write,
+            sdk::filesystem::FsOperation::Mkdir,
+            sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Remove,
+        ]
+    }
+
+    fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
+        list(request)
+    }
+
+    fn stat(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        stat(request)
+    }
+
+    fn read(&self, request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+        read(request)
+    }
+
+    fn write(&self, request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
+        sync::write(request)
+    }
+
+    fn mkdir(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        mkdir(request)
+    }
+
+    fn rename(&self, request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
+        rename(request)
+    }
+
+    fn remove(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
+        remove(request)
+    }
+}
+
+impl sdk::ConnectionProvider for Smb {
+    fn open(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        open(ctx)
+    }
+    fn validate(&self, ctx: &sdk::RequestContext) -> Result<serde_json::Value, sdk::RpcError> {
+        validate(ctx)
+    }
+}
+
+fn main() {
+    let providers = sdk::Providers::new()
+        .diagnostics()
+        .filesystem(Smb)
+        .connection(Smb);
+    let result = providers.serve("org.fiex.smb");
+    if let Err(error) = result {
+        eprintln!(
+            "SMB plugin IPC failed: transport closed ({:?})",
+            error.kind()
+        );
+        std::process::exit(1);
+    }
+}

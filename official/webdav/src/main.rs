@@ -72,7 +72,10 @@ impl sdk::ConnectionProvider for WebDav {
             serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
         )
     }
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<serde_json::Value, sdk::RpcError> {
         fs::validate(ctx)
     }
 }

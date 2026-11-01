@@ -1,9 +1,9 @@
 //! Git history logic lives in the plugin; Core only executes authorized commands.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{
     files::{Entry, Listing},
     git_host::run,
 };
+use fiex_plugin_sdk::ProviderInvocationExt;
 
 use fiex_plugin_sdk as sdk;
 use serde_json::{json, Value};

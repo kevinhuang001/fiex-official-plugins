@@ -1,6 +1,6 @@
 //! Connection provider plus mailbox methods.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{config::Settings, imap, smtp};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
@@ -87,7 +87,10 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 
-fn test_mailbox(ctx: &dyn sdk::ProviderInvocation, from_connection: bool) -> Result<Value, RpcError> {
+fn test_mailbox(
+    ctx: &dyn sdk::ProviderInvocation,
+    from_connection: bool,
+) -> Result<Value, RpcError> {
     let p = ctx.params();
 
     let connection = p.get("connection").unwrap_or(p);

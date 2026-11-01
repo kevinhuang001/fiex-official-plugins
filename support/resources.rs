@@ -2,7 +2,10 @@
 use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{ResourceContext, ResourceRef, RpcError};
 
-pub fn input(ctx: &dyn fiex_plugin_sdk::ProviderInvocation, key: &str) -> Result<ResourceContext, RpcError> {
+pub fn input(
+    ctx: &dyn fiex_plugin_sdk::ProviderInvocation,
+    key: &str,
+) -> Result<ResourceContext, RpcError> {
     let value = &ctx.params()[key];
     if !value.is_null() && !value.is_object() {
         return Err(RpcError::invalid_params(

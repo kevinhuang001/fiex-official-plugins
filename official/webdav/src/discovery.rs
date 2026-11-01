@@ -1,7 +1,7 @@
 //! RFC 3744 current-user-privilege-set. OPTIONS/Allow only describes methods,
 //! so it must never be treated as the current account's write authorization.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{client, fs};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use quick_xml::events::Event;
 

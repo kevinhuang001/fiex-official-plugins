@@ -1,7 +1,7 @@
 //! Method dispatch: turn a panel request into a GnuPG invocation and shape the
 //! result for the panel.
-use fiex_plugin_sdk::ProviderInvocationExt;
 use crate::{gpg, keys::keyring, keys::keys};
+use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 

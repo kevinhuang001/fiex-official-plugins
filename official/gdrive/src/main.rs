@@ -176,7 +176,10 @@ impl sdk::ConnectionProvider for Drive {
     fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
         open(ctx)
     }
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<serde_json::Value, sdk::RpcError> {
         auth::validate(ctx)
     }
 }

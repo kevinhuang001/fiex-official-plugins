@@ -67,7 +67,10 @@ fn cached_render(
     Ok(value)
 }
 
-fn pdf_pages(ctx: &dyn sdk::ProviderInvocation, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
+fn pdf_pages(
+    ctx: &dyn sdk::ProviderInvocation,
+    target: &sdk::ResourceContext,
+) -> Result<Value, RpcError> {
     let extension = render::extension(resources::name(target)?);
     if extension != "docx" && extension != "pptx" {
         return Err(RpcError::invalid_params(
@@ -88,7 +91,10 @@ fn pdf_pages(ctx: &dyn sdk::ProviderInvocation, target: &sdk::ResourceContext) -
     render::render_pdf_pages(bytes, &extension, page_limit(ctx)?)
 }
 
-fn info_rows(ctx: &dyn sdk::ProviderInvocation, target: &sdk::ResourceContext) -> Result<Value, RpcError> {
+fn info_rows(
+    ctx: &dyn sdk::ProviderInvocation,
+    target: &sdk::ResourceContext,
+) -> Result<Value, RpcError> {
     let extension = render::extension(resources::name(target)?);
     let value = cached_render(ctx, target)?;
     let html = value["html"].as_str().unwrap_or("");
@@ -141,7 +147,10 @@ fn main() {
 mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let target = resources::input(ctx, "path")?;
         let rows = info_rows(ctx, &target)?;
         provider_results::section("office", crate::i18n::t("文档"), rows["rows"].clone())

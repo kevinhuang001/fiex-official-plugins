@@ -119,7 +119,10 @@ impl VfsProvider for HelloFiles {
 struct HelloInfo;
 
 impl sdk::InfoProvider for HelloInfo {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    fn resolve(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
         let meta = ctx
             .targets()
             .first()

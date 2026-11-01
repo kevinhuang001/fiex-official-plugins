@@ -11,7 +11,7 @@ fn query(
     request: &sdk::SearchQueryRequest,
     host: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::SearchResults, RpcError> {
-    if request.mode != sdk::SearchMode::Name {
+    if request.mode != sdk::contracts::SearchMode::Name {
         return Err(RpcError::invalid_params(
             "Everything only supports filename search",
         ));

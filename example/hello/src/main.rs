@@ -248,8 +248,8 @@ impl sdk::SearchProvider for HelloSearch {
 struct HelloHooks;
 
 impl sdk::HookProvider for HelloHooks {
-    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        Ok(json!({"handled": false}))
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
+        Ok(sdk::HookResult { handled: false })
     }
 }
 

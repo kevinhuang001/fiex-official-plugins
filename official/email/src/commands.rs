@@ -119,8 +119,11 @@ fn test_mailbox(
 }
 pub struct EmailConnection;
 impl sdk::ConnectionProvider for EmailConnection {
-    fn validate(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        test_mailbox(ctx, true)
+    fn validate(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionValidation, RpcError> {
+        test_mailbox(ctx, true).map(|_| sdk::ConnectionValidation::valid())
     }
     fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
         let p = ctx.params();

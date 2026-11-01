@@ -81,7 +81,7 @@ impl sdk::ConnectionProvider for OpenList {
     fn validate(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<serde_json::Value, sdk::RpcError> {
+    ) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
         fs::validate(ctx, &self.session)
     }
 }

@@ -116,7 +116,9 @@ fn browser_authorization(
     Ok((refresh.into(), access.into()))
 }
 
-pub(super) fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+pub(super) fn validate(
+    ctx: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::ConnectionValidation, RpcError> {
     let cfg = &ctx.params()["connection"];
     text(cfg, "clientId")?;
     text(cfg, "clientSecret")?;
@@ -148,7 +150,7 @@ pub(super) fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcEr
     .map_err(error)?;
     let result = sdk::ConnectionValidation::valid();
     Ok(match refresh {
-        Some(refresh) => result.credential("refreshToken", refresh).into_value(),
-        None => result.into_value(),
+        Some(refresh) => result.credential("refreshToken", refresh),
+        None => result,
     })
 }

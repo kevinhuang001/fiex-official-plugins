@@ -539,7 +539,7 @@ fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
 }
 
-fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
     let cfg: StoredConnection = serde_json::from_value(
         ctx.params()
             .get("connection")
@@ -549,7 +549,7 @@ fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
     .map_err(|e| RpcError::invalid_params(e.to_string()))?;
     safe_relative(&cfg.base)?;
     directory_entries(&ctx.tcp(), &cfg, "")?;
-    Ok(json!({"valid":true}))
+    Ok(sdk::ConnectionValidation::valid())
 }
 
 struct Smb;
@@ -610,7 +610,7 @@ impl sdk::ConnectionProvider for Smb {
     fn validate(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<serde_json::Value, sdk::RpcError> {
+    ) -> Result<sdk::ConnectionValidation, sdk::RpcError> {
         validate(ctx)
     }
 }

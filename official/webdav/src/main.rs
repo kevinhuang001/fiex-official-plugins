@@ -1,6 +1,5 @@
 //! Standalone WebDAV adapter. The Fiex host owns mount configuration,
 //! credential storage, cache, sync rules and conflict resolution.
-use fiex_plugin_sdk::ProviderInvocationExt;
 mod client;
 mod discovery;
 mod fs;

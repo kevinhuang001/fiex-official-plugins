@@ -1,5 +1,4 @@
 use fiex_plugin_sdk as sdk;
-use fiex_plugin_sdk::ProviderInvocationExt;
 use serde_json::{json, Value};
 
 fn badge(code: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
@@ -25,7 +24,11 @@ fn normalize(path: &str) -> String {
 }
 
 pub fn list(_params: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, String> {
-    let directory = host.directory().ok_or("missing directory ref")?.reference;
+    let directory = host
+        .directory()
+        .ok_or("missing directory ref")?
+        .reference
+        .clone();
     let Some(status) = crate::git_host::status(&directory, host) else {
         return Ok(json!({ "decorations": [] }));
     };

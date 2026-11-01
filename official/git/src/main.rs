@@ -1,5 +1,4 @@
 //! Fiex Git plugin runs as an independent process; never links to Fiex Core.
-use fiex_plugin_sdk::ProviderInvocationExt;
 mod decorations;
 mod files;
 mod git_host;

@@ -56,7 +56,7 @@ impl sdk::ContextMenuProvider for ExampleMenu {
 - 只能是 `action | submenu | separator`；
 - 子菜单用 `parentId`，不能嵌套 `children`；
 - 菜单查询阶段只有 opaque refs，需要属性时再从 `ctx.targets()` 读。
-- 空白处右键应在规则中写 `"selection": "zero"`；默认 `any` 不会加入空选择菜单。
+- 只在空白处显示的菜单应声明 `"selection": "zero"`；默认 `any` 不限制选择数量，空白处按 Core 提供的目录上下文继续匹配。
 - 多选时每个目标都要满足声明的资源条件。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloMenu`。

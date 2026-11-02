@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "org.fiex.gpg",
   "name": "GPG",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "description": "使用本机 GnuPG 加密、解密、签名、验签及管理公钥。",
   "icon": "key-round",
   "author": {
@@ -27,7 +27,19 @@
     }
   },
   "extensions": {
-    "contextMenus": true,
+    "contextMenus": {
+      "match": {
+        "exclude": {
+          "view": {
+            "providerIds": [
+              "core:applications",
+              "core:trash",
+              "core:recent"
+            ]
+          }
+        }
+      }
+    },
     "toolbar": {
       "title": "钥匙串",
       "icon": "key-round",

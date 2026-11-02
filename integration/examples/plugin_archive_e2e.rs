@@ -206,4 +206,36 @@ fn main() {
     });
 
     // 5. The negotiated budget is part of the preview API response, so the
-    //    preview document can align its own request tim
+    //    preview document can align its own request timer with Core.
+    let preview = fiex_lib::plugins::resolvers::preview::open_resource(
+        archive.to_str().unwrap(),
+        Some("plugin:org.fiex.archive"),
+        None,
+    )
+    .expect("archive preview must resolve");
+    assert_eq!(preview["view"]["kind"], "html");
+    assert_eq!(preview["view"]["timeoutMs"], 300_000);
+    assert!(preview["view"]["html"]
+        .as_str()
+        .unwrap()
+        .contains("archive.list"));
+
+    // The preview document lists through the same Core host.
+    let listing = fixtures::invoke_selected(
+        "org.fiex.archive",
+        "archive.list",
+        json!({"path": fixtures::reference(std::path::Path::new(&archive))}),
+        root.to_str().unwrap(),
+        std::slice::from_ref(&archive),
+    )
+    .expect("archive.list through the host");
+    assert_eq!(listing["supported"], true);
+    assert!(listing["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| entry["name"] == "hello.txt"));
+
+    plugin_host::global().stop("org.fiex.archive");
+    println!("PASS: Archive context-menu and beforeOpen flows through the real Core host");
+}

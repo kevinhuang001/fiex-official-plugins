@@ -218,4 +218,15 @@ fn check(id: &str, config: Value, expected: &[u8]) {
 
 fn main() {
     fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
-   
+    check(
+        "org.fiex.webdav",
+        json!({"url": "http://127.0.0.1:8080/"}),
+        b"hello webdav\n",
+    );
+    check(
+        "org.fiex.smb",
+        json!({"host": "127.0.0.1", "port": 445, "share": "fiex", "username": "fiex", "password": std::env::var("FIEX_TEST_SMB_PASSWORD").unwrap()}),
+        b"hello smb\n",
+    );
+    println!("PASS: sandboxed WebDAV/SMB SDK calls through Core and host grant revocation");
+}

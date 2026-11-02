@@ -146,13 +146,19 @@ jobs:
           repository: kevinhuang001/fiex
           ref: main
           path: core
-      - name: Use companion Core aria2 PR when available
-        if: github.event_name == 'pull_request' && github.head_ref == 'perf/aria2-adaptive-provider-reads-20261030'
+      - name: Use companion Core PR when available
+        if: github.event_name == 'pull_request'
         shell: bash
+        env:
+          PLUGIN_HEAD_REF: ${{ github.head_ref }}
         run: |
-          # During review, integrate the paired Core implementation. Once
-          # Core is merged and its branch is deleted, main is the fallback.
-          if git -C core fetch --depth=1 origin perf/aria2-engine-and-streams-20261030; then
+          # Test cross-repository changes with the Core branch they depend on.
+          case "$PLUGIN_HEAD_REF" in
+            perf/aria2-adaptive-provider-reads-20261030) core_branch=perf/aria2-engine-and-streams-20261030 ;;
+            codex/view-excludes-20261102) core_branch=codex/menu-performance-20261102 ;;
+            *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
+          esac
+          if git -C core fetch --depth=1 origin "$core_branch"; then
             git -C core checkout --detach FETCH_HEAD
           else
             echo "Companion Core branch unavailable; testing against main."
@@ -247,13 +253,19 @@ jobs:
           repository: kevinhuang001/fiex
           ref: main
           path: core
-      - name: Use companion Core aria2 PR when available
-        if: github.event_name == 'pull_request' && github.head_ref == 'perf/aria2-adaptive-provider-reads-20261030'
+      - name: Use companion Core PR when available
+        if: github.event_name == 'pull_request'
         shell: bash
+        env:
+          PLUGIN_HEAD_REF: ${{ github.head_ref }}
         run: |
-          # During review, integrate the paired Core implementation. Once
-          # Core is merged and its branch is deleted, main is the fallback.
-          if git -C core fetch --depth=1 origin perf/aria2-engine-and-streams-20261030; then
+          # Test cross-repository changes with the Core branch they depend on.
+          case "$PLUGIN_HEAD_REF" in
+            perf/aria2-adaptive-provider-reads-20261030) core_branch=perf/aria2-engine-and-streams-20261030 ;;
+            codex/view-excludes-20261102) core_branch=codex/menu-performance-20261102 ;;
+            *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
+          esac
+          if git -C core fetch --depth=1 origin "$core_branch"; then
             git -C core checkout --detach FETCH_HEAD
           else
             echo "Companion Core branch unavailable; testing against main."

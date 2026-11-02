@@ -46,7 +46,7 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .invoke(
             id,
             "vfs.list",
-            json!({"connection": config, "mountId": mount_id, "directoryId": "", "limit": 200}),
+            json!({"connection": config, "mountId": mount_id, "nodeId": "", "limit": 200}),
         )
         .expect("network listing through Core failed");
     assert!(listing["entries"]

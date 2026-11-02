@@ -131,7 +131,14 @@ pub(crate) fn validate(
     host: &dyn sdk::ProviderInvocation,
     session: &Session,
 ) -> Result<sdk::ConnectionValidation, RpcError> {
-    let cfg = client::config(host.params().get("connection"))?;
+    let request = match host.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?;
+    let cfg = client::config(connection.as_ref())?;
     client::authorized(
         host,
         &cfg,
@@ -193,9 +200,7 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
         .collect::<Vec<_>>();
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|error| RpcError::invalid_params(error.to_string()))?;
@@ -203,7 +208,7 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
         return Err(RpcError::invalid_params("cursor out of range"));
     }
     let limit = request
-        .params()
+        .to_params()?
         .get("limit")
         .and_then(Value::as_u64)
         .unwrap_or(200)

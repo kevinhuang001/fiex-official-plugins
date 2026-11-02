@@ -70,13 +70,25 @@ impl VfsProvider for OpenList {
 }
 
 impl sdk::ConnectionProvider for OpenList {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
-        let mount = ctx.params()["mountId"]
-            .as_str()
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::Connection(request) => request,
+            _ => return Err(sdk::RpcError::invalid_params("missing connection request")),
+        };
+        let mount_id = request
+            .mount_id
+            .as_deref()
             .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
-        Ok(
-            serde_json::json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}),
-        )
+        Ok(sdk::ConnectionOpenResult::Vfs {
+            mount_id: mount_id.into(),
+            node_ref: sdk::ResourceRef {
+                mount_id: mount_id.into(),
+                node_id: String::new(),
+            },
+        })
     }
     fn validate(
         &self,

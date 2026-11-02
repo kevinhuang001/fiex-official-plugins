@@ -88,8 +88,7 @@
       }
     ],
     "vfs": {
-      "title": "Git 历史",
-      "readOnly": true
+      "title": "Git 历史"
     },
     "decorations": {
       "priority": 50

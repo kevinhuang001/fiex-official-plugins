@@ -254,9 +254,7 @@ fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     safe_relative(&cfg.base)?;
     let entries = directory_entries(&request.ctx().tcp(), &cfg, &path)?;
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|e| fail(e.to_string()))?;
@@ -264,7 +262,7 @@ fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         return Err(fail("invalid pagination cursor"));
     }
     let limit = request
-        .params()
+        .to_params()?
         .get("limit")
         .and_then(Value::as_u64)
         .unwrap_or(200)
@@ -532,18 +530,33 @@ fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     Ok(FsRead::new(SmbReader { stream, offset: 0 }, Some(total)))
 }
 
-fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let mount = ctx.params()["mountId"]
-        .as_str()
+fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
+    let mount_id = request
+        .mount_id
+        .as_deref()
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-    Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
+    Ok(sdk::ConnectionOpenResult::Vfs {
+        mount_id: mount_id.into(),
+        node_ref: sdk::ResourceRef {
+            mount_id: mount_id.into(),
+            node_id: String::new(),
+        },
+    })
 }
 
 fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
     let cfg: StoredConnection = serde_json::from_value(
-        ctx.params()
-            .get("connection")
-            .cloned()
+        request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
             .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
     )
     .map_err(|e| RpcError::invalid_params(e.to_string()))?;

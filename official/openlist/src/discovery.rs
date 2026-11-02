@@ -9,16 +9,24 @@ pub fn discover(
     ctx: &dyn sdk::ProviderInvocation,
     session: &Session,
 ) -> Result<Vec<FsOperation>, RpcError> {
-    let cfg = client::config(ctx.params().get("connection"))?;
-    let node = ctx.params()["nodeId"]
-        .as_str()
-        .or_else(|| ctx.params()["parentId"].as_str())
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Vfs(request) => request,
+        _ => return Err(RpcError::invalid_params("missing VFS discovery request")),
+    };
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?;
+    let cfg = client::config(connection.as_ref())?;
+    let node = request
+        .node_id
+        .as_deref()
+        .or(request.parent_id.as_deref())
         .unwrap_or("");
     fs::safe_relative(node)?;
     // /api/fs/list reports the directory's meta write gate. For a file,
     // mutations operate in its parent; mkdir already supplies parentId.
     let directory_target = ctx.method() == "vfs.list"
-        || ctx.params().get("parentId").is_some()
+        || request.parent_id.is_some()
         || (!node.is_empty()
             && fs::object(ctx, &cfg, session, node)?
                 .pointer("/data/is_dir")

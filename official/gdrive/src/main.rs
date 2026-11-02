@@ -165,15 +165,29 @@ impl VfsProvider for Drive {
     }
 }
 
-fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let mount = ctx.params()["mountId"]
-        .as_str()
+fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
+    let mount_id = request
+        .mount_id
+        .as_deref()
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
-    Ok(json!({"kind":"vfs","mountId":mount,"nodeRef":{"mountId":mount,"nodeId":""}}))
+    Ok(sdk::ConnectionOpenResult::Vfs {
+        mount_id: mount_id.into(),
+        node_ref: sdk::ResourceRef {
+            mount_id: mount_id.into(),
+            node_id: String::new(),
+        },
+    })
 }
 
 impl sdk::ConnectionProvider for Drive {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
         open(ctx)
     }
     fn validate(

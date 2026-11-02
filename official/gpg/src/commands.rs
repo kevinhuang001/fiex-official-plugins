@@ -277,34 +277,49 @@ mod tests;
 
 pub struct GpgMenu;
 impl sdk::ContextMenuProvider for GpgMenu {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::ContextMenuResolve(request) => request,
+            _ => return Err(RpcError::invalid_params("expected context menu request")),
+        };
         let count = ctx.targets().len();
         if count == 0 {
             return Ok(Vec::new());
         }
-        match ctx.params()["parentId"].as_str() {
-            None => Ok(vec![
-                json!({"id":"gpg.menu","title":"GPG","kind":"submenu"}),
-            ]),
+        match request.parent_id.as_deref() {
+            None => Ok(vec![sdk::MenuItem::submenu("gpg.menu", "GPG")]),
             Some("gpg.menu") => {
                 let mut items = vec![
-                    json!({"id":"gpg.encrypt","title":crate::i18n::t("加密…"),"kind":"action"}),
-                    json!({"id":"gpg.decrypt","title":crate::i18n::t("解密…"),"kind":"action"}),
-                    json!({"id":"gpg.sign","title":crate::i18n::t("签名…"),"kind":"action"}),
+                    sdk::MenuItem::action("gpg.encrypt", crate::i18n::t("加密…")),
+                    sdk::MenuItem::action("gpg.decrypt", crate::i18n::t("解密…")),
+                    sdk::MenuItem::action("gpg.sign", crate::i18n::t("签名…")),
                 ];
                 if count == 1 {
-                    items.push(json!({"id":"gpg.verify","title":crate::i18n::t("验证签名…"),"kind":"action"}));
+                    items.push(sdk::MenuItem::action(
+                        "gpg.verify",
+                        crate::i18n::t("验证签名…"),
+                    ));
                 }
                 Ok(items)
             }
             Some(_) => Err(RpcError::invalid_params("unknown GPG submenu")),
         }
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        let p = ctx.params();
-
-        let item = p["itemId"]
-            .as_str()
+    fn execute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::MenuExecuteResult, RpcError> {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::ContextMenuExecute(request) => request,
+            _ => {
+                return Err(RpcError::invalid_params(
+                    "expected context menu execution request",
+                ))
+            }
+        };
+        let item = request
+            .item_id
+            .as_deref()
             .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
         let (title, width, height) = match item {
             "gpg.encrypt" => (crate::i18n::t("GPG 加密"), 560, 520),
@@ -317,10 +332,10 @@ impl sdk::ContextMenuProvider for GpgMenu {
                 ))
             }
         };
-        Ok(json!({
+        Ok(sdk::MenuExecuteResult::Custom(json!({
             "kind":"panel", "entry":"ui/dist/index.html",
             "panelId":item, "title":title,
             "size":{"width":width,"height":height}
-        }))
+        })))
     }
 }

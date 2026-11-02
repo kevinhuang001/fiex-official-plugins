@@ -90,10 +90,14 @@ fn display_name(path: &str) -> &str {
 pub(crate) fn validate(
     host: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::ConnectionValidation, RpcError> {
+    let request = match host.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
     let cfg: StoredConnection = serde_json::from_value(
-        host.params()
-            .get("connection")
-            .cloned()
+        request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
             .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
     )
     .map_err(|error| RpcError::invalid_params(error.to_string()))?;
@@ -114,9 +118,7 @@ pub(crate) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     nodes.retain(|f| !f.path.is_empty() && f.path.trim_matches('/') != path.trim_matches('/'));
     nodes.sort_by(|a, b| a.name.cmp(&b.name));
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|e| RpcError::invalid_params(e.to_string()))?;
@@ -124,7 +126,7 @@ pub(crate) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         return Err(RpcError::invalid_params("cursor out of range"));
     }
     let limit = request
-        .params()
+        .to_params()?
         .get("limit")
         .and_then(Value::as_u64)
         .unwrap_or(200)

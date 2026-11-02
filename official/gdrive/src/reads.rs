@@ -17,7 +17,7 @@ pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     let query = format!("'{id}' in parents and trashed = false");
     let cursor = request.cursor().filter(|s| *s != "0").unwrap_or("");
     let limit = request
-        .params()
+        .to_params()?
         .get("limit")
         .and_then(Value::as_u64)
         .unwrap_or(500)

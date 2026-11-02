@@ -6,19 +6,20 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 use sdk::filesystem::FsOperation;
 
 pub(super) fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
-    let connection = ctx
-        .params()
-        .get("connection")
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Vfs(request) => request,
+        _ => return Err(RpcError::invalid_params("missing VFS discovery request")),
+    };
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), connection)?;
-    let id = ctx.params()["nodeId"]
-        .as_str()
+    let token = token(&ctx.http(), &connection)?;
+    let id = request
+        .node_id
+        .as_deref()
         .filter(|id| !id.is_empty())
-        .or_else(|| {
-            ctx.params()["parentId"]
-                .as_str()
-                .filter(|id| !id.is_empty())
-        })
+        .or_else(|| request.parent_id.as_deref().filter(|id| !id.is_empty()))
         .unwrap_or("root");
     let (file, _) = metadata(&ctx.http(), &token, id)?;
     Ok(operations(&file, id == "root"))

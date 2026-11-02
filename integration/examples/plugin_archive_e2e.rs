@@ -14,7 +14,7 @@
 #[path = "../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
-use fiex_lib::plugins::resolvers::{context_menu, hooks};
+use fiex_lib::plugins::providers::{context_menu, hooks};
 use serde_json::{json, Value};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -207,7 +207,7 @@ fn main() {
 
     // 5. The negotiated budget is part of the preview API response, so the
     //    preview document can align its own request timer with Core.
-    let preview = fiex_lib::plugins::resolvers::preview::open_resource(
+    let preview = fiex_lib::plugins::providers::preview::open_resource(
         archive.to_str().unwrap(),
         Some("plugin:org.fiex.archive"),
         None,

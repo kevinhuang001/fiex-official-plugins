@@ -3,7 +3,7 @@
 #[path = "../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::{
-    plugins::host as plugin_host, plugins::resolvers::decorations as plugin_decorations,
+    plugins::host as plugin_host, plugins::providers::decorations as plugin_decorations,
     plugins::vfs as plugin_vfs,
 };
 use serde_json::json;

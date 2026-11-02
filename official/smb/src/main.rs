@@ -11,7 +11,7 @@ use fiex_plugin_sdk::{
     RpcError,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use smb::{GetLen, ReadAt};
 use std::{io, str::FromStr};
 
@@ -181,8 +181,7 @@ fn revision(file: &smb::File) -> Result<String, RpcError> {
 fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
     serde_json::from_value(
         request
-            .connection()
-            .cloned()
+            .connection_value()?
             .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
     )
     .map_err(|e| RpcError::invalid_params(e.to_string()))
@@ -617,7 +616,10 @@ impl VfsProvider for Smb {
 }
 
 impl sdk::ConnectionProvider for Smb {
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<serde_json::Value, sdk::RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
         open(ctx)
     }
     fn validate(

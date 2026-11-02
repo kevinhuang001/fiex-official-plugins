@@ -58,7 +58,7 @@ fn main() {
 
     approve("org.fiex.checksum");
     let details =
-        fiex_lib::plugins::resolvers::info::file_info_resource(file.to_str().unwrap()).unwrap();
+        fiex_lib::plugins::providers::info::file_info_resource(file.to_str().unwrap()).unwrap();
     assert!(
         details.iter().any(|section| section.id == "core.metadata"),
         "built-in metadata section is missing"
@@ -96,7 +96,7 @@ fn main() {
     );
 
     let details =
-        fiex_lib::plugins::resolvers::info::file_info_resource(archive.to_str().unwrap()).unwrap();
+        fiex_lib::plugins::providers::info::file_info_resource(archive.to_str().unwrap()).unwrap();
     let info = details
         .iter()
         .find(|section| section.title == "压缩包")

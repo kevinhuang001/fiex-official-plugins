@@ -1,6 +1,6 @@
 //! Cross-repository test for dynamic-only decorations with manifest match rules.
 use fiex_lib::plugins::host as plugin_host;
-use fiex_lib::plugins::resolvers::decorations::DecorationEntry;
+use fiex_lib::plugins::providers::decorations::DecorationEntry;
 
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
@@ -27,7 +27,7 @@ fn main() {
     .unwrap();
     let root = std::env::temp_dir();
     let path = root.join("decoration-fixture.zip");
-    let values = fiex_lib::plugins::resolvers::decorations::query(
+    let values = fiex_lib::plugins::providers::decorations::query(
         root.to_str().unwrap(),
         vec![DecorationEntry {
             path: path.to_string_lossy().into_owned(),

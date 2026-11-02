@@ -157,7 +157,7 @@ pub(crate) fn validate(
 
 pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListing, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let directory = request.node_id().unwrap_or("").to_owned();
     safe_relative(&directory)?;
     let parsed = client::authorized(
@@ -227,7 +227,7 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
 
 pub(crate) fn stat(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let node = request.node_id().unwrap_or("");
     safe_relative(node)?;
     stat_node(host, &cfg, session, node)
@@ -262,7 +262,7 @@ pub(crate) fn stat_http(
 
 pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let relative = request.node_id().unwrap_or("").to_owned();
     safe_relative(&relative)?;
     if relative.is_empty() {

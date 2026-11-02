@@ -27,13 +27,10 @@ pub(crate) fn safe_relative(value: &str) -> Result<(), RpcError> {
 }
 
 pub(crate) fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
-    serde_json::from_value(
-        request
-            .connection()
-            .cloned()
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|error| RpcError::invalid_params(error.to_string()))
+    let connection = request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    serde_json::from_value(connection).map_err(|error| RpcError::invalid_params(error.to_string()))
 }
 
 fn propfind(

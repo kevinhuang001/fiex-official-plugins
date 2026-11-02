@@ -4,15 +4,15 @@ use fiex_plugin_sdk::{ResourceContext, ResourceRef, RpcError};
 
 pub fn input(
     ctx: &dyn fiex_plugin_sdk::ProviderInvocation,
-    key: &str,
+    value: Option<&serde_json::Value>,
 ) -> Result<ResourceContext, RpcError> {
-    let value = &ctx.params()[key];
-    if !value.is_null() && !value.is_object() {
+    let value = value.filter(|value| !value.is_null());
+    if value.is_some_and(|value| !value.is_object()) {
         return Err(RpcError::invalid_params(
             "resource arguments must be ResourceRefs",
         ));
     }
-    let reference = if value.is_object() {
+    let reference = if let Some(value) = value {
         serde_json::from_value::<ResourceRef>(value.get("ref").unwrap_or(value).clone())
             .map_err(|error| RpcError::invalid_params(error.to_string()))?
     } else {

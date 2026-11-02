@@ -111,17 +111,18 @@ fn info_rows(
 
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
+    let params = ctx.params();
     match method {
         "office.info" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, params.get("path"))?;
             info_rows(&ctx, &target)
         }
         "office.render" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, params.get("path"))?;
             cached_render(&ctx, &target)
         }
         "office.pdfPages" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, params.get("path"))?;
             pdf_pages(&ctx, &target)
         }
         _ => Err(RpcError::method_not_found(method)),
@@ -151,14 +152,14 @@ impl sdk::InfoProvider for Presentation {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::InfoSection>, RpcError> {
-        let target = resources::input(ctx, "path")?;
+        let target = resources::input(ctx, None)?;
         let rows = info_rows(ctx, &target)?;
         provider_results::section("office", crate::i18n::t("文档"), rows["rows"].clone())
     }
 }
 impl sdk::PreviewProvider for Presentation {
     fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::PreviewView, RpcError> {
-        let target = resources::input(ctx, "path")?;
+        let target = resources::input(ctx, None)?;
         let extension = render::extension(resources::name(&target)?);
         if extension == "docx" || extension == "pptx" {
             return Ok(sdk::PreviewView::html("ui/dist/pdf.html"));

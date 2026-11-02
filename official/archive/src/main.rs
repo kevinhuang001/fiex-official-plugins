@@ -261,7 +261,7 @@ fn archive_menu(params: &Value) -> Value {
 }
 
 fn archive_info(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let target = resources::input(host, "path")?;
+    let target = resources::input(host, p.get("path"))?;
     let path = &target.reference;
     let password = p.get("password").and_then(Value::as_str);
     let listing = listing::list(path, password, host.sdk_context()).map_err(RpcError::internal)?;
@@ -374,7 +374,7 @@ fn run_operation(
         }
         "archive.info" => archive_info(p, host),
         "archive.list" => match listing::list(
-            &resources::input(host, "path")?.reference,
+            &resources::input(host, p.get("path"))?.reference,
             p.get("password").and_then(Value::as_str),
             host,
         ) {
@@ -390,7 +390,7 @@ fn run_operation(
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
-            let path = resources::input(host, "path")?.reference;
+            let path = resources::input(host, p.get("path"))?.reference;
             let destination =
                 if let Some(value) = p.get("destination").filter(|value| value.is_object()) {
                     serde_json::from_value::<sdk::ResourceRef>(value.clone())
@@ -653,12 +653,14 @@ impl sdk::ContextMenuProvider for Archive {
 }
 impl sdk::HookProvider for Archive {
     fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
-        let p = ctx.params();
-        let host = ctx;
-
-        if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::Hook(request) => request,
+            _ => return Err(RpcError::invalid_params("expected hook request")),
+        };
+        if request.event != "beforeOpen" {
             return Ok(sdk::HookResult { handled: false });
         }
-        before_open(&resources::input(host, "path")?.reference, p, host)
+        let target = resources::input(ctx, None)?;
+        before_open(&target.reference, &Value::Null, ctx)
     }
 }

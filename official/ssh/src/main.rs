@@ -62,7 +62,10 @@ impl sdk::ConnectionProvider for SshConnection {
             sdk::ConnectionValidation::valid()
         })
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         let request = match ctx.input()? {
             sdk::ProviderInput::Connection(request) => request,
             _ => return Err(RpcError::invalid_params("expected connection request")),

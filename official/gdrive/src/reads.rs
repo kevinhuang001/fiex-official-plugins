@@ -5,9 +5,9 @@ use std::io::Read;
 pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     let ctx = request.ctx();
     let cfg = request
-        .connection()
+        .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), cfg)?;
+    let token = token(&ctx.http(), &cfg)?;
     // An empty node id is the mount root.
     let id = request
         .node_id()
@@ -46,9 +46,9 @@ pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
 pub(super) fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let ctx = request.ctx();
     let cfg = request
-        .connection()
+        .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), cfg)?;
+    let token = token(&ctx.http(), &cfg)?;
     let id = request
         .node_id()
         .filter(|value| !value.is_empty())
@@ -60,9 +60,9 @@ pub(super) fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
 pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let ctx = request.ctx();
     let cfg = request
-        .connection()
+        .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), cfg)?;
+    let token = token(&ctx.http(), &cfg)?;
     let id = node(
         request
             .node_id()

@@ -33,9 +33,10 @@ fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
 
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
+    let params = ctx.params();
     match method {
         "checksum.calculate" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, params.get("path"))?;
             let path = &target.reference;
             let files = ctx.files();
             let metadata = files
@@ -53,7 +54,7 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             Ok(result)
         }
         "checksum.info" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, params.get("path"))?;
             let path = &target.reference;
             Ok(json!({"rows": checksum_rows(&ctx, path)?}))
         }
@@ -79,9 +80,7 @@ impl sdk::InfoProvider for Presentation {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::InfoSection>, RpcError> {
-        let target = ctx
-            .target()
-            .ok_or_else(|| RpcError::invalid_params("missing target"))?;
+        let target = resources::input(ctx, None)?;
         provider_results::section(
             "checksum",
             crate::i18n::t("校验和"),

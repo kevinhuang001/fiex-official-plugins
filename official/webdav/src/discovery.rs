@@ -6,11 +6,21 @@ use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 use quick_xml::events::Event;
 
 pub fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
-    let cfg: client::StoredConnection = serde_json::from_value(ctx.params()["connection"].clone())
-        .map_err(|e| RpcError::invalid_params(e.to_string()))?;
-    let node = ctx.params()["nodeId"]
-        .as_str()
-        .or_else(|| ctx.params()["parentId"].as_str())
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Vfs(request) => request,
+        _ => return Err(RpcError::invalid_params("missing VFS discovery request")),
+    };
+    let cfg: client::StoredConnection = serde_json::from_value(
+        request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
+    )
+    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    let node = request
+        .node_id
+        .as_deref()
+        .or(request.parent_id.as_deref())
         .unwrap_or("");
     fs::safe_relative(node)?;
     let mut ops = resource_privileges(ctx, &cfg, node)?;

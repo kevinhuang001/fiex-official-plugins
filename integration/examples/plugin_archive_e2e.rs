@@ -213,7 +213,7 @@ fn main() {
 
     // 5. The negotiated budget is part of the preview API response, so the
     //    preview document can align its own request timer with Core.
-    let preview = fiex_lib::plugins::resolvers::preview::open_resource(
+    let preview = fiex_lib::plugins::providers::preview::open_resource(
         archive.to_str().unwrap(),
         Some("plugin:org.fiex.archive"),
         None,

@@ -26,28 +26,40 @@ fn greeting(ctx: &dyn sdk::ProviderInvocation) -> String {
 
 struct HelloConnection;
 
-fn connection_open(ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let p = ctx.params();
-    let factory = p.get("factoryId").and_then(Value::as_str).unwrap_or("");
-    let mount = p.get("mountId").and_then(Value::as_str).unwrap_or("");
-    match factory {
+fn connection_open(
+    ctx: &dyn sdk::ProviderInvocation,
+) -> Result<sdk::ConnectionOpenResult, RpcError> {
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
+    match request.factory_id.as_deref().unwrap_or("") {
         // The account factory has no file tree: it returns a full-width
         // pluginView that replaces the right content area.
-        "example-account" => Ok(json!({
-            "kind": "pluginView",
-            "view": {"source": "package", "entry": "ui/account.html"},
-            "state": {
-                "connectionId": p.get("connectionId").cloned().unwrap_or(Value::Null)
+        "example-account" => Ok(sdk::ConnectionOpenResult::PluginView {
+            view: sdk::PackageView {
+                source: "package".into(),
+                entry: "ui/account.html".into(),
             },
-            "tabTitle": "示例账号"
-        })),
+            state: json!({"connectionId": request.connection_id}),
+            tab_title: Some("示例账号".into()),
+        }),
         // The files factory navigates to Core's native Explorer. Core validates
         // that this plugin registered extensions.vfs and owns the mount.
-        _ => Ok(json!({
-            "kind": "vfs",
-            "mountId": mount,
-            "nodeRef": {"mountId": mount, "nodeId": "root"}
-        })),
+        _ => {
+            let mount_id = request
+                .mount_id
+                .as_deref()
+                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?
+                .to_owned();
+            Ok(sdk::ConnectionOpenResult::Vfs {
+                node_ref: sdk::ResourceRef {
+                    mount_id: mount_id.clone(),
+                    node_id: "root".into(),
+                },
+                mount_id,
+            })
+        }
     }
 }
 
@@ -58,10 +70,16 @@ impl sdk::ConnectionProvider for HelloConnection {
     ) -> Result<sdk::ConnectionValidation, RpcError> {
         Ok(sdk::ConnectionValidation::valid())
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         connection_open(ctx)
     }
-    fn create(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
+    fn create(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
         connection_open(ctx)
     }
 }
@@ -69,8 +87,7 @@ impl sdk::ConnectionProvider for HelloConnection {
 fn readme() -> FsEntry {
     let mut entry = FsEntry::file("readme", "README.md")
         .with_size(HELLO.len() as u64)
-        .with_revision("1")
-        .readonly();
+        .with_revision("1");
     entry.modified = Some(0);
     entry.extension = Some("md".into());
     entry.mime = Some("text/markdown".into());
@@ -78,7 +95,7 @@ fn readme() -> FsEntry {
 }
 
 fn docs() -> FsEntry {
-    let mut entry = FsEntry::directory("docs", "docs").readonly();
+    let mut entry = FsEntry::directory("docs", "docs");
     entry.modified = Some(0);
     entry.size = Some(0);
     entry
@@ -231,27 +248,63 @@ impl sdk::DecorationProvider for HelloDecorations {
 struct HelloMenu;
 
 impl sdk::ContextMenuProvider for HelloMenu {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
-        if ctx.params().get("parentId").and_then(Value::as_str) == Some("example.more") {
-            return Ok(vec![json!({
-                "id": "example.copy-path",
-                "title": "示例：复制路径",
-                "kind": "action"
-            })]);
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
+        let parent_id = match ctx.input()? {
+            sdk::ProviderInput::ContextMenuResolve(request) => request.parent_id.as_deref(),
+            _ => return Err(RpcError::invalid_params("missing menu resolve request")),
+        };
+        let action = |id: &str, title: &str, parent_id: Option<&str>| sdk::MenuItem {
+            id: id.into(),
+            title: title.into(),
+            kind: sdk::contracts::MenuItemKind::Action,
+            parent_id: parent_id.map(str::to_owned),
+            icon: None,
+            shortcut: None,
+            disabled: false,
+            danger: false,
+            placement: None,
+            activity: None,
+        };
+        if parent_id == Some("example.more") {
+            return Ok(vec![action(
+                "example.copy-path",
+                "示例：复制路径",
+                Some("example.more"),
+            )]);
         }
         Ok(vec![
-            json!({"id": "example.inspect", "title": "示例：检查文件", "kind": "action"}),
-            json!({"id": "example.more", "title": "示例", "kind": "submenu"}),
+            action("example.inspect", "示例：检查文件", None),
+            sdk::MenuItem {
+                id: "example.more".into(),
+                title: "示例".into(),
+                kind: sdk::contracts::MenuItemKind::Submenu,
+                parent_id: None,
+                icon: None,
+                shortcut: None,
+                disabled: false,
+                danger: false,
+                placement: None,
+                activity: None,
+            },
         ])
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        let item = ctx.params()["itemId"]
-            .as_str()
-            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
-        if !matches!(item, "example.inspect" | "example.copy-path") {
+    fn execute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::MenuExecuteResult, RpcError> {
+        let item = match ctx.input()? {
+            sdk::ProviderInput::ContextMenuExecute(request) => {
+                request.item_id.as_deref().map(str::to_owned)
+            }
+            _ => None,
+        }
+        .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        if !matches!(item.as_str(), "example.inspect" | "example.copy-path") {
             return Err(RpcError::invalid_params("unknown example menu item"));
         }
-        Ok(json!({"ok": true, "itemId": item}))
+        Ok(sdk::MenuExecuteResult::Custom(
+            json!({"ok": true, "itemId": item}),
+        ))
     }
 }
 

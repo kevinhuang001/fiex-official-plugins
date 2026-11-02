@@ -119,24 +119,31 @@ fn browser_authorization(
 pub(super) fn validate(
     ctx: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::ConnectionValidation, RpcError> {
-    let cfg = &ctx.params()["connection"];
-    text(cfg, "clientId")?;
-    text(cfg, "clientSecret")?;
+    let request = match ctx.input()? {
+        sdk::ProviderInput::Connection(request) => request,
+        _ => return Err(RpcError::invalid_params("missing connection request")),
+    };
+    let cfg = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    text(&cfg, "clientId")?;
+    text(&cfg, "clientSecret")?;
     let existing = cfg["refreshToken"].as_str().is_some_and(|v| !v.is_empty());
     let (refresh, access) = if existing {
-        match token(&ctx.http(), cfg) {
+        match token(&ctx.http(), &cfg) {
             Ok(access) => (None, access),
             Err(error)
                 if error.data.as_ref().and_then(|data| data["reason"].as_str())
                     == Some("reauthorization_required") =>
             {
-                let (refresh, access) = browser_authorization(ctx, cfg)?;
+                let (refresh, access) = browser_authorization(ctx, &cfg)?;
                 (Some(refresh), access)
             }
             Err(error) => return Err(error),
         }
     } else {
-        let (refresh, access) = browser_authorization(ctx, cfg)?;
+        let (refresh, access) = browser_authorization(ctx, &cfg)?;
         (Some(refresh), access)
     };
     http_request(

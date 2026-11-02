@@ -16,7 +16,7 @@ fn fail(e: impl std::fmt::Display) -> RpcError {
 
 pub(crate) fn mkdir(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let parent = request.parent_id().unwrap_or("");
     fs::safe_relative(parent)?;
     let name = request.name().ok_or_else(|| fail("missing name"))?;
@@ -35,7 +35,7 @@ pub(crate) fn mkdir(request: &FsRequest<'_>, session: &Session) -> Result<FsEntr
 
 pub(crate) fn rename(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let node = request.node_id().ok_or_else(|| fail("missing nodeId"))?;
     if node.is_empty() {
         return Err(fail("cannot rename the mount root"));
@@ -84,7 +84,7 @@ pub(crate) fn rename(request: &FsRequest<'_>, session: &Session) -> Result<FsEnt
 
 pub(crate) fn remove(request: &FsRequest<'_>, session: &Session) -> Result<(), RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let node = request.node_id().ok_or_else(|| fail("missing nodeId"))?;
     if node.is_empty() {
         return Err(fail("cannot remove the mount root"));

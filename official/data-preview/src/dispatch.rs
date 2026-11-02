@@ -80,15 +80,15 @@ pub(crate) fn dispatch(
     let p = ctx.params();
     match method {
         "data.info" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, p.get("path"))?;
             info_rows(&ctx, &target, cache)
         }
         "data.open" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, p.get("path"))?;
             cached_open(&ctx, &target, cache)
         }
         "data.page" => {
-            let target = resources::input(&ctx, "path")?;
+            let target = resources::input(&ctx, p.get("path"))?;
             let dataset = p.get("dataset").and_then(Value::as_str).unwrap_or("data");
             let mut cached = cache
                 .lock()
@@ -127,7 +127,7 @@ impl sdk::InfoProvider for Presentation {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::InfoSection>, RpcError> {
-        let target = resources::input(ctx, "path")?;
+        let target = resources::input(ctx, None)?;
         let rows = info_rows(ctx, &target, &self.0)?;
         provider_results::section("data", crate::i18n::t("数据表"), rows["rows"].clone())
     }

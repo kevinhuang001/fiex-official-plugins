@@ -70,7 +70,7 @@ fn new_node(parent: &str, name: &str) -> Result<String, RpcError> {
 
 pub(crate) fn write(request: &FsRequest<'_>, session: &Session) -> Result<FsWrite, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection())?;
+    let cfg = client::config(request.connection_value()?.as_ref())?;
     let node = target_node(request)?;
     let token = client::token(host, &cfg, session)?;
     if request.node_id().is_some() {

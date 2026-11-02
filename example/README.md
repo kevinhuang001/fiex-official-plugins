@@ -231,7 +231,7 @@ Manifest 示例：
       { "id": "server", "label": "服务器地址", "type": "text", "required": true }
     ]
   },
-  "vfs": { "title": "示例文件", "readOnly": true }
+  "vfs": { "title": "示例文件" }
 ```
 
 要点：
@@ -490,7 +490,7 @@ for (const [key, value] of Object.entries(tokens)) {
 | `info`         | `{match?,priority?}`              | 用户“显示简介” → 固定 `info.resolve`                       |
 | `preview`      | `{match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
 | `connections`  | `{title,fields}`                  | 添加连接 / 点击连接 → `connection.create/open`             |
-| `vfs`          | `{title,readOnly?}`               | Core Explorer 的文件树请求                                 |
+| `vfs`          | `{title}`                         | Core Explorer 的文件树请求；文件能力由 `allowedOps` 声明     |
 | `search`       | `{icon?,scope?}`                  | 搜索框 → 固定 `search.query`                               |
 | `toolbar`      | `{title,icon?,panel?}`            | 工具栏点击 → 固定 `toolbar.invoke`                         |
 | `settings`     | `[{id,label,type,...}]`           | 设置页渲染；值通过 `ctx.storage()` / `ctx.secrets()`       |
@@ -695,7 +695,7 @@ Core 传入（`root` 是 opaque ref，不是宿主路径）：
       "created": 0,
       "extension": "txt",
       "mime": "text/plain",
-      "readonly": false,
+      "allowedOps": ["stat", "read", "write", "rename", "remove"],
       "linkTarget": null,
       "tags": [],
       "sync": null

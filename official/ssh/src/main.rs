@@ -43,9 +43,16 @@ impl sdk::ConnectionProvider for SshConnection {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::ConnectionValidation, RpcError> {
-        let host = ctx
-            .params()
-            .pointer("/connection/host")
+        let request = match ctx.input()? {
+            sdk::ProviderInput::Connection(request) => request,
+            _ => return Err(RpcError::invalid_params("expected connection request")),
+        };
+        let connection = request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+        let host = connection
+            .get("host")
             .and_then(Value::as_str)
             .unwrap_or("")
             .trim();
@@ -55,7 +62,26 @@ impl sdk::ConnectionProvider for SshConnection {
             sdk::ConnectionValidation::valid()
         })
     }
-    fn open(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        sessions::connection_view(ctx.params())
+    fn open(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::ConnectionOpenResult, RpcError> {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::Connection(request) => request,
+            _ => return Err(RpcError::invalid_params("expected connection request")),
+        };
+        let connection = request
+            .connection_value()
+            .map_err(RpcError::invalid_params)?
+            .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+        let result = sessions::connection_view(&json!({"connection": connection}))?;
+        Ok(sdk::ConnectionOpenResult::PluginView {
+            view: sdk::PackageView {
+                source: "package".into(),
+                entry: "ui/dist/index.html".into(),
+            },
+            state: result["state"].clone(),
+            tab_title: result["tabTitle"].as_str().map(str::to_owned),
+        })
     }
 }

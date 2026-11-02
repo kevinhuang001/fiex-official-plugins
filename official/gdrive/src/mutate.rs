@@ -15,9 +15,9 @@ fn valid_name(name: &str) -> Result<(), RpcError> {
 pub(super) fn mkdir(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let ctx = request.ctx();
     let cfg = request
-        .connection()
+        .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), cfg)?;
+    let token = token(&ctx.http(), &cfg)?;
     let parent = request.parent_id().unwrap_or("root");
     node(parent)?;
     let name = request
@@ -43,9 +43,9 @@ pub(super) fn mkdir(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
 pub(super) fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let ctx = request.ctx();
     let cfg = request
-        .connection()
+        .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), cfg)?;
+    let token = token(&ctx.http(), &cfg)?;
     let id = node(
         request
             .node_id()
@@ -108,9 +108,9 @@ pub(super) fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
 pub(super) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     let ctx = request.ctx();
     let cfg = request
-        .connection()
+        .connection_value()?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
-    let token = token(&ctx.http(), cfg)?;
+    let token = token(&ctx.http(), &cfg)?;
     let id = node(
         request
             .node_id()

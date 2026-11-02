@@ -79,8 +79,7 @@
       ]
     },
     "vfs": {
-      "title": "示例文件",
-      "readOnly": true
+      "title": "示例文件"
     },
     "decorations": {
       "match": {

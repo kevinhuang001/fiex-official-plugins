@@ -33,13 +33,22 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
     })
 }
 fn request_route(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Route, String> {
-    route(path, &host.params()["viewContext"])
-        .ok_or_else(|| crate::i18n::t("无效历史上下文").into())
+    let context = match host.input().map_err(|error| error.to_string())? {
+        sdk::ProviderInput::Vfs(request) => serde_json::to_value(
+            request
+                .view_context
+                .as_ref()
+                .ok_or_else(|| crate::i18n::t("缺少 Git 历史上下文"))?,
+        )
+        .map_err(|error| error.to_string())?,
+        _ => return Err(crate::i18n::t("无效历史上下文").into()),
+    };
+    route(path, &context).ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
 /// The blob path is stable for one commit, so it doubles as the node id.
 pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
-    use sdk::filesystem::{FsEntry, FsKind};
+    use sdk::filesystem::{FsEntry, FsKind, FsOperation};
     let node = entry.path.clone();
     let kind = if entry.is_dir {
         FsKind::Directory
@@ -57,9 +66,12 @@ pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
         extension: (!entry.extension.is_empty()).then_some(entry.extension),
         mime: Some(entry.mime),
         revision: None,
-        readonly: Some(true),
         link_target: entry.link_target,
-        allowed_ops: None,
+        allowed_ops: Some(if entry.is_dir {
+            vec![FsOperation::List, FsOperation::Stat, FsOperation::Search]
+        } else {
+            vec![FsOperation::Stat, FsOperation::Read]
+        }),
         relative_path: Some(node),
     }
 }
@@ -172,7 +184,6 @@ fn entries(
                     .first_or_octet_stream()
                     .to_string()
             },
-            readonly: true,
             link_target: None,
             tags: vec![],
             sync: None,
@@ -187,7 +198,6 @@ pub fn list(
     host: &dyn sdk::ProviderInvocation,
 ) -> Result<Listing, String> {
     Ok(Listing {
-        read_only: true,
         virtual_volume: true,
         path: path.into(),
         entries: entries(path, hidden, ignores, false, host)?,
@@ -212,7 +222,6 @@ pub fn info(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Entry, Str
             created: 0,
             extension: String::new(),
             mime: "inode/directory".into(),
-            readonly: true,
             link_target: None,
             tags: vec![],
             sync: None,

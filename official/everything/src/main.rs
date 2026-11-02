@@ -64,7 +64,7 @@ fn query(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcErro
                 .extension()
                 .unwrap_or_default()
                 .to_string_lossy();
-            entries.push(json!({"path":path,"name":name,"isDir":is_dir,"isSymlink":false,"size":0,"modified":0,"created":0,"extension":extension,"mime":if is_dir{"inode/directory".into()}else{mime_guess::from_path(name).first_or_octet_stream().to_string()},"readonly":false,"linkTarget":null,"tags":[],"sync":null}));
+            entries.push(json!({"path":path,"name":name,"isDir":is_dir,"isSymlink":false,"size":0,"modified":0,"created":0,"extension":extension,"mime":if is_dir{"inode/directory".into()}else{mime_guess::from_path(name).first_or_octet_stream().to_string()},"linkTarget":null,"tags":[],"sync":null}));
         }
     }
     entries.sort_by_key(|v| v["path"].as_str().unwrap_or("").to_lowercase());
@@ -102,7 +102,12 @@ fn main() {
 struct Everything;
 impl sdk::SearchProvider for Everything {
     fn query(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::SearchResults, RpcError> {
-        serde_json::from_value(query(ctx.params(), ctx)?)
+        let params = match ctx.input()? {
+            sdk::ProviderInput::Search(request) => serde_json::to_value(request)
+                .map_err(|error| RpcError::internal(error.to_string()))?,
+            _ => return Err(RpcError::invalid_params("missing search query")),
+        };
+        serde_json::from_value(query(&params, ctx)?)
             .map_err(|error| RpcError::internal(error.to_string()))
     }
 }

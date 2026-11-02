@@ -117,7 +117,8 @@ def main():
             entry = listing['entries'][0]
             assert entry['name'] == name and entry['nodeId'] == name
             info = plugin.request(a, 'vfs.stat', nodeId=name)['result']
-            assert info['readonly'] and info['size'] == len(payload)
+            assert {'read', 'stat'} <= set(info['allowedOps'])
+            assert 'write' not in info['allowedOps'] and info['size'] == len(payload)
             for uri, expected in [(a, payload), (b, b'changed'), (a, payload)]:
                 opened = plugin.request(uri, 'vfs.openRead', nodeId=name)['result']
                 stream = opened['streamId']

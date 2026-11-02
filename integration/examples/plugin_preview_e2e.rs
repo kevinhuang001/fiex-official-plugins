@@ -73,7 +73,7 @@ fn main() {
     .expect("compress failed");
     wait_task(started["taskId"].as_str().expect("compress task id"));
 
-    let response = fiex_lib::plugins::resolvers::preview::open_resource(
+    let response = fiex_lib::plugins::providers::preview::open_resource(
         archive.to_str().unwrap(),
         Some("plugin:org.fiex.archive"),
         None,
@@ -96,7 +96,7 @@ fn main() {
     assert!(context.get("resource").is_none());
     assert!(context.get("intent").is_none());
     assert!(context["targets"][0].get("read").is_none());
-    let unified = fiex_lib::plugins::resolvers::preview::open_resource(
+    let unified = fiex_lib::plugins::providers::preview::open_resource(
         archive.to_str().unwrap(),
         Some("plugin:org.fiex.archive"),
         None,
@@ -107,7 +107,7 @@ fn main() {
     assert_eq!(unified["view"]["pluginId"], "org.fiex.archive");
 
     let text = root.join("hello.txt");
-    let builtin = fiex_lib::plugins::resolvers::preview::open_resource(
+    let builtin = fiex_lib::plugins::providers::preview::open_resource(
         text.to_str().unwrap(),
         Some("builtin:text"),
         None,
@@ -126,7 +126,7 @@ fn main() {
         b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n",
     )
     .unwrap();
-    let pdf_view = fiex_lib::plugins::resolvers::preview::open_resource(
+    let pdf_view = fiex_lib::plugins::providers::preview::open_resource(
         pdf.to_str().unwrap(),
         Some("builtin:pdf"),
         None,
@@ -134,7 +134,7 @@ fn main() {
     .expect("builtin pdf preview failed");
     assert_eq!(pdf_view["view"]["kind"], "pdf");
 
-    let scope = fiex_lib::plugins::resolvers::preview::session_scope(
+    let scope = fiex_lib::plugins::providers::preview::session_scope(
         opened["sessionId"].as_str().unwrap(),
         "org.fiex.archive",
     )
@@ -154,7 +154,7 @@ fn main() {
         .unwrap();
     let declared = plugin_host::declared_permissions(&manifest).unwrap();
     assert!(declared.contains("files.read"));
-    assert!(fiex_lib::plugins::resolvers::preview::open_resource(
+    assert!(fiex_lib::plugins::providers::preview::open_resource(
         archive.to_str().unwrap(),
         Some("plugin:missing-provider"),
         None,

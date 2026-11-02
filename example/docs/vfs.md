@@ -23,7 +23,7 @@ DTO 和流语义，差别只在请求携带的身份块（`connection` 或
 
 ```json
 "extensions": {
-  "vfs": { "title": "示例文件", "readOnly": true }
+  "vfs": { "title": "示例文件" }
 }
 ```
 
@@ -48,7 +48,7 @@ impl VfsProvider for ExampleFs {
             FsEntry::file("readme", "README.md")
                 .with_size(14)
                 .with_revision("1")
-                .readonly(),
+                .allowing([sdk::filesystem::FsOperation::Stat, sdk::filesystem::FsOperation::Read]),
         ]))
     }
 
@@ -56,7 +56,7 @@ impl VfsProvider for ExampleFs {
         Ok(FsEntry::file("readme", "README.md")
             .with_size(14)
             .with_revision("1")
-            .readonly())
+            .allowing([sdk::filesystem::FsOperation::Stat, sdk::filesystem::FsOperation::Read]))
     }
 
     fn read(&self, _request: &FsRequest<'_>) -> Result<FsRead, RpcError> {

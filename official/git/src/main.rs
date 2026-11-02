@@ -45,14 +45,12 @@ fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     let result = history_host::list(path, request.hidden(), &request.ignores(), host)
         .map_err(RpcError::internal)?;
     let start = request
-        .params()
-        .get("cursor")
-        .and_then(Value::as_str)
+        .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|_| RpcError::invalid_params("invalid cursor"))?;
     let limit = request
-        .params()
+        .to_params()?
         .get("limit")
         .and_then(Value::as_u64)
         .unwrap_or(200)
@@ -97,7 +95,7 @@ fn search(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         .query()
         .ok_or_else(|| RpcError::invalid_params("missing query"))?;
     let limit = request
-        .params()
+        .to_params()?
         .get("limit")
         .and_then(Value::as_u64)
         .unwrap_or(500)

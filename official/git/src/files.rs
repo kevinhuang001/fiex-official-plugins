@@ -19,7 +19,6 @@ pub struct Entry {
     pub created: u64,
     pub extension: String,
     pub mime: String,
-    pub readonly: bool,
     pub link_target: Option<String>,
     pub tags: Vec<Tag>,
     pub sync: Option<String>,
@@ -27,7 +26,6 @@ pub struct Entry {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Listing {
-    pub read_only: bool,
     pub virtual_volume: bool,
     pub path: String,
     pub entries: Vec<Entry>,

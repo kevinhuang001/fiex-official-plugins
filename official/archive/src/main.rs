@@ -261,7 +261,7 @@ fn archive_menu(params: &Value) -> Value {
 }
 
 fn archive_info(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let target = resources::input(host, "path")?;
+    let target = resources::input(host, p.get("path"))?;
     let path = &target.reference;
     let password = p.get("password").and_then(Value::as_str);
     let listing = listing::list(path, password, host.sdk_context()).map_err(RpcError::internal)?;
@@ -374,7 +374,7 @@ fn run_operation(
         }
         "archive.info" => archive_info(p, host),
         "archive.list" => match listing::list(
-            &resources::input(host, "path")?.reference,
+            &resources::input(host, p.get("path"))?.reference,
             p.get("password").and_then(Value::as_str),
             host,
         ) {
@@ -390,7 +390,7 @@ fn run_operation(
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
-            let path = resources::input(host, "path")?.reference;
+            let path = resources::input(host, p.get("path"))?.reference;
             let destination =
                 if let Some(value) = p.get("destination").filter(|value| value.is_object()) {
                     serde_json::from_value::<sdk::ResourceRef>(value.clone())
@@ -576,22 +576,54 @@ impl sdk::DecorationProvider for Archive {
     }
 }
 impl sdk::ContextMenuProvider for Archive {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<Value>, RpcError> {
-        serde_json::from_value(archive_menu(ctx.params())["items"].clone())
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::ContextMenuResolve(request) => request,
+            _ => return Err(RpcError::invalid_params("expected context menu request")),
+        };
+        let targets = ctx
+            .targets()
+            .iter()
+            .map(|target| {
+                let metadata = target.metadata.as_ref();
+                json!({"metadata": {
+                    "name": metadata.map(|value| value.name.as_str()).unwrap_or(""),
+                    "kind": metadata.map(|value| value.kind.as_str()).unwrap_or(""),
+                    "operations": {
+                        "list": target.capabilities.allows(sdk::contracts::FsOperation::List),
+                        "read": target.capabilities.allows(sdk::contracts::FsOperation::Read)
+                    }
+                }})
+            })
+            .collect::<Vec<_>>();
+        let menu = archive_menu(&json!({"targets": targets, "parentId": request.parent_id}));
+        serde_json::from_value(menu["items"].clone())
             .map_err(|error| RpcError::internal(error.to_string()))
     }
-    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-        let mut params = ctx.params().clone();
+    fn execute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::MenuExecuteResult, RpcError> {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::ContextMenuExecute(request) => request,
+            _ => {
+                return Err(RpcError::invalid_params(
+                    "expected context menu execution request",
+                ))
+            }
+        };
+        let mut params = json!({});
         let operation = {
-            let item = params["itemId"]
-                .as_str()
+            let item = request
+                .item_id
+                .as_deref()
                 .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
             if item == "archive.advanced" {
-                return Ok(json!({
+                return Ok(sdk::MenuExecuteResult::Custom(json!({
                     "kind": "panel", "entry": "ui/dist/index.html",
                     "panelId": item, "title": crate::i18n::t("高级压缩"),
                     "size": {"width":400,"height":420}
-                }));
+                })));
             }
             let format = match item {
                 "archive.zip" => "zip",
@@ -616,17 +648,19 @@ impl sdk::ContextMenuProvider for Archive {
                 "archive.extract"
             }
         };
-        run_operation(ctx, params, operation)
+        run_operation(ctx, params, operation).map(sdk::MenuExecuteResult::Custom)
     }
 }
 impl sdk::HookProvider for Archive {
     fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
-        let p = ctx.params();
-        let host = ctx;
-
-        if p.get("event").and_then(Value::as_str) != Some("beforeOpen") {
+        let request = match ctx.input()? {
+            sdk::ProviderInput::Hook(request) => request,
+            _ => return Err(RpcError::invalid_params("expected hook request")),
+        };
+        if request.event != "beforeOpen" {
             return Ok(sdk::HookResult { handled: false });
         }
-        before_open(&resources::input(host, "path")?.reference, p, host)
+        let target = resources::input(ctx, None)?;
+        before_open(&target.reference, &Value::Null, ctx)
     }
 }

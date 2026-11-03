@@ -1501,7 +1501,7 @@ checksum = "629c9d6b6f30b5604089e0980f4d924a013aacb1654a6cdf5d3d852224f68651"
 
 [[package]]
 name = "fiex-plugin-archive"
-version = "0.3.6"
+version = "0.3.7"
 dependencies = [
  "bzip2",
  "fiex-plugin-sdk",
@@ -1596,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "fiex-plugin-gpg"
-version = "0.2.12"
+version = "0.2.13"
 dependencies = [
  "fiex-plugin-sdk",
  "serde_json",

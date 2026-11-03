@@ -54,8 +54,11 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
         if caps["canRename"] == true {
             operations.push(FsOperation::Rename);
         }
+        if caps["canTrash"] == true {
+            operations.push(FsOperation::Trash);
+        }
         if caps["canDelete"] == true {
-            operations.extend([FsOperation::Trash, FsOperation::Remove]);
+            operations.push(FsOperation::Remove);
         }
     }
     operations
@@ -129,13 +132,27 @@ mod tests {
     }
 
     #[test]
-    fn deletable_drive_items_advertise_recoverable_trash_and_permanent_remove() {
-        let file = json!({"mimeType":"text/plain","capabilities":{"canDelete":true}});
+    fn trash_and_remove_follow_independent_drive_capabilities() {
+        let both =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":true,"canDelete":true}});
         assert_eq!(
-            operations(&file, false),
+            operations(&both, false),
             vec![FsOperation::Stat, FsOperation::Trash, FsOperation::Remove]
         );
-        let protected = json!({"mimeType":"text/plain","capabilities":{"canDelete":false}});
+        let trash_only =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":true,"canDelete":false}});
+        assert_eq!(
+            operations(&trash_only, false),
+            vec![FsOperation::Stat, FsOperation::Trash]
+        );
+        let remove_only =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":false,"canDelete":true}});
+        assert_eq!(
+            operations(&remove_only, false),
+            vec![FsOperation::Stat, FsOperation::Remove]
+        );
+        let protected =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":false,"canDelete":false}});
         assert_eq!(operations(&protected, false), vec![FsOperation::Stat]);
     }
 }

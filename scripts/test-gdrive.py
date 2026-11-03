@@ -153,7 +153,7 @@ class Fixture:
         elif '/files/root?' in url:
             body = json.dumps({'id':'root','name':'My Drive','mimeType':'application/vnd.google-apps.folder','capabilities':{'canListChildren':True,'canAddChildren':True}}).encode()
         elif '/files?q=' in url:
-            body = json.dumps({'files':[{'id':'file1','name':'data.bin','mimeType':'application/octet-stream','size':str(len(self.content)),'version':self.version,'capabilities':{'canDownload':True,'canModifyContent':getattr(self,'can_modify',True),'canRename':True,'canDelete':True}}]}).encode()
+            body = json.dumps({'files':[{'id':'file1','name':'data.bin','mimeType':'application/octet-stream','size':str(len(self.content)),'version':self.version,'capabilities':{'canDownload':True,'canModifyContent':getattr(self,'can_modify',True),'canRename':True,'canTrash':getattr(self,'can_trash',True),'canDelete':getattr(self,'can_delete',True)}}]}).encode()
         elif 'alt=media' in url:
             if 'Range' in p['headers']:
                 value = p['headers']['Range'].removeprefix('bytes=')
@@ -197,7 +197,7 @@ class Fixture:
         else:
             assert '/files/file1?' in url, url
             headers['etag'] = f'"{self.version}"'
-            body = json.dumps({'id':'file1','size':str(len(self.content)),'mimeType':'application/octet-stream','version':self.version,'capabilities':{'canEdit':True,'canModifyContent':getattr(self,'can_modify',True),'canDownload':True,'canRename':True,'canDelete':True}}).encode()
+            body = json.dumps({'id':'file1','size':str(len(self.content)),'mimeType':'application/octet-stream','version':self.version,'capabilities':{'canEdit':True,'canModifyContent':getattr(self,'can_modify',True),'canDownload':True,'canRename':True,'canTrash':getattr(self,'can_trash',True),'canDelete':getattr(self,'can_delete',True)}}).encode()
         stream = f'http-{len(self.streams)}'
         self.streams[stream] = body
         return {'stream':stream,'status':status,'headers':headers}
@@ -239,6 +239,15 @@ def main():
         f.can_modify = False
         operations = call('vfs.discover',nodeId='file1')['result']['operations']
         assert 'read' in operations and 'write' not in operations
+        assert 'trash' in operations and 'remove' in operations
+        f.can_trash = False
+        operations = call('vfs.discover',nodeId='file1')['result']['operations']
+        assert 'trash' not in operations and 'remove' in operations
+        f.can_trash = True
+        f.can_delete = False
+        operations = call('vfs.discover',nodeId='file1')['result']['operations']
+        assert 'trash' in operations and 'remove' not in operations
+        f.can_delete = True
         assert 'error' in call('vfs.beginWrite',nodeId='file1',size=1,ifRevision='1')
         f.can_modify = True
         entries = call('vfs.list',nodeId='',cursor='0')['result']['entries']

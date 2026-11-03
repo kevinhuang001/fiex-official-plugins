@@ -132,6 +132,7 @@ impl VfsProvider for Drive {
             sdk::filesystem::FsOperation::Write,
             sdk::filesystem::FsOperation::Mkdir,
             sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Trash,
             sdk::filesystem::FsOperation::Remove,
         ]
     }
@@ -162,6 +163,10 @@ impl VfsProvider for Drive {
 
     fn remove(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
         mutate::remove(request)
+    }
+
+    fn trash(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
+        mutate::trash(request)
     }
 }
 

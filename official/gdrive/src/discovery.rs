@@ -55,7 +55,7 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
             operations.push(FsOperation::Rename);
         }
         if caps["canDelete"] == true {
-            operations.push(FsOperation::Remove);
+            operations.extend([FsOperation::Trash, FsOperation::Remove]);
         }
     }
     operations
@@ -107,7 +107,11 @@ mod tests {
         let folder = json!({"mimeType":"application/vnd.google-apps.folder","capabilities":{"canListChildren":true,"canAddChildren":true,"canDelete":true}});
         let ops = operations(&folder, true);
         assert!(ops.contains(&FsOperation::List) && ops.contains(&FsOperation::Mkdir));
-        assert!(!ops.contains(&FsOperation::Read) && !ops.contains(&FsOperation::Remove));
+        assert!(
+            !ops.contains(&FsOperation::Read)
+                && !ops.contains(&FsOperation::Trash)
+                && !ops.contains(&FsOperation::Remove)
+        );
         let document = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":true,"canModifyContent":true}});
         assert_eq!(
             operations(&document, false),
@@ -122,5 +126,16 @@ mod tests {
         assert_eq!(operations(&shortcut, false), vec![FsOperation::Stat]);
         let blocked = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":false}});
         assert_eq!(operations(&blocked, false), vec![FsOperation::Stat]);
+    }
+
+    #[test]
+    fn deletable_drive_items_advertise_recoverable_trash_and_permanent_remove() {
+        let file = json!({"mimeType":"text/plain","capabilities":{"canDelete":true}});
+        assert_eq!(
+            operations(&file, false),
+            vec![FsOperation::Stat, FsOperation::Trash, FsOperation::Remove]
+        );
+        let protected = json!({"mimeType":"text/plain","capabilities":{"canDelete":false}});
+        assert_eq!(operations(&protected, false), vec![FsOperation::Stat]);
     }
 }

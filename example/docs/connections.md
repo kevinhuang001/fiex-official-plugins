@@ -37,7 +37,7 @@ NavigationTarget: { kind: "vfs" } | { kind: "pluginView" }
       { "id": "server", "label": "地址", "type": "text", "required": true }
     ]
   },
-  "vfs": { "title": "示例文件", "readOnly": true }
+  "vfs": { "title": "示例文件" }
 }
 ```
 

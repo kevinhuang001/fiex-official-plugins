@@ -1626,14 +1626,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fiex-provider-contracts"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "fiex-plugin-sdk"
 version = "0.3.4"
 dependencies = [
@@ -1657,6 +1649,14 @@ dependencies = [
  "serde_json",
  "url",
  "urlencoding",
+]
+
+[[package]]
+name = "fiex-provider-contracts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

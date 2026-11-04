@@ -59,7 +59,8 @@ fn main() {
     assert!(names.contains(&"hello.txt"), "{names:?}");
     assert!(names.contains(&"big.bin"), "{names:?}");
     assert!(names.contains(&"sub"), "{names:?}");
-    assert!(listing.virtual_volume && listing.read_only);
+    assert!(listing.virtual_volume && listing.allowed_ops.contains(&"list".into()));
+    assert!(!listing.allowed_ops.contains(&"write".into()));
     assert!(!info.mount_path.is_empty());
 
     let hello = format!("{}/hello.txt", info.mount_path);

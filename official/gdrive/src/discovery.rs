@@ -6,10 +6,10 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 use sdk::filesystem::FsOperation;
 
 pub(super) fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Vfs(request) => request,
-        _ => return Err(RpcError::invalid_params("missing VFS discovery request")),
-    };
+    let request = ctx
+        .input()?
+        .vfs_request()
+        .ok_or_else(|| RpcError::invalid_params("missing VFS request"))?;
     let connection = request
         .connection_value()
         .map_err(RpcError::invalid_params)?
@@ -53,6 +53,9 @@ pub(super) fn operations(file: &Value, root: bool) -> Vec<FsOperation> {
     if !root {
         if caps["canRename"] == true {
             operations.push(FsOperation::Rename);
+        }
+        if caps["canTrash"] == true {
+            operations.push(FsOperation::Trash);
         }
         if caps["canDelete"] == true {
             operations.push(FsOperation::Remove);
@@ -107,7 +110,11 @@ mod tests {
         let folder = json!({"mimeType":"application/vnd.google-apps.folder","capabilities":{"canListChildren":true,"canAddChildren":true,"canDelete":true}});
         let ops = operations(&folder, true);
         assert!(ops.contains(&FsOperation::List) && ops.contains(&FsOperation::Mkdir));
-        assert!(!ops.contains(&FsOperation::Read) && !ops.contains(&FsOperation::Remove));
+        assert!(
+            !ops.contains(&FsOperation::Read)
+                && !ops.contains(&FsOperation::Trash)
+                && !ops.contains(&FsOperation::Remove)
+        );
         let document = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":true,"canModifyContent":true}});
         assert_eq!(
             operations(&document, false),
@@ -122,5 +129,30 @@ mod tests {
         assert_eq!(operations(&shortcut, false), vec![FsOperation::Stat]);
         let blocked = json!({"mimeType":"application/vnd.google-apps.document","capabilities":{"canDownload":false}});
         assert_eq!(operations(&blocked, false), vec![FsOperation::Stat]);
+    }
+
+    #[test]
+    fn trash_and_remove_follow_independent_drive_capabilities() {
+        let both =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":true,"canDelete":true}});
+        assert_eq!(
+            operations(&both, false),
+            vec![FsOperation::Stat, FsOperation::Trash, FsOperation::Remove]
+        );
+        let trash_only =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":true,"canDelete":false}});
+        assert_eq!(
+            operations(&trash_only, false),
+            vec![FsOperation::Stat, FsOperation::Trash]
+        );
+        let remove_only =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":false,"canDelete":true}});
+        assert_eq!(
+            operations(&remove_only, false),
+            vec![FsOperation::Stat, FsOperation::Remove]
+        );
+        let protected =
+            json!({"mimeType":"text/plain","capabilities":{"canTrash":false,"canDelete":false}});
+        assert_eq!(operations(&protected, false), vec![FsOperation::Stat]);
     }
 }

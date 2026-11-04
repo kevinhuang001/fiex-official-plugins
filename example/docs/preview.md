@@ -26,7 +26,7 @@ Preview 在用户点击“快速查看”时调用，固定事件为 `preview.op
 struct ExamplePreview;
 
 impl sdk::PreviewProvider for ExamplePreview {
-    fn open(&self, _ctx: &sdk::RequestContext)
+    fn open(&self, _ctx: &dyn sdk::ProviderInvocation)
         -> Result<sdk::PreviewView, RpcError>
     {
         Ok(sdk::PreviewView::html("ui/preview.html"))
@@ -43,6 +43,20 @@ Ok(sdk::PreviewView {
     text: Some("预览内容".into()),
     message: None,
     state: Value::Null,
+    html: None,
+    path: None,
+    name: None,
+    mime: None,
+    media: None,
+    extension: None,
+    truncated: None,
+    size: None,
+    entry: None,
+    session_id: None,
+    plugin_id: None,
+    contribution_id: None,
+    timeout_ms: None,
+    context: None,
 })
 ```
 

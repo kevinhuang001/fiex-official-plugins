@@ -126,8 +126,7 @@ fn main() {
         }],
     );
     assert_eq!(decorated.len(), 1, "{decorated:?}");
-    // Badges live on the value cells since decorations can target columns; the
-    // filename cell keeps the legacy top-level meaning.
+    // Badges live on the value cells since decorations can target columns.
     let name = decorated[0]
         .fields
         .get("name")

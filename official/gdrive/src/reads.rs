@@ -4,9 +4,7 @@ use std::io::Read;
 
 pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection_value()?
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let token = token(&ctx.http(), &cfg)?;
     // An empty node id is the mount root.
     let id = request
@@ -16,12 +14,7 @@ pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     node(id)?;
     let query = format!("'{id}' in parents and trashed = false");
     let cursor = request.cursor().filter(|s| *s != "0").unwrap_or("");
-    let limit = request
-        .to_params()?
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(500)
-        .clamp(1, 500);
+    let limit = request.limit().clamp(1, 500);
     let url = format!("{API}/files?q={}&fields=nextPageToken,files({FILE_FIELDS})&pageSize={limit}&pageToken={}&supportsAllDrives=true&includeItemsFromAllDrives=true",
         urlencoding::encode(&query), urlencoding::encode(cursor));
     let page: Value = http_request(&ctx.http(), &token, "GET", &url)
@@ -45,9 +38,7 @@ pub(super) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
 
 pub(super) fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection_value()?
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let token = token(&ctx.http(), &cfg)?;
     let id = request
         .node_id()
@@ -59,9 +50,7 @@ pub(super) fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
 
 pub(super) fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection_value()?
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let token = token(&ctx.http(), &cfg)?;
     let id = node(
         request

@@ -35,10 +35,7 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     let p = ctx.params();
     match method {
-        "email.test" => {
-            let settings = settings(&ctx, p)?;
-            test_mailbox(&ctx, &settings)
-        }
+        "email.test" => test_mailbox(&ctx, settings(&ctx, p)?),
         "email.list" => {
             let settings = settings(&ctx, p)?;
             let limit = p
@@ -90,8 +87,8 @@ pub fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     }
 }
 
-fn test_mailbox(ctx: &dyn sdk::ProviderInvocation, settings: &Settings) -> Result<Value, RpcError> {
-    let mut session = imap_session(ctx, settings).map_err(RpcError::internal)?;
+fn test_mailbox(ctx: &dyn sdk::ProviderInvocation, settings: Settings) -> Result<Value, RpcError> {
+    let mut session = imap_session(ctx, &settings).map_err(RpcError::internal)?;
     let _ = session
         .select("INBOX")
         .map_err(|error| RpcError::internal(error.to_string()))?;
@@ -115,25 +112,26 @@ impl sdk::ConnectionProvider for EmailConnection {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::ConnectionValidation, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::Connection(request) => request,
-            _ => return Err(RpcError::invalid_params("expected connection request")),
-        };
+        let request = ctx
+            .input()?
+            .connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
         let connection = request
             .connection_value()
             .map_err(RpcError::invalid_params)?
             .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
         let settings = Settings::from_connection(&connection).map_err(RpcError::invalid_params)?;
-        test_mailbox(ctx, &settings).map(|_| sdk::ConnectionValidation::valid())
+        test_mailbox(ctx, settings)?;
+        Ok(sdk::ConnectionValidation::valid())
     }
     fn open(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::ConnectionOpenResult, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::Connection(request) => request,
-            _ => return Err(RpcError::invalid_params("expected connection request")),
-        };
+        let request = ctx
+            .input()?
+            .connection_request()
+            .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
         let connection = request
             .connection_value()
             .map_err(RpcError::invalid_params)?
@@ -142,7 +140,7 @@ impl sdk::ConnectionProvider for EmailConnection {
         let connection_id = request
             .connection_id
             .as_deref()
-            .filter(|value| !value.is_empty())
+            .filter(|id| !id.is_empty())
             .ok_or_else(|| RpcError::invalid_params("missing connectionId"))?;
         Ok(sdk::ConnectionOpenResult::PluginView {
             view: sdk::PackageView {

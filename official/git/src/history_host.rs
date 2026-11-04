@@ -32,23 +32,17 @@ pub fn route(relative: &str, context: &Value) -> Option<Route> {
         relative: relative.into(),
     })
 }
-fn request_route(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Route, String> {
-    let context = match host.input().map_err(|error| error.to_string())? {
-        sdk::ProviderInput::Vfs(request) => serde_json::to_value(
-            request
-                .view_context
-                .as_ref()
-                .ok_or_else(|| crate::i18n::t("缺少 Git 历史上下文"))?,
-        )
-        .map_err(|error| error.to_string())?,
-        _ => return Err(crate::i18n::t("无效历史上下文").into()),
-    };
+fn request_route(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Route, String> {
+    let context = request
+        .view_context()
+        .ok_or_else(|| crate::i18n::t("无效历史上下文"))?;
+    let context = serde_json::to_value(context).map_err(|error| error.to_string())?;
     route(path, &context).ok_or_else(|| crate::i18n::t("无效历史上下文").into())
 }
 /// Providers return opaque node identities; only Core constructs navigation URIs.
 /// The blob path is stable for one commit, so it doubles as the node id.
 pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
-    use sdk::filesystem::{FsEntry, FsKind, FsOperation};
+    use sdk::filesystem::{FsEntry, FsKind};
     let node = entry.path.clone();
     let kind = if entry.is_dir {
         FsKind::Directory
@@ -67,11 +61,7 @@ pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
         mime: Some(entry.mime),
         revision: None,
         link_target: entry.link_target,
-        allowed_ops: Some(if entry.is_dir {
-            vec![FsOperation::List, FsOperation::Stat, FsOperation::Search]
-        } else {
-            vec![FsOperation::Stat, FsOperation::Read]
-        }),
+        allowed_ops: None,
         relative_path: Some(node),
     }
 }
@@ -128,9 +118,10 @@ fn entries(
     hidden: bool,
     ignores: &[String],
     recursive: bool,
-    host: &dyn sdk::ProviderInvocation,
+    request: &sdk::filesystem::FsRequest<'_>,
 ) -> Result<Vec<Entry>, String> {
-    let r = request_route(path, host)?;
+    let host = request.ctx();
+    let r = request_route(path, request)?;
     let object = if r.relative.is_empty() {
         r.commit.clone()
     } else {
@@ -191,22 +182,19 @@ fn entries(
     }
     Ok(values)
 }
-pub fn list(
-    path: &str,
-    hidden: bool,
-    ignores: &[String],
-    host: &dyn sdk::ProviderInvocation,
-) -> Result<Listing, String> {
+pub fn list(request: &sdk::filesystem::FsRequest<'_>) -> Result<Listing, String> {
+    let path = request.node_id().unwrap_or("");
     Ok(Listing {
         virtual_volume: true,
         path: path.into(),
-        entries: entries(path, hidden, ignores, false, host)?,
+        entries: entries(path, request.hidden(), &request.ignores(), false, request)?,
         warnings: vec![],
     })
 }
-pub fn info(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Entry, String> {
+pub fn info(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Entry, String> {
+    let host = request.ctx();
     if path.is_empty() {
-        let r = request_route(path, host)?;
+        let r = request_route(path, request)?;
         run(
             host,
             &r.root,
@@ -228,13 +216,14 @@ pub fn info(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Entry, Str
         });
     }
     let parent = path.rsplit_once('/').map(|(p, _)| p).unwrap_or("");
-    entries(parent, true, &[], false, host)?
+    entries(parent, true, &[], false, request)?
         .into_iter()
         .find(|v| v.path == path)
         .ok_or(crate::i18n::t("历史文件不存在").into())
 }
-pub fn blob(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Vec<u8>, String> {
-    let r = request_route(path, host)?;
+pub fn blob(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Vec<u8>, String> {
+    let host = request.ctx();
+    let r = request_route(path, request)?;
     let object = format!("{}:{}", r.commit, r.relative);
     let result = host
         .process_run_at(&r.root, "git", &["show".into(), object], None)
@@ -244,19 +233,19 @@ pub fn blob(path: &str, host: &dyn sdk::ProviderInvocation) -> Result<Vec<u8>, S
     }
     result.stdout_bytes()
 }
-pub fn search(
-    path: &str,
-    query: &str,
-    hidden: bool,
-    ignores: &[String],
-    host: &dyn sdk::ProviderInvocation,
-) -> Result<Vec<Entry>, String> {
+pub fn search(request: &sdk::filesystem::FsRequest<'_>, query: &str) -> Result<Vec<Entry>, String> {
     let query = query.to_lowercase();
-    Ok(entries(path, hidden, ignores, true, host)?
-        .into_iter()
-        .filter(|v| v.name.to_lowercase().contains(&query))
-        .take(2000)
-        .collect())
+    Ok(entries(
+        request.node_id().unwrap_or(""),
+        request.hidden(),
+        &request.ignores(),
+        true,
+        request,
+    )?
+    .into_iter()
+    .filter(|v| v.name.to_lowercase().contains(&query))
+    .take(2000)
+    .collect())
 }
 #[cfg(test)]
 mod tests {

@@ -131,10 +131,10 @@ pub(crate) fn validate(
     host: &dyn sdk::ProviderInvocation,
     session: &Session,
 ) -> Result<sdk::ConnectionValidation, RpcError> {
-    let request = match host.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
+    let request = host
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
     let connection = request
         .connection_value()
         .map_err(RpcError::invalid_params)?;
@@ -157,7 +157,8 @@ pub(crate) fn validate(
 
 pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListing, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection_value()?.as_ref())?;
+    let connection = request.connection_value()?;
+    let cfg = client::config(connection.as_ref())?;
     let directory = request.node_id().unwrap_or("").to_owned();
     safe_relative(&directory)?;
     let parsed = client::authorized(
@@ -207,12 +208,7 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
     if start > entries.len() {
         return Err(RpcError::invalid_params("cursor out of range"));
     }
-    let limit = request
-        .to_params()?
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let total = entries.len();
     let end = start.saturating_add(limit).min(total);
     let next_cursor = (end < total).then(|| end.to_string());
@@ -227,7 +223,8 @@ pub(crate) fn list(request: &FsRequest<'_>, session: &Session) -> Result<FsListi
 
 pub(crate) fn stat(request: &FsRequest<'_>, session: &Session) -> Result<FsEntry, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection_value()?.as_ref())?;
+    let connection = request.connection_value()?;
+    let cfg = client::config(connection.as_ref())?;
     let node = request.node_id().unwrap_or("");
     safe_relative(node)?;
     stat_node(host, &cfg, session, node)
@@ -262,7 +259,8 @@ pub(crate) fn stat_http(
 
 pub(crate) fn read(request: &FsRequest<'_>, session: &Session) -> Result<FsRead, RpcError> {
     let host = request.ctx();
-    let cfg = client::config(request.connection_value()?.as_ref())?;
+    let connection = request.connection_value()?;
+    let cfg = client::config(connection.as_ref())?;
     let relative = request.node_id().unwrap_or("").to_owned();
     safe_relative(&relative)?;
     if relative.is_empty() {

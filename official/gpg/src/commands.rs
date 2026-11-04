@@ -278,14 +278,14 @@ mod tests;
 pub struct GpgMenu;
 impl sdk::ContextMenuProvider for GpgMenu {
     fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::ContextMenuResolve(request) => request,
-            _ => return Err(RpcError::invalid_params("expected context menu request")),
-        };
         let count = ctx.targets().len();
         if count == 0 {
             return Ok(Vec::new());
         }
+        let request = ctx
+            .input()?
+            .context_menu_resolve()
+            .ok_or_else(|| RpcError::invalid_params("missing context-menu request"))?;
         match request.parent_id.as_deref() {
             None => Ok(vec![sdk::MenuItem::submenu("gpg.menu", "GPG")]),
             Some("gpg.menu") => {
@@ -309,17 +309,10 @@ impl sdk::ContextMenuProvider for GpgMenu {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::MenuExecuteResult, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::ContextMenuExecute(request) => request,
-            _ => {
-                return Err(RpcError::invalid_params(
-                    "expected context menu execution request",
-                ))
-            }
-        };
-        let item = request
-            .item_id
-            .as_deref()
+        let item = ctx
+            .input()?
+            .context_menu_execute()
+            .and_then(|request| request.item_id.as_deref())
             .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
         let (title, width, height) = match item {
             "gpg.encrypt" => (crate::i18n::t("GPG 加密"), 560, 520),
@@ -332,10 +325,13 @@ impl sdk::ContextMenuProvider for GpgMenu {
                 ))
             }
         };
-        Ok(sdk::MenuExecuteResult::Custom(json!({
-            "kind":"panel", "entry":"ui/dist/index.html",
-            "panelId":item, "title":title,
-            "size":{"width":width,"height":height}
-        })))
+        Ok(sdk::MenuExecuteResult::Panel(sdk::PluginPanelAction {
+            kind: sdk::PluginPanelActionKind::Panel,
+            entry: Some("ui/dist/index.html".into()),
+            asset_path: None,
+            panel_id: Some(item.into()),
+            title: Some(title.into()),
+            size: Some(sdk::PluginPanelSize { width, height }),
+        }))
     }
 }

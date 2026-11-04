@@ -17,7 +17,7 @@ use fiex_plugin_sdk::{
 use serde_json::{json, Value};
 
 const API: &str = "https://www.googleapis.com/drive/v3";
-const FILE_FIELDS: &str = "id,name,mimeType,size,version,trashed,capabilities(canEdit,canModifyContent,canDownload,canListChildren,canAddChildren,canRename,canDelete)";
+const FILE_FIELDS: &str = "id,name,mimeType,size,version,trashed,capabilities(canEdit,canModifyContent,canDownload,canListChildren,canAddChildren,canRename,canTrash,canDelete)";
 
 fn error(e: impl std::fmt::Display) -> RpcError {
     RpcError::internal(e.to_string())
@@ -40,6 +40,12 @@ fn node(v: &str) -> Result<&str, RpcError> {
         return Err(RpcError::invalid_params("invalid Drive file ID"));
     }
     Ok(v)
+}
+
+fn connection_config(request: &sdk::filesystem::FsRequest<'_>) -> Result<Value, RpcError> {
+    request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))
 }
 
 fn http_request(
@@ -132,6 +138,7 @@ impl VfsProvider for Drive {
             sdk::filesystem::FsOperation::Write,
             sdk::filesystem::FsOperation::Mkdir,
             sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Trash,
             sdk::filesystem::FsOperation::Remove,
         ]
     }
@@ -163,21 +170,22 @@ impl VfsProvider for Drive {
     fn remove(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
         mutate::remove(request)
     }
+
+    fn trash(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
+        mutate::trash(request)
+    }
 }
 
 fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    let mount_id = request
-        .mount_id
-        .as_deref()
+    let mount = ctx
+        .input()?
+        .connection_request()
+        .and_then(|request| request.mount_id.as_deref())
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
     Ok(sdk::ConnectionOpenResult::Vfs {
-        mount_id: mount_id.into(),
+        mount_id: mount.into(),
         node_ref: sdk::ResourceRef {
-            mount_id: mount_id.into(),
+            mount_id: mount.into(),
             node_id: String::new(),
         },
     })

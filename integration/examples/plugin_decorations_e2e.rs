@@ -42,10 +42,11 @@ fn main() {
         .iter()
         .find(|value| value.path == path.to_string_lossy())
         .expect("archive dynamic decoration missing");
-    let has_zip = decoration.fields.get("name").is_some_and(|field| {
-        field.badges.iter().any(|badge| badge.text == "ZIP")
-    });
-    assert!(has_zip, "{decoration:?}");
+    let name = decoration.fields.get("name").expect("filename decoration");
+    assert!(
+        name.badges.iter().any(|badge| badge.text == "ZIP"),
+        "{decoration:?}"
+    );
     plugin_host::global().stop("org.fiex.archive");
     println!("PASS: dynamic decorations and manifest match rules");
 }

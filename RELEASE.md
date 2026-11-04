@@ -1,8 +1,11 @@
-# Fiex plugins 0.5.10
+# Fiex plugins 0.5.11
+
+- Migrate all changed official providers to the shared typed SDK contracts and align VFS, ContextMenu, Search, Info, Preview, Decoration, Hook, Toolbar, and Connection calls with the unified Core provider pipeline.
+- Publish new patch versions only for the 13 plugins changed by this migration.
 
 - Google Drive native Docs, Sheets and Slides now declare Write and are updated by uploading the exported DOCX/XLSX/PPTX with a Google Workspace conversion target. The editor ID, permissions and location stay unchanged while the full document content is replaced.
 - WebDAV, OpenList and Drive file reads use long-lived HTTP/aria2 timeouts so large downloads do not fail at the old 90–120 second request limit.
-- Providers now use SDK 0.3.3 and the Core Rust aria2 engine; no external aria2c binary is required.
+- Providers now use SDK 0.3.4 and the Core Rust aria2 engine; no external aria2c binary is required.
 
 # Fiex plugins 0.5.9
 
@@ -16,7 +19,7 @@
 # Fiex plugins 0.5.5 — protocol 6
 
 Official storage plugins implement `VfsProvider` over `vfs.*`; Feature plugins use
-ResourceRef-only `Files` over `fs.*`. Deploy with the protocol-6 Core and Rust SDK
+ResourceRef-only `Files` over `host.fs.*`. Deploy with the protocol-6 Core and Rust SDK
 0.3.0. Old protocol-5 packages cannot be activated against this contract.
 
 Checksum, Archive, Data Preview and Office Preview declare their required read
@@ -30,7 +33,7 @@ USB hotplug and external drag/drop still require supported-platform validation.
 
 # Previous plugin release notes
 
-SSH owns its terminal UI and sessions in a self-contained PluginView. Every native plugin uses the typed Providers API with protocol 5 and SDK 0.1.1. CI uses sccache on all Rust jobs and tests actual process protocols, encrypted SSH and installed plugins against Core.
+SSH owns its terminal UI and sessions in a self-contained PluginView. Every native plugin uses the shared typed Providers API with protocol 6 and SDK 0.3.x. CI uses sccache on all Rust jobs and tests actual process protocols, encrypted SSH and installed plugins against Core.
 
 # Fiex plugins 0.5.0
 

@@ -1,6 +1,8 @@
 //! Plugin-owned terminal sessions. Only opaque tokens cross the PluginView bridge.
 use base64::{engine::general_purpose::STANDARD, Engine};
-use fiex_plugin_sdk::RpcError;
+use fiex_plugin_sdk::{
+    ConnectionFieldValue, ConnectionOpenResult, ConnectionSettings, PackageView, RpcError,
+};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -66,11 +68,17 @@ fn sweep(registry: &mut Registry) {
         }
     });
 }
-pub(crate) fn connection_view(params: &Value) -> Result<Value, RpcError> {
-    let connection = params
-        .get("connection")
-        .filter(|v| v.is_object())
-        .ok_or_else(|| RpcError::invalid_params("missing SSH connection"))?;
+pub(crate) fn connection_view(
+    connection: &ConnectionSettings,
+) -> Result<ConnectionOpenResult, RpcError> {
+    let connection_value = connection.to_value().map_err(RpcError::invalid_params)?;
+    let host = connection
+        .get("host")
+        .and_then(|value| match value {
+            ConnectionFieldValue::String(value) => Some(value.as_str()),
+            _ => None,
+        })
+        .unwrap_or("");
     let mut registry = registry().lock().map_err(|_| unavailable())?;
     sweep(&mut registry);
     if registry.pending.len() + registry.active.len() >= 128 {
@@ -79,12 +87,15 @@ pub(crate) fn connection_view(params: &Value) -> Result<Value, RpcError> {
     let id = uuid::Uuid::new_v4().to_string();
     registry
         .pending
-        .insert(id.clone(), (connection.clone(), Instant::now()));
-    Ok(
-        json!({"kind":"pluginView", "view":{"source":"package","entry":"ui/dist/index.html"},
-        "tabTitle":format!("SSH · {}", connection.get("host").and_then(Value::as_str).unwrap_or("")),
-        "state":{"sessionId":id}}),
-    )
+        .insert(id.clone(), (connection_value, Instant::now()));
+    Ok(ConnectionOpenResult::PluginView {
+        view: PackageView {
+            source: "package".into(),
+            entry: "ui/dist/index.html".into(),
+        },
+        tab_title: Some(format!("SSH · {}", host)),
+        state: json!({"sessionId":id}),
+    })
 }
 pub(crate) fn start(id: &str) -> Result<(Value, Terminal), RpcError> {
     let mut registry = registry().lock().map_err(|_| unavailable())?;
@@ -196,12 +207,17 @@ mod tests {
     use super::*;
     #[test]
     fn view_tokens_keep_secrets_private_and_sessions_are_single_use() {
-        let view =
-            connection_view(&json!({"connection":{"host":"example.test","password":"private"}}))
-                .unwrap();
-        assert_eq!(view["kind"], "pluginView");
-        assert_eq!(view["state"].as_object().unwrap().len(), 1);
-        let id = view["state"]["sessionId"].as_str().unwrap();
+        let ConnectionOpenResult::PluginView { state, .. } = connection_view(
+            &serde_json::from_value::<ConnectionSettings>(
+                json!({"host":"example.test","password":"private"}),
+            )
+            .unwrap(),
+        )
+        .unwrap() else {
+            panic!("SSH must open as a package view");
+        };
+        assert_eq!(state.as_object().unwrap().len(), 1);
+        let id = state["sessionId"].as_str().unwrap();
         let (config, terminal) = start(id).unwrap();
         assert_eq!(config["password"], "private");
         assert!(start(id).is_err());
@@ -232,8 +248,13 @@ mod tests {
     }
     #[test]
     fn abandoned_views_and_slow_consumers_are_bounded() {
-        let view = connection_view(&json!({"connection":{"host":"example.test"}})).unwrap();
-        let id = view["state"]["sessionId"].as_str().unwrap();
+        let ConnectionOpenResult::PluginView { state, .. } = connection_view(
+            &serde_json::from_value::<ConnectionSettings>(json!({"host":"example.test"})).unwrap(),
+        )
+        .unwrap() else {
+            panic!("SSH must open as a package view");
+        };
+        let id = state["sessionId"].as_str().unwrap();
         let (_, terminal) = start(id).unwrap();
         assert!(exchange(
             &json!({"sessionId":id,"dataBase64":STANDARD.encode(vec![0;MAX_INPUT+1])})

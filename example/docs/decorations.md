@@ -1,7 +1,7 @@
 # Decorations：动态颜色、badge 与字段样式
 
 Decorations 是只读展示层。Core 在目录变化后调用固定事件
-`decorations.resolve`；manifest 只声明 `match`/`priority`。
+`decorations.resolve`；manifest 只声明统一 `match` 规则和 `priority`。
 
 ## Manifest
 
@@ -11,7 +11,11 @@ Decorations 是只读展示层。Core 在目录变化后调用固定事件
 },
 "extensions": {
   "decorations": {
-    "match": { "extensions": ["md", "txt"], "kinds": ["file"] },
+    "match": {
+      "view": {"types": ["fs"]},
+      "extensions": ["md", "txt"],
+      "kinds": ["file"]
+    },
     "priority": 80
   }
 }
@@ -31,11 +35,18 @@ impl sdk::DecorationProvider for ExampleDecorations {
             let Some(meta) = target.metadata.as_ref() else { continue };
             if meta.name.ends_with(".md") {
                 let mut value = sdk::DecorationContribution::new(target.reference.clone());
-                value.badges.push(sdk::DecorationBadge {
-                    text: "MD".into(), color: "blue".into(), tooltip: Some("Markdown".into()),
+                value.fields.insert("name".into(), sdk::DecorationField {
+                    badges: vec![sdk::DecorationBadge {
+                        text: "MD".into(),
+                        color: "blue".into(),
+                        tooltip: Some("Markdown".into()),
+                    }],
+                    style: sdk::DecorationStyle {
+                        color: Some("#2f6f9f".into()),
+                        font_weight: Some("600".into()),
+                        ..Default::default()
+                    },
                 });
-                value.style.color = Some("#2f6f9f".into());
-                value.style.font_weight = Some("600".into());
                 values.push(value);
             }
         }
@@ -44,7 +55,8 @@ impl sdk::DecorationProvider for ExampleDecorations {
 }
 ```
 
-每项通过 Core 提供的 opaque `ResourceRef` 指向目标；插件不返回路径或名称作为目标。字段级样式用
-`fields.modified/size/kind/row`，规则不变。
+返回项必须用 `ref` 关联本次请求中的 `ResourceRef`；Core 只接受当前可见目标，
+不按文件名或插件提供的路径猜测目标。列样式和徽标都放在
+`fields.name/modified/size/kind/row`。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloDecorations`。

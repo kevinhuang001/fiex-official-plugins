@@ -121,7 +121,7 @@ fn before_open(
     path: &sdk::ResourceRef,
     params: &Value,
     host: &dyn sdk::ProviderInvocation,
-) -> Result<sdk::HookResult, RpcError> {
+) -> Result<sdk::contracts::HookResult, RpcError> {
     let stored = stored_ignores(host, "extractIgnores");
     let ignores = merge_ignores(params, stored);
     let password = params.get("password").and_then(Value::as_str);
@@ -162,7 +162,7 @@ fn before_open(
             while !handle.is_finished() && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(10));
             }
-            Ok(sdk::HookResult { handled: true })
+            Ok(sdk::contracts::HookResult { handled: true })
         }
         Err(error) => {
             let _ = host.log(
@@ -180,7 +180,7 @@ fn before_open(
                 max_total,
                 host.sdk_context(),
             ) {
-                Ok(_) => Ok(sdk::HookResult { handled: true }),
+                Ok(_) => Ok(sdk::contracts::HookResult { handled: true }),
                 Err(error) => {
                     if error != archives::CANCELLED {
                         let _ = host.report_error(
@@ -189,7 +189,7 @@ fn before_open(
                             None,
                         );
                     }
-                    Ok(sdk::HookResult { handled: true })
+                    Ok(sdk::contracts::HookResult { handled: true })
                 }
             }
         }
@@ -260,9 +260,42 @@ fn archive_menu(params: &Value) -> Value {
     json!({"items":[{"id":"archive.compress","title":crate::i18n::t("压缩"),"kind":"submenu"}]})
 }
 
-fn archive_info(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, RpcError> {
-    let target = resources::input(host, p.get("path"))?;
-    let path = &target.reference;
+fn archive_resource(target: &sdk::ResourceContext) -> Value {
+    let Some(metadata) = target.metadata.as_ref() else {
+        return json!({"metadata":{}});
+    };
+    let operations = target
+        .capabilities
+        .operations
+        .iter()
+        .map(|operation| (operation.as_str().to_string(), Value::Bool(true)))
+        .collect::<serde_json::Map<_, _>>();
+    json!({
+        "metadata": {
+            "name": metadata.name,
+            "kind": metadata.kind,
+            "operations": operations,
+        }
+    })
+}
+
+fn archive_menu_input(
+    ctx: &dyn sdk::ProviderInvocation,
+    parent_id: Option<&str>,
+) -> Result<Value, RpcError> {
+    let targets = ctx
+        .targets()
+        .iter()
+        .map(archive_resource)
+        .collect::<Vec<_>>();
+    Ok(json!({"targets":targets,"parentId":parent_id}))
+}
+
+fn archive_info(
+    path: &sdk::ResourceRef,
+    p: &Value,
+    host: &dyn sdk::ProviderInvocation,
+) -> Result<Value, RpcError> {
     let password = p.get("password").and_then(Value::as_str);
     let listing = listing::list(path, password, host.sdk_context()).map_err(RpcError::internal)?;
     let compressed = host
@@ -280,6 +313,7 @@ fn archive_info(p: &Value, host: &dyn sdk::ProviderInvocation) -> Result<Value, 
         .iter()
         .filter_map(|entry| entry.get("size").and_then(Value::as_u64))
         .sum::<u64>();
+    let target = resources::from_params(p, "path", host)?;
     let format = resources::name(&target)?
         .rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_uppercase())
@@ -372,11 +406,13 @@ fn run_operation(
             })?;
             Ok(json!({"taskId": task.id()}))
         }
-        "archive.info" => archive_info(p, host),
+        "archive.info" => {
+            archive_info(&resources::from_params(p, "path", host)?.reference, p, host)
+        }
         "archive.list" => match listing::list(
-            &resources::input(host, p.get("path"))?.reference,
+            &resources::from_params(p, "path", host)?.reference,
             p.get("password").and_then(Value::as_str),
-            host,
+            host.sdk_context(),
         ) {
             Ok(value) => Ok(value),
             Err(message) if listing::looks_encrypted(&message) => Ok(json!({
@@ -390,7 +426,7 @@ fn run_operation(
         "archive.extract" => {
             let stored = stored_ignores(host, "extractIgnores");
             let ignores = merge_ignores(p, stored);
-            let path = resources::input(host, p.get("path"))?.reference;
+            let path = resources::from_params(p, "path", host)?.reference;
             let destination =
                 if let Some(value) = p.get("destination").filter(|value| value.is_object()) {
                     serde_json::from_value::<sdk::ResourceRef>(value.clone())
@@ -527,7 +563,7 @@ impl sdk::InfoProvider for Archive {
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
-        let rows = archive_info(&json!({"path":target.reference}), ctx)?;
+        let rows = archive_info(&target.reference, &json!({}), ctx)?;
         provider_results::section("archive", crate::i18n::t("压缩包"), rows["rows"].clone())
     }
 }
@@ -564,66 +600,64 @@ impl sdk::DecorationProvider for Archive {
                 "xz" | "txz" => "TXZ",
                 _ => continue,
             };
-            let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
-            contribution.badges.push(sdk::DecorationBadge {
-                text: label.into(),
-                color: "neutral".into(),
-                tooltip: Some(crate::i18n::t("压缩包").to_string()),
-            });
-            decorations.push(contribution);
+            let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+            decoration.fields.insert(
+                "name".into(),
+                sdk::DecorationField {
+                    badges: vec![sdk::DecorationBadge {
+                        text: label.into(),
+                        color: "neutral".into(),
+                        tooltip: Some(crate::i18n::t("压缩包").to_string()),
+                    }],
+                    ..Default::default()
+                },
+            );
+            decorations.push(decoration);
         }
         Ok(decorations)
     }
 }
 impl sdk::ContextMenuProvider for Archive {
     fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::ContextMenuResolve(request) => request,
-            _ => return Err(RpcError::invalid_params("expected context menu request")),
-        };
-        let targets = ctx
-            .targets()
-            .iter()
-            .map(|target| {
-                let metadata = target.metadata.as_ref();
-                json!({"metadata": {
-                    "name": metadata.map(|value| value.name.as_str()).unwrap_or(""),
-                    "kind": metadata.map(|value| value.kind.as_str()).unwrap_or(""),
-                    "operations": {
-                        "list": target.capabilities.allows(sdk::contracts::FsOperation::List),
-                        "read": target.capabilities.allows(sdk::contracts::FsOperation::Read)
-                    }
-                }})
-            })
-            .collect::<Vec<_>>();
-        let menu = archive_menu(&json!({"targets": targets, "parentId": request.parent_id}));
-        serde_json::from_value(menu["items"].clone())
+        let parent = ctx
+            .input()?
+            .context_menu_resolve()
+            .ok_or_else(|| RpcError::invalid_params("missing context-menu request"))?
+            .parent_id
+            .clone();
+        let params = archive_menu_input(ctx, parent.as_deref())?;
+        serde_json::from_value(archive_menu(&params)["items"].clone())
             .map_err(|error| RpcError::internal(error.to_string()))
     }
     fn execute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::MenuExecuteResult, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::ContextMenuExecute(request) => request,
-            _ => {
-                return Err(RpcError::invalid_params(
-                    "expected context menu execution request",
-                ))
-            }
-        };
-        let mut params = json!({});
+        let request = ctx
+            .input()?
+            .context_menu_execute()
+            .ok_or_else(|| RpcError::invalid_params("missing context-menu execute request"))?;
+        let mut params = json!({"itemId":request.item_id});
+        if let Some(target) = ctx.targets().first() {
+            params["targets"] = json!([archive_resource(target)]);
+        }
+        params["selectionCount"] = json!(ctx.selection_count());
         let operation = {
-            let item = request
-                .item_id
-                .as_deref()
+            let item = params["itemId"]
+                .as_str()
                 .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
             if item == "archive.advanced" {
-                return Ok(sdk::MenuExecuteResult::Custom(json!({
-                    "kind": "panel", "entry": "ui/dist/index.html",
-                    "panelId": item, "title": crate::i18n::t("高级压缩"),
-                    "size": {"width":400,"height":420}
-                })));
+                return Ok(sdk::MenuExecuteResult::Panel(sdk::PluginPanelAction {
+                    kind: sdk::PluginPanelActionKind::Panel,
+                    entry: Some("ui/dist/index.html".into()),
+                    asset_path: None,
+                    panel_id: Some(item.into()),
+                    title: Some(crate::i18n::t("高级压缩").to_string()),
+                    size: Some(sdk::PluginPanelSize {
+                        width: 400,
+                        height: 420,
+                    }),
+                }));
             }
             let format = match item {
                 "archive.zip" => "zip",
@@ -648,19 +682,25 @@ impl sdk::ContextMenuProvider for Archive {
                 "archive.extract"
             }
         };
-        run_operation(ctx, params, operation).map(sdk::MenuExecuteResult::Custom)
+        let value = run_operation(ctx, params, operation)?;
+        serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))
     }
 }
 impl sdk::HookProvider for Archive {
-    fn invoke(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::HookResult, RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::Hook(request) => request,
-            _ => return Err(RpcError::invalid_params("expected hook request")),
-        };
+    fn invoke(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<sdk::contracts::HookResult, RpcError> {
+        let request = ctx
+            .input()?
+            .hook_request()
+            .ok_or_else(|| RpcError::invalid_params("missing hook request"))?;
         if request.event != "beforeOpen" {
-            return Ok(sdk::HookResult { handled: false });
+            return Ok(sdk::contracts::HookResult { handled: false });
         }
-        let target = resources::input(ctx, None)?;
-        before_open(&target.reference, &Value::Null, ctx)
+        let target = ctx
+            .target()
+            .ok_or_else(|| RpcError::invalid_params("missing hook target"))?;
+        before_open(&target.reference, &json!({}), ctx)
     }
 }

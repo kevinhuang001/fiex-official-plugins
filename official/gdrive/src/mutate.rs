@@ -14,9 +14,7 @@ fn valid_name(name: &str) -> Result<(), RpcError> {
 
 pub(super) fn mkdir(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection_value()?
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let token = token(&ctx.http(), &cfg)?;
     let parent = request.parent_id().unwrap_or("root");
     node(parent)?;
@@ -42,9 +40,7 @@ pub(super) fn mkdir(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
 
 pub(super) fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection_value()?
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let token = token(&ctx.http(), &cfg)?;
     let id = node(
         request
@@ -107,9 +103,7 @@ pub(super) fn rename(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
 
 pub(super) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     let ctx = request.ctx();
-    let cfg = request
-        .connection_value()?
-        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg = connection_config(request)?;
     let token = token(&ctx.http(), &cfg)?;
     let id = node(
         request
@@ -150,5 +144,40 @@ pub(super) fn remove(request: &FsRequest<'_>) -> Result<(), RpcError> {
     .send()
     .and_then(|r| r.error_for_status())
     .map_err(error)?;
+    Ok(())
+}
+
+pub(super) fn trash(request: &FsRequest<'_>) -> Result<(), RpcError> {
+    let ctx = request.ctx();
+    let cfg = request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let token = token(&ctx.http(), &cfg)?;
+    let id = node(
+        request
+            .node_id()
+            .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?,
+    )?;
+    let (file, _) = metadata(&ctx.http(), &token, id)?;
+    if let Some(revision) = request.if_revision() {
+        if file["version"].as_str() != Some(revision) {
+            return Err(error(crate::i18n::t("同步冲突：云端版本已改变")));
+        }
+    }
+    let trashed: Value = http_request(
+        &ctx.http(),
+        &token,
+        "PATCH",
+        &format!("{API}/files/{id}?fields={FIELDS}&supportsAllDrives=true"),
+    )
+    .header("Content-Type", "application/json")
+    .body(json!({"trashed": true}).to_string())
+    .send()
+    .and_then(|response| response.error_for_status())
+    .and_then(|response| response.json())
+    .map_err(error)?;
+    if trashed["trashed"] != true {
+        return Err(error(crate::i18n::t("云端未确认已移入回收站")));
+    }
     Ok(())
 }

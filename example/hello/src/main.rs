@@ -29,11 +29,13 @@ struct HelloConnection;
 fn connection_open(
     ctx: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::ConnectionOpenResult, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    match request.factory_id.as_deref().unwrap_or("") {
+    let request = ctx
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+    let factory = request.factory_id.as_deref().unwrap_or("");
+    let mount = request.mount_id.as_deref().unwrap_or("");
+    match factory {
         // The account factory has no file tree: it returns a full-width
         // pluginView that replaces the right content area.
         "example-account" => Ok(sdk::ConnectionOpenResult::PluginView {
@@ -41,25 +43,21 @@ fn connection_open(
                 source: "package".into(),
                 entry: "ui/account.html".into(),
             },
-            state: json!({"connectionId": request.connection_id}),
+            state: json!({
+                "connectionId": request.connection_id
+            }),
             tab_title: Some("示例账号".into()),
         }),
         // The files factory navigates to Core's native Explorer. Core validates
         // that this plugin registered extensions.vfs and owns the mount.
-        _ => {
-            let mount_id = request
-                .mount_id
-                .as_deref()
-                .ok_or_else(|| RpcError::invalid_params("missing mountId"))?
-                .to_owned();
-            Ok(sdk::ConnectionOpenResult::Vfs {
-                node_ref: sdk::ResourceRef {
-                    mount_id: mount_id.clone(),
-                    node_id: "root".into(),
-                },
-                mount_id,
-            })
-        }
+        _ if mount.is_empty() => Err(RpcError::invalid_params("missing mountId")),
+        _ => Ok(sdk::ConnectionOpenResult::Vfs {
+            mount_id: mount.into(),
+            node_ref: sdk::ResourceRef {
+                mount_id: mount.into(),
+                node_id: "root".into(),
+            },
+        }),
     }
 }
 
@@ -205,19 +203,27 @@ impl sdk::DecorationProvider for HelloDecorations {
             };
             let name = &metadata.name;
             if name.ends_with(".md") {
-                let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
-                contribution.badges.push(sdk::DecorationBadge {
-                    text: "MD".into(),
-                    color: "blue".into(),
-                    tooltip: Some("示例：Markdown 文件".into()),
-                });
-                contribution.style.color = Some("#2f6f9f".into());
-                contribution.style.font_weight = Some("600".into());
-                decorations.push(contribution);
+                let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+                decoration.fields.insert(
+                    "name".into(),
+                    sdk::DecorationField {
+                        badges: vec![sdk::DecorationBadge {
+                            text: "MD".into(),
+                            color: "blue".into(),
+                            tooltip: Some("示例：Markdown 文件".into()),
+                        }],
+                        style: sdk::DecorationStyle {
+                            color: Some("#2f6f9f".into()),
+                            font_weight: Some("600".into()),
+                            ..Default::default()
+                        },
+                    },
+                );
+                decorations.push(decoration);
             }
             if name.contains("todo") {
-                let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
-                contribution.fields.insert(
+                let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+                decoration.fields.insert(
                     "modified".into(),
                     sdk::DecorationField {
                         style: sdk::DecorationStyle {
@@ -227,18 +233,18 @@ impl sdk::DecorationProvider for HelloDecorations {
                         ..Default::default()
                     },
                 );
-                contribution.fields.insert(
+                decoration.fields.insert(
                     "size".into(),
                     sdk::DecorationField {
                         badges: vec![sdk::DecorationBadge {
                             text: "TODO".into(),
                             color: "orange".into(),
-                            tooltip: None,
+                            ..Default::default()
                         }],
                         ..Default::default()
                     },
                 );
-                decorations.push(contribution);
+                decorations.push(decoration);
             }
         }
         Ok(decorations)
@@ -249,57 +255,34 @@ struct HelloMenu;
 
 impl sdk::ContextMenuProvider for HelloMenu {
     fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
-        let parent_id = match ctx.input()? {
-            sdk::ProviderInput::ContextMenuResolve(request) => request.parent_id.as_deref(),
-            _ => return Err(RpcError::invalid_params("missing menu resolve request")),
-        };
-        let action = |id: &str, title: &str, parent_id: Option<&str>| sdk::MenuItem {
-            id: id.into(),
-            title: title.into(),
-            kind: sdk::contracts::MenuItemKind::Action,
-            parent_id: parent_id.map(str::to_owned),
-            icon: None,
-            shortcut: None,
-            disabled: false,
-            danger: false,
-            placement: None,
-            activity: None,
-        };
-        if parent_id == Some("example.more") {
-            return Ok(vec![action(
+        if ctx
+            .input()?
+            .context_menu_resolve()
+            .ok_or_else(|| RpcError::invalid_params("missing context-menu request"))?
+            .parent_id
+            .as_deref()
+            == Some("example.more")
+        {
+            return Ok(vec![sdk::MenuItem::action(
                 "example.copy-path",
                 "示例：复制路径",
-                Some("example.more"),
             )]);
         }
         Ok(vec![
-            action("example.inspect", "示例：检查文件", None),
-            sdk::MenuItem {
-                id: "example.more".into(),
-                title: "示例".into(),
-                kind: sdk::contracts::MenuItemKind::Submenu,
-                parent_id: None,
-                icon: None,
-                shortcut: None,
-                disabled: false,
-                danger: false,
-                placement: None,
-                activity: None,
-            },
+            sdk::MenuItem::action("example.inspect", "示例：检查文件"),
+            sdk::MenuItem::submenu("example.more", "示例"),
         ])
     }
     fn execute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::MenuExecuteResult, RpcError> {
-        let item = match ctx.input()? {
-            sdk::ProviderInput::ContextMenuExecute(request) => {
-                request.item_id.as_deref().map(str::to_owned)
-            }
-            _ => None,
-        }
-        .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
-        if !matches!(item.as_str(), "example.inspect" | "example.copy-path") {
+        let item = ctx
+            .input()?
+            .context_menu_execute()
+            .and_then(|request| request.item_id.as_deref())
+            .ok_or_else(|| RpcError::invalid_params("missing menu itemId"))?;
+        if !matches!(item, "example.inspect" | "example.copy-path") {
             return Err(RpcError::invalid_params("unknown example menu item"));
         }
         Ok(sdk::MenuExecuteResult::Custom(

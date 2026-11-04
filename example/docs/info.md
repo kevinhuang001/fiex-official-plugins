@@ -25,7 +25,7 @@ Info 只在用户点击“显示简介”时调用，固定事件为 `info.resol
 struct ExampleInfo;
 
 impl sdk::InfoProvider for ExampleInfo {
-    fn resolve(&self, ctx: &sdk::RequestContext)
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation)
         -> Result<Vec<sdk::InfoSection>, RpcError>
     {
         let name = ctx.targets().first()

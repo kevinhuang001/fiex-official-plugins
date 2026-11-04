@@ -74,7 +74,6 @@ fn query(
                         .first_or_octet_stream()
                         .to_string()
                 },
-                readonly: false,
                 link_target: None,
                 allowed_ops: Vec::new(),
                 tags: Vec::new(),

@@ -88,16 +88,16 @@ class Fixture:
         if method == 'host.task.finish':
             self.tasks.discard(p['taskId'])
             return None
-        if method == 'fs.openRead':
+        if method == 'host.fs.openRead':
             assert p['ref'] == SOURCE_REF
             self.readers['source-reader'] = self.source
             return {'handle':'source-reader','size':len(self.source)}
-        if method == 'fs.readOpen':
+        if method == 'host.fs.readOpen':
             assert p['handle'] in self.readers
             data = self.readers[p['handle']]
             chunk = data[p['offset']:p['offset']+p['length']]
             return {'base64':base64.b64encode(chunk).decode(),'size':len(chunk),'eof':p['offset']+len(chunk)>=len(data)}
-        if method == 'fs.closeRead':
+        if method == 'host.fs.closeRead':
             self.readers.pop(p['handle'], None)
             return None
         if method == 'host.buffer.create':

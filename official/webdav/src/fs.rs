@@ -9,7 +9,6 @@ use fiex_plugin_sdk::{
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite},
     RpcError,
 };
-use serde_json::Value;
 use std::{
     io,
     sync::{Arc, Mutex},
@@ -87,17 +86,16 @@ fn display_name(path: &str) -> &str {
 pub(crate) fn validate(
     host: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::ConnectionValidation, RpcError> {
-    let request = match host.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    let cfg: StoredConnection = serde_json::from_value(
-        request
-            .connection_value()
-            .map_err(RpcError::invalid_params)?
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+    let request = host
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?;
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg: StoredConnection = serde_json::from_value(connection)
+        .map_err(|error| RpcError::invalid_params(error.to_string()))?;
     let url = format!("{}/", client::webdav_url(&cfg, "").trim_end_matches('/'));
     propfind(&host.http(), &cfg, &url, "", "1")?;
     Ok(sdk::ConnectionValidation::valid())
@@ -122,12 +120,7 @@ pub(crate) fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     if start > nodes.len() {
         return Err(RpcError::invalid_params("cursor out of range"));
     }
-    let limit = request
-        .to_params()?
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let end = start.saturating_add(limit).min(nodes.len());
     let entries = nodes[start..end]
         .iter()

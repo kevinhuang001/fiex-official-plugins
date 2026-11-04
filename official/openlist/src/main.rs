@@ -74,18 +74,15 @@ impl sdk::ConnectionProvider for OpenList {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<sdk::ConnectionOpenResult, sdk::RpcError> {
-        let request = match ctx.input()? {
-            sdk::ProviderInput::Connection(request) => request,
-            _ => return Err(sdk::RpcError::invalid_params("missing connection request")),
-        };
-        let mount_id = request
-            .mount_id
-            .as_deref()
+        let mount = ctx
+            .input()?
+            .connection_request()
+            .and_then(|request| request.mount_id.as_deref())
             .ok_or_else(|| sdk::RpcError::invalid_params("missing mountId"))?;
         Ok(sdk::ConnectionOpenResult::Vfs {
-            mount_id: mount_id.into(),
+            mount_id: mount.into(),
             node_ref: sdk::ResourceRef {
-                mount_id: mount_id.into(),
+                mount_id: mount.into(),
                 node_id: String::new(),
             },
         })

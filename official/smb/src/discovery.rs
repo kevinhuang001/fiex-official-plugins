@@ -5,17 +5,16 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{self as sdk, filesystem::FsOperation, RpcError};
 
 pub fn discover(ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Vfs(request) => request,
-        _ => return Err(RpcError::invalid_params("missing VFS discovery request")),
-    };
-    let cfg: StoredConnection = serde_json::from_value(
-        request
-            .connection_value()
-            .map_err(RpcError::invalid_params)?
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    let request = ctx
+        .input()?
+        .vfs_request()
+        .ok_or_else(|| RpcError::invalid_params("missing VFS request"))?;
+    let connection = request
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg: StoredConnection =
+        serde_json::from_value(connection).map_err(|e| RpcError::invalid_params(e.to_string()))?;
     let node = request
         .node_id
         .as_deref()

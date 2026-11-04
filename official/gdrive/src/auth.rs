@@ -119,11 +119,10 @@ fn browser_authorization(
 pub(super) fn validate(
     ctx: &dyn sdk::ProviderInvocation,
 ) -> Result<sdk::ConnectionValidation, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    let cfg = request
+    let cfg = ctx
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?
         .connection_value()
         .map_err(RpcError::invalid_params)?
         .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
@@ -155,9 +154,8 @@ pub(super) fn validate(
     .send()
     .and_then(|r| r.error_for_status())
     .map_err(error)?;
-    let result = sdk::ConnectionValidation::valid();
     Ok(match refresh {
-        Some(refresh) => result.credential("refreshToken", refresh),
-        None => result,
+        Some(refresh) => sdk::ConnectionValidation::valid().credential("refreshToken", refresh),
+        None => sdk::ConnectionValidation::valid(),
     })
 }

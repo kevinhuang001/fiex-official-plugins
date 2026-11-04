@@ -30,7 +30,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         .invoke(id, "connection.validate", json!({"connection": config}))
         .is_err());
     plugin_host::set_network_domain(id, "127.0.0.1", true).unwrap();
-    let kind = if id == "org.fiex.webdav" { "webdav" } else { "smb" };
+    let kind = if id == "org.fiex.webdav" {
+        "webdav"
+    } else {
+        "smb"
+    };
     let connection = fiex_lib::remote::save_connection(fiex_lib::remote::ConnectionInput {
         id: None,
         name: "Network integration fixture".into(),
@@ -75,7 +79,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     );
     assert_eq!(result["eof"], true);
     plugin_host::global()
-        .invoke(id, "vfs.closeRead", json!({"mountId": mount_id, "streamId": stream}))
+        .invoke(
+            id,
+            "vfs.closeRead",
+            json!({"mountId": mount_id, "streamId": stream}),
+        )
         .unwrap();
     // The anonymous WebDAV fixture does not expose RFC 3744 grants; Core
     // must not infer write permission from the server accepting PUT.
@@ -131,7 +139,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 offset += chunk.len();
             }
             let committed = plugin_host::global()
-                .invoke(id, "vfs.commit", json!({"mountId":mount_id,"streamId":stream}))
+                .invoke(
+                    id,
+                    "vfs.commit",
+                    json!({"mountId":mount_id,"streamId":stream}),
+                )
                 .unwrap();
             assert_ne!(committed["revision"], baseline["revision"]);
             assert!(plugin_host::global()
@@ -169,7 +181,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 contents
             );
             plugin_host::global()
-                .invoke(id, "vfs.closeRead", json!({"mountId": mount_id, "streamId": stream}))
+                .invoke(
+                    id,
+                    "vfs.closeRead",
+                    json!({"mountId": mount_id, "streamId": stream}),
+                )
                 .unwrap();
         }
     }

@@ -22,7 +22,7 @@ fn normalize(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-fn list(host: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::DecorationContribution>, String> {
+fn resolve(host: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::DecorationContribution>, String> {
     let directory = host
         .directory()
         .ok_or("missing directory ref")?
@@ -38,25 +38,37 @@ fn list(host: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::DecorationContrib
         .filter_map(|(path, code)| code.as_str().map(|code| (normalize(path), code.to_owned())))
         .collect::<std::collections::HashMap<_, _>>();
     let mut decorations = Vec::new();
-    for target in host.targets() {
-        let Some(metadata) = target.metadata.as_ref() else {
-            continue;
-        };
-        let Some(code) = statuses.get(&normalize(&metadata.name)) else {
-            continue;
-        };
-        let Some((text, color, tooltip, hex)) = badge(code) else {
-            continue;
-        };
-        let mut contribution = sdk::DecorationContribution::new(target.reference.clone());
-        contribution.badges.push(sdk::DecorationBadge {
-            text: text.into(),
-            color: color.into(),
-            tooltip: Some(tooltip.into()),
-        });
-        contribution.style.color = Some(hex.into());
-        contribution.style.font_weight = Some("600".into());
-        decorations.push(contribution);
+    {
+        for target in host.targets() {
+            let Some(metadata) = target.metadata.as_ref() else {
+                continue;
+            };
+            let name = &metadata.name;
+            let path = name.to_string();
+            let Some(code) = statuses.get(&normalize(&path)) else {
+                continue;
+            };
+            let Some((text, color, tooltip, hex)) = badge(code) else {
+                continue;
+            };
+            let mut decoration = sdk::DecorationContribution::new(target.reference.clone());
+            decoration.fields.insert(
+                "name".into(),
+                sdk::DecorationField {
+                    badges: vec![sdk::DecorationBadge {
+                        text: text.into(),
+                        color: color.into(),
+                        tooltip: Some(tooltip.into()),
+                    }],
+                    style: sdk::DecorationStyle {
+                        color: Some(hex.into()),
+                        font_weight: Some("600".into()),
+                        ..Default::default()
+                    },
+                },
+            );
+            decorations.push(decoration);
+        }
     }
     Ok(decorations)
 }
@@ -67,7 +79,7 @@ impl sdk::DecorationProvider for GitDecorations {
         &self,
         ctx: &dyn sdk::ProviderInvocation,
     ) -> Result<Vec<sdk::DecorationContribution>, sdk::RpcError> {
-        list(ctx).map_err(sdk::RpcError::internal)
+        resolve(ctx).map_err(sdk::RpcError::internal)
     }
 }
 

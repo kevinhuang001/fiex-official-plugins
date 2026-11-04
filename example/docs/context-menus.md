@@ -9,6 +9,7 @@ Core 在右键时调用 `contextMenu.resolve`，用户点击 action 后调用
 "extensions": {
   "contextMenus": {
     "match": {
+      "view": {"types": ["fs"]},
       "selection": "single",
       "extensions": ["txt", "md"],
       "kinds": ["file"]
@@ -25,23 +26,26 @@ Core 在右键时调用 `contextMenu.resolve`，用户点击 action 后调用
 struct ExampleMenu;
 
 impl sdk::ContextMenuProvider for ExampleMenu {
-    fn resolve(&self, ctx: &sdk::RequestContext) -> Result<Vec<Value>, RpcError> {
-        if ctx.params()["parentId"].as_str() == Some("example.more") {
-            return Ok(vec![json!({
-                "id": "example.copy-path",
-                "title": "示例：复制路径",
-                "kind": "action"
-            })]);
+    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::MenuItem>, RpcError> {
+        let request = ctx.input()?.context_menu_resolve()
+            .ok_or_else(|| RpcError::invalid_params("missing menu request"))?;
+        if request.parent_id.as_deref() == Some("example.more") {
+            return Ok(vec![sdk::MenuItem::action(
+                "example.copy-path",
+                "示例：复制路径",
+            )]);
         }
         Ok(vec![
-            json!({"id": "example.inspect", "title": "示例：检查文件", "kind": "action"}),
-            json!({"id": "example.more", "title": "示例", "kind": "submenu"}),
+            sdk::MenuItem::action("example.inspect", "示例：检查文件"),
+            sdk::MenuItem::submenu("example.more", "示例"),
         ])
     }
-    fn execute(&self, ctx: &sdk::RequestContext) -> Result<Value, RpcError> {
-        match ctx.params()["itemId"].as_str() {
+    fn execute(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::MenuExecuteResult, RpcError> {
+        let request = ctx.input()?.context_menu_execute()
+            .ok_or_else(|| RpcError::invalid_params("missing menu request"))?;
+        match request.item_id.as_deref() {
             Some("example.inspect" | "example.copy-path") => {
-                Ok(json!({"ok": true}))
+                Ok(sdk::MenuExecuteResult::Custom(json!({"ok": true})))
             }
             _ => Err(RpcError::invalid_params("unknown menu item")),
         }
@@ -52,5 +56,7 @@ impl sdk::ContextMenuProvider for ExampleMenu {
 - 只能是 `action | submenu | separator`；
 - 子菜单用 `parentId`，不能嵌套 `children`；
 - 菜单查询阶段只有 opaque refs，需要属性时再从 `ctx.targets()` 读。
+- 只在空白处显示的菜单应声明 `"selection": "zero"`；默认 `any` 不限制选择数量，空白处按 Core 提供的目录上下文继续匹配。
+- 多选时每个目标都要满足声明的资源条件。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloMenu`。

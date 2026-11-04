@@ -9,10 +9,10 @@ pub fn discover(
     ctx: &dyn sdk::ProviderInvocation,
     session: &Session,
 ) -> Result<Vec<FsOperation>, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Vfs(request) => request,
-        _ => return Err(RpcError::invalid_params("missing VFS discovery request")),
-    };
+    let request = ctx
+        .input()?
+        .vfs_request()
+        .ok_or_else(|| RpcError::invalid_params("missing VFS request"))?;
     let connection = request
         .connection_value()
         .map_err(RpcError::invalid_params)?;

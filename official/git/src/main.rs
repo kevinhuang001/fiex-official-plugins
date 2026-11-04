@@ -40,21 +40,13 @@ fn response<T: serde::Serialize>(result: Result<T, String>) -> Result<Value, Rpc
 }
 
 fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
-    let host = request.ctx();
-    let path = request.node_id().unwrap_or("");
-    let result = history_host::list(path, request.hidden(), &request.ignores(), host)
-        .map_err(RpcError::internal)?;
+    let result = history_host::list(request).map_err(RpcError::internal)?;
     let start = request
         .cursor()
         .unwrap_or("0")
         .parse::<usize>()
         .map_err(|_| RpcError::invalid_params("invalid cursor"))?;
-    let limit = request
-        .to_params()?
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let total = result.entries.len();
     if start > total {
         return Err(RpcError::invalid_params("cursor out of range"));
@@ -74,7 +66,7 @@ fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
 
 fn stat(request: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
     let path = request.node_id().unwrap_or("");
-    history_host::info(path, request.ctx())
+    history_host::info(path, request)
         .map(history_host::fs_entry)
         .map_err(RpcError::internal)
 }
@@ -83,31 +75,16 @@ fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
     let path = request
         .node_id()
         .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?;
-    let bytes = history_host::blob(path, request.ctx()).map_err(RpcError::internal)?;
+    let bytes = history_host::blob(path, request).map_err(RpcError::internal)?;
     Ok(FsRead::from_bytes(bytes))
 }
 
 fn search(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
-    let path = request
-        .node_id()
-        .ok_or_else(|| RpcError::invalid_params("missing nodeId"))?;
     let query = request
         .query()
         .ok_or_else(|| RpcError::invalid_params("missing query"))?;
-    let limit = request
-        .to_params()?
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(500)
-        .clamp(1, 2000) as usize;
-    let mut entries = history_host::search(
-        path,
-        query,
-        request.hidden(),
-        &request.ignores(),
-        request.ctx(),
-    )
-    .map_err(RpcError::internal)?;
+    let limit = request.limit().clamp(1, 2000);
+    let mut entries = history_host::search(request, query).map_err(RpcError::internal)?;
     let truncated = entries.len() > limit;
     entries.truncate(limit);
     Ok(FsListing {

@@ -1,17 +1,16 @@
 //! SMB protocol implementation. All socket operations are brokered by Core.
+use fiex_plugin_sdk::ProviderInvocationExt;
 mod discovery;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod sync;
 mod transport;
-use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, FsWrite, VfsProvider},
     RpcError,
 };
 use serde::Deserialize;
-use serde_json::Value;
 use smb::{GetLen, ReadAt};
 use std::{io, str::FromStr};
 
@@ -179,12 +178,10 @@ fn revision(file: &smb::File) -> Result<String, RpcError> {
 }
 
 fn connection(request: &FsRequest<'_>) -> Result<StoredConnection, RpcError> {
-    serde_json::from_value(
-        request
-            .connection_value()?
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|e| RpcError::invalid_params(e.to_string()))
+    let connection = request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    serde_json::from_value(connection).map_err(|e| RpcError::invalid_params(e.to_string()))
 }
 
 fn directory_entries(
@@ -260,12 +257,7 @@ fn list(request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
     if start > entries.len() {
         return Err(fail("invalid pagination cursor"));
     }
-    let limit = request
-        .to_params()?
-        .get("limit")
-        .and_then(Value::as_u64)
-        .unwrap_or(200)
-        .clamp(1, 500) as usize;
+    let limit = request.limit().clamp(1, 500);
     let end = start.saturating_add(limit).min(entries.len());
     let next_cursor = (end < entries.len()).then(|| end.to_string());
     Ok(FsListing {
@@ -530,35 +522,30 @@ fn read(request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
 }
 
 fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    let mount_id = request
-        .mount_id
-        .as_deref()
+    let mount = ctx
+        .input()?
+        .connection_request()
+        .and_then(|request| request.mount_id.as_deref())
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
     Ok(sdk::ConnectionOpenResult::Vfs {
-        mount_id: mount_id.into(),
+        mount_id: mount.into(),
         node_ref: sdk::ResourceRef {
-            mount_id: mount_id.into(),
+            mount_id: mount.into(),
             node_id: String::new(),
         },
     })
 }
 
 fn validate(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionValidation, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    let cfg: StoredConnection = serde_json::from_value(
-        request
-            .connection_value()
-            .map_err(RpcError::invalid_params)?
-            .ok_or_else(|| RpcError::invalid_params("missing connection"))?,
-    )
-    .map_err(|e| RpcError::invalid_params(e.to_string()))?;
+    let connection = ctx
+        .input()?
+        .connection_request()
+        .ok_or_else(|| RpcError::invalid_params("missing connection request"))?
+        .connection_value()
+        .map_err(RpcError::invalid_params)?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))?;
+    let cfg: StoredConnection =
+        serde_json::from_value(connection).map_err(|e| RpcError::invalid_params(e.to_string()))?;
     safe_relative(&cfg.base)?;
     directory_entries(&ctx.tcp(), &cfg, "")?;
     Ok(sdk::ConnectionValidation::valid())

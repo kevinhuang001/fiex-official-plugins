@@ -42,6 +42,12 @@ fn node(v: &str) -> Result<&str, RpcError> {
     Ok(v)
 }
 
+fn connection_config(request: &sdk::filesystem::FsRequest<'_>) -> Result<Value, RpcError> {
+    request
+        .connection_value()?
+        .ok_or_else(|| RpcError::invalid_params("missing connection"))
+}
+
 fn http_request(
     http: &sdk::HttpClient,
     token: &str,
@@ -171,18 +177,15 @@ impl VfsProvider for Drive {
 }
 
 fn open(ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ConnectionOpenResult, RpcError> {
-    let request = match ctx.input()? {
-        sdk::ProviderInput::Connection(request) => request,
-        _ => return Err(RpcError::invalid_params("missing connection request")),
-    };
-    let mount_id = request
-        .mount_id
-        .as_deref()
+    let mount = ctx
+        .input()?
+        .connection_request()
+        .and_then(|request| request.mount_id.as_deref())
         .ok_or_else(|| RpcError::invalid_params("missing mountId"))?;
     Ok(sdk::ConnectionOpenResult::Vfs {
-        mount_id: mount_id.into(),
+        mount_id: mount.into(),
         node_ref: sdk::ResourceRef {
-            mount_id: mount_id.into(),
+            mount_id: mount.into(),
             node_id: String::new(),
         },
     })

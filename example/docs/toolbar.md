@@ -30,7 +30,7 @@ Toolbar 有两种形态：`panel` 打开插件 HTML；没有 panel 时 Core 固�
 struct ExampleToolbar;
 
 impl sdk::ToolbarProvider for ExampleToolbar {
-    fn invoke(&self, _ctx: &sdk::ProviderInvocation) -> Result<sdk::ToolbarResult, RpcError> {
+    fn invoke(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::ToolbarResult, RpcError> {
         Ok(sdk::ToolbarResult::default())
     }
 }

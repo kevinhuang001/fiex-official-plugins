@@ -155,7 +155,7 @@ jobs:
           # Test cross-repository changes with the Core branch they depend on.
           case "$PLUGIN_HEAD_REF" in
             perf/aria2-adaptive-provider-reads-20261030) core_branch=perf/aria2-engine-and-streams-20261030 ;;
-            codex/view-excludes-20261102) core_branch=codex/menu-performance-20261102 ;;
+            codex/view-excludes-20261102|codex/unified-provider-plugins-20261101) core_branch=codex/provider-runtime-unification-20261104 ;;
             *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
           esac
           if git -C core fetch --depth=1 origin "$core_branch"; then

@@ -60,7 +60,6 @@ pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
         extension: (!entry.extension.is_empty()).then_some(entry.extension),
         mime: Some(entry.mime),
         revision: None,
-        readonly: Some(true),
         link_target: entry.link_target,
         allowed_ops: None,
         relative_path: Some(node),

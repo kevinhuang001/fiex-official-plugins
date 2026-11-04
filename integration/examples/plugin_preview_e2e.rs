@@ -95,10 +95,7 @@ fn main() {
     let (context, scope) = events::resource_scope(
         &plugin,
         "preview.open",
-        json!({
-            "sessionId": "integration-preview-session",
-            "providerId": "plugin:org.fiex.archive"
-        }),
+        json!({"sessionId": "integration-preview-session"}),
         std::slice::from_ref(&resource),
         None,
     )

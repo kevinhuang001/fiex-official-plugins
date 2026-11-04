@@ -128,6 +128,7 @@
   "同步冲突：上传期间远端已修改": "Sync conflict: remote version changed during upload",
   "同步冲突：云端版本已改变": "Sync conflict: cloud version changed",
   "同步冲突：远端已修改": "Sync conflict: remote version changed",
+  "云端未确认已移入回收站": "The cloud service did not confirm that the item was moved to Trash",
   "同步分支": "Sync branch",
   "名称": "Name",
   "否": "No",

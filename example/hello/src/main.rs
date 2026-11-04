@@ -85,8 +85,7 @@ impl sdk::ConnectionProvider for HelloConnection {
 fn readme() -> FsEntry {
     let mut entry = FsEntry::file("readme", "README.md")
         .with_size(HELLO.len() as u64)
-        .with_revision("1")
-        .readonly();
+        .with_revision("1");
     entry.modified = Some(0);
     entry.extension = Some("md".into());
     entry.mime = Some("text/markdown".into());
@@ -94,7 +93,7 @@ fn readme() -> FsEntry {
 }
 
 fn docs() -> FsEntry {
-    let mut entry = FsEntry::directory("docs", "docs").readonly();
+    let mut entry = FsEntry::directory("docs", "docs");
     entry.modified = Some(0);
     entry.size = Some(0);
     entry

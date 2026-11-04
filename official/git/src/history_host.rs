@@ -60,7 +60,6 @@ pub fn fs_entry(entry: Entry) -> sdk::filesystem::FsEntry {
         extension: (!entry.extension.is_empty()).then_some(entry.extension),
         mime: Some(entry.mime),
         revision: None,
-        readonly: Some(true),
         link_target: entry.link_target,
         allowed_ops: None,
         relative_path: Some(node),
@@ -176,7 +175,6 @@ fn entries(
                     .first_or_octet_stream()
                     .to_string()
             },
-            readonly: true,
             link_target: None,
             tags: vec![],
             sync: None,
@@ -187,7 +185,6 @@ fn entries(
 pub fn list(request: &sdk::filesystem::FsRequest<'_>) -> Result<Listing, String> {
     let path = request.node_id().unwrap_or("");
     Ok(Listing {
-        read_only: true,
         virtual_volume: true,
         path: path.into(),
         entries: entries(path, request.hidden(), &request.ignores(), false, request)?,
@@ -213,7 +210,6 @@ pub fn info(path: &str, request: &sdk::filesystem::FsRequest<'_>) -> Result<Entr
             created: 0,
             extension: String::new(),
             mime: "inode/directory".into(),
-            readonly: true,
             link_target: None,
             tags: vec![],
             sync: None,

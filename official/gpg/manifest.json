@@ -27,7 +27,19 @@
     }
   },
   "extensions": {
-    "contextMenus": true,
+    "contextMenus": {
+      "match": {
+        "exclude": {
+          "view": {
+            "providerIds": [
+              "core:applications",
+              "core:trash",
+              "core:recent"
+            ]
+          }
+        }
+      }
+    },
     "toolbar": {
       "title": "钥匙串",
       "icon": "key-round",

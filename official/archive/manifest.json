@@ -66,7 +66,19 @@
     }
   },
   "extensions": {
-    "contextMenus": true,
+    "contextMenus": {
+      "match": {
+        "exclude": {
+          "view": {
+            "providerIds": [
+              "core:applications",
+              "core:trash",
+              "core:recent"
+            ]
+          }
+        }
+      }
+    },
     "settings": [
       {
         "id": "compressIgnores",

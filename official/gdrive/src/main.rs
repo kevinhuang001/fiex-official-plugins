@@ -17,7 +17,7 @@ use fiex_plugin_sdk::{
 use serde_json::{json, Value};
 
 const API: &str = "https://www.googleapis.com/drive/v3";
-const FILE_FIELDS: &str = "id,name,mimeType,size,version,trashed,capabilities(canEdit,canModifyContent,canDownload,canListChildren,canAddChildren,canRename,canDelete)";
+const FILE_FIELDS: &str = "id,name,mimeType,size,version,trashed,capabilities(canEdit,canModifyContent,canDownload,canListChildren,canAddChildren,canRename,canTrash,canDelete)";
 
 fn error(e: impl std::fmt::Display) -> RpcError {
     RpcError::internal(e.to_string())
@@ -138,6 +138,7 @@ impl VfsProvider for Drive {
             sdk::filesystem::FsOperation::Write,
             sdk::filesystem::FsOperation::Mkdir,
             sdk::filesystem::FsOperation::Rename,
+            sdk::filesystem::FsOperation::Trash,
             sdk::filesystem::FsOperation::Remove,
         ]
     }
@@ -168,6 +169,10 @@ impl VfsProvider for Drive {
 
     fn remove(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
         mutate::remove(request)
+    }
+
+    fn trash(&self, request: &FsRequest<'_>) -> Result<(), RpcError> {
+        mutate::trash(request)
     }
 }
 

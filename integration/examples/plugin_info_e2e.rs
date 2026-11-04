@@ -85,7 +85,7 @@ fn main() {
             "ignores": []
         }),
         root.to_str().unwrap(),
-        &[file.clone(), archive.clone()],
+        &[file.clone(), archive.clone(), root.clone()],
     )
     .expect("compress failed");
     let task_id = started["taskId"].as_str().expect("compress task id");

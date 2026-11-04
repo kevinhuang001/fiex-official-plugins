@@ -27,6 +27,7 @@
 | `write` | `vfs.beginWrite` / `vfs.writeStream` / `vfs.commit` / `vfs.abort` | `vfs.commit` 返回 `FsEntry` |
 | `mkdir` | `vfs.mkdir` | 新建的文件夹 `FsEntry` |
 | `rename` | `vfs.rename` | 新名称/父目录下的 `FsEntry` |
+| `trash` | `vfs.trash` | 使用 Drive `trashed=true` 移入可恢复的回收站 |
 | `remove` | `vfs.remove` | 空文件夹或文件删除成功；非空文件夹明确拒绝 |
 
 上传使用 `vfs.beginWrite({nodeId, size, ifRevision})`：Core 通过标准 `Write` 分块写入，插件以 256 KiB 为界边收边执行 resumable PATCH；`vfs.commit` 校验版本与 ETag 后发送最后一块、读取提交后的元数据并返回 `FsEntry`。没有 `writeMode`、`sync` 或 `conflictControl` 配置字段。

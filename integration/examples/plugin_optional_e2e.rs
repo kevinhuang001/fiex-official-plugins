@@ -89,7 +89,10 @@ fn main() {
                 "ignores": []
             }),
             root.to_str().unwrap(),
-            &[file.clone(), archive.clone()],
+            // Direct method invocation bypasses the context-menu event's
+            // explicit output-directory binding. Select the output folder so
+            // the background task receives a scoped parent for file creation.
+            &[file.clone(), archive.clone(), root.clone()],
         )
         .expect("compress failed");
         let task_id = created["taskId"].as_str().expect("compress task id");

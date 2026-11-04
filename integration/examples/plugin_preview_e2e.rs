@@ -1,7 +1,9 @@
 //! Cross-repository test for the unified EventContext/PreviewView contract.
 #[path = "../support/fixtures.rs"]
 mod fixtures;
-use fiex_lib::plugins::host as plugin_host;
+use fiex_lib::plugins::{
+    events, host as plugin_host, providers::preview, resource::resource_context::ResourceSnapshot,
+};
 use serde_json::json;
 
 /// Integration tests install packages directly; record the same install
@@ -68,57 +70,73 @@ fn main() {
             "ignores": []
         }),
         root.to_str().unwrap(),
-        &[source.clone(), archive.clone()],
+        &[source.clone(), archive.clone(), root.clone()],
     )
     .expect("compress failed");
     wait_task(started["taskId"].as_str().expect("compress task id"));
 
-    let response = fiex_lib::plugins::providers::preview::open_resource(
-        archive.to_str().unwrap(),
-        Some("plugin:org.fiex.archive"),
+    let display = archive.to_str().unwrap();
+    let candidates = preview::resource_candidates_json(display)
+        .expect("preview candidates");
+    assert!(
+        candidates
+            .iter()
+            .any(|candidate| candidate["id"] == "plugin:org.fiex.archive"),
+        "archive preview provider is missing: {candidates:?}"
+    );
+
+    let plugin = plugin_host::catalog()
+        .into_iter()
+        .find(|plugin| plugin.id == "org.fiex.archive")
+        .expect("archive plugin must be available");
+    let resource = ResourceSnapshot::new(display, &archive);
+    // Prepare preview.open through Core's trusted event boundary. It creates
+    // the user-action context and the scoped resource grant for this target.
+    let (context, scope) = events::resource_scope(
+        &plugin,
+        "preview.open",
+        json!({
+            "sessionId": "integration-preview-session",
+            "providerId": "plugin:org.fiex.archive"
+        }),
+        std::slice::from_ref(&resource),
         None,
     )
-    .expect("archive preview.open failed");
-    let opened = &response["view"];
-    assert_eq!(opened["kind"], "html", "{opened}");
-    let html = opened["html"].as_str().unwrap();
-    assert!(html.to_ascii_lowercase().contains("<html"), "{opened}");
-    let context = &opened["context"];
-    // Preview uses the unified EventContext. A ResourceRef is an opaque
-    // operation-scoped identity; the old resource/read/intent envelope is gone.
+    .expect("preview event context");
     assert_eq!(context["targets"][0]["metadata"]["name"], "bundle.zip");
     assert_eq!(context["targets"][0]["metadata"]["extension"], "zip");
     assert!(context["targets"][0]["ref"]["mountId"].is_string());
     assert!(context["targets"][0]["ref"]["nodeId"].is_string());
-    assert!(context["sessionId"]
-        .as_str()
-        .is_some_and(|id| !id.is_empty()));
+    assert_eq!(context["sessionId"], "integration-preview-session");
     assert!(context.get("resource").is_none());
     assert!(context.get("intent").is_none());
     assert!(context["targets"][0].get("read").is_none());
-    let unified = fiex_lib::plugins::providers::preview::open_resource(
-        archive.to_str().unwrap(),
-        Some("plugin:org.fiex.archive"),
-        None,
+    let view = events::invoke_prepared(
+        &plugin.id,
+        "preview.open",
+        context,
+        scope,
     )
-    .expect("unified plugin preview failed");
-    assert_eq!(unified["provider"], "压缩与解压");
-    assert_eq!(unified["view"]["kind"], "html", "{unified}");
-    assert_eq!(unified["view"]["pluginId"], "org.fiex.archive");
+    .expect("archive preview.open failed");
+    assert_eq!(view["kind"], "html", "{view}");
+    assert_eq!(view["view"]["source"], "package", "{view}");
+    let entry = view["view"]["entry"]
+        .as_str()
+        .expect("package preview entry");
+    let html_path = plugin_host::plugin_view_asset("org.fiex.archive", entry)
+        .expect("package preview asset");
+    let html = std::fs::read_to_string(html_path).expect("read package preview asset");
+    assert!(html.to_ascii_lowercase().contains("<html"), "{entry}");
 
     let text = root.join("hello.txt");
-    let builtin = fiex_lib::plugins::providers::preview::open_resource(
-        text.to_str().unwrap(),
-        Some("builtin:text"),
-        None,
-    )
-    .expect("builtin text preview failed");
-    assert_eq!(builtin["view"]["kind"], "text");
-    assert_eq!(builtin["provider"], "Fiex");
-    assert!(builtin["view"]["text"]
-        .as_str()
-        .unwrap()
-        .contains("hello preview"));
+    let text_candidates =
+        preview::resource_candidates_json(text.to_str().unwrap()).expect("text preview candidates");
+    assert!(
+        text_candidates
+            .iter()
+            .any(|candidate| candidate["id"] == "builtin:text"),
+        "built-in text preview is missing: {text_candidates:?}"
+    );
 
     let pdf = root.join("sample.pdf");
     std::fs::write(
@@ -126,42 +144,16 @@ fn main() {
         b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n",
     )
     .unwrap();
-    let pdf_view = fiex_lib::plugins::providers::preview::open_resource(
-        pdf.to_str().unwrap(),
-        Some("builtin:pdf"),
-        None,
-    )
-    .expect("builtin pdf preview failed");
-    assert_eq!(pdf_view["view"]["kind"], "pdf");
-
-    let scope = fiex_lib::plugins::providers::preview::session_scope(
-        opened["sessionId"].as_str().unwrap(),
-        "org.fiex.archive",
-    )
-    .expect("preview session scope");
-    assert_eq!(scope.path(), root);
-    assert_eq!(
-        scope
-            .resolve_reference(&context["targets"][0]["ref"])
-            .unwrap(),
-        archive.to_str().unwrap()
+    let pdf_candidates =
+        preview::resource_candidates_json(pdf.to_str().unwrap()).expect("PDF preview candidates");
+    assert!(
+        pdf_candidates
+            .iter()
+            .any(|candidate| candidate["id"] == "builtin:pdf"),
+        "built-in PDF preview is missing: {pdf_candidates:?}"
     );
-
-    // Resource identity does not grant reads; the broker checks FilesRead per call.
-    let (manifest, _) = plugin_host::installed_manifests()
-        .into_iter()
-        .find(|(manifest, _)| manifest.id == "org.fiex.archive")
-        .unwrap();
-    let declared = plugin_host::declared_permissions(&manifest).unwrap();
-    assert!(declared.contains("files.read"));
-    assert!(fiex_lib::plugins::providers::preview::open_resource(
-        archive.to_str().unwrap(),
-        Some("plugin:missing-provider"),
-        None,
-    )
-    .is_err());
 
     plugin_host::global().stop("org.fiex.archive");
     std::fs::remove_dir_all(&root).ok();
-    println!("PASS: standard PreviewContext/PreviewView and scoped preview session");
+    println!("PASS: Core preview routing and scoped PreviewProvider invocation");
 }

@@ -89,7 +89,7 @@ fn main() {
         .into_iter()
         .find(|plugin| plugin.id == "org.fiex.archive")
         .expect("archive plugin must be available");
-    let resource = ResourceSnapshot::new(display, &archive);
+    let resource = ResourceSnapshot::new(display, &archive, "local", "application/zip");
     // Prepare preview.open through Core's trusted event boundary. It creates
     // the user-action context and the scoped resource grant for this target.
     let (context, scope) = events::resource_scope(

@@ -1,35 +1,11 @@
 use fiex_plugin_sdk::ProviderInvocationExt;
 mod checksums;
-#[path = "../../../support/i18n.rs"]
-mod i18n;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 #[path = "../../../support/resources.rs"]
 mod resources;
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{self as sdk, InfoFieldKey, RpcError};
 use serde_json::{json, Value};
-
-fn checksum_rows(
-    ctx: &dyn sdk::ProviderInvocation,
-    path: &sdk::ResourceRef,
-) -> Result<Vec<Value>, RpcError> {
-    let files = ctx.files();
-    let reader = files
-        .open_read(path)
-        .map_err(|error| RpcError::internal(error.to_string()))?;
-    hash_rows(reader)
-}
-fn hash_rows(reader: impl std::io::Read) -> Result<Vec<Value>, RpcError> {
-    let hashes = checksums::calculate(reader).map_err(RpcError::internal)?;
-    Ok(hashes
-        .into_iter()
-        .map(|hash| {
-            serde_json::json!({
-                "label": hash.algorithm.to_ascii_uppercase(),
-                "value": hash.value,
-                "copyable": true,
-            })
-        })
-        .collect())
-}
 
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
@@ -52,11 +28,6 @@ fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
             }
             Ok(result)
         }
-        "checksum.info" => {
-            let target = resources::request_input(&ctx, "path")?;
-            let path = &target.reference;
-            Ok(json!({"rows": checksum_rows(&ctx, path)?}))
-        }
         _ => Err(RpcError::method_not_found(method)),
     }
 }
@@ -71,22 +42,65 @@ fn main() {
     }
 }
 
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn resolve(
+    fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        let requested = fields
+            .iter()
+            .map(|field| {
+                if field.section_id != "checksums" {
+                    return Err(RpcError::invalid_params("unknown checksum section"));
+                }
+                let algorithm = match field.field_id.as_str() {
+                    "sha256" => "sha256",
+                    "sha512" => "sha512",
+                    "sha1" => "sha1",
+                    "md5" => "md5",
+                    "crc32" => "crc32",
+                    _ => return Err(RpcError::invalid_params("unknown checksum field")),
+                };
+                Ok(algorithm)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if requested.is_empty() {
+            return Ok(Vec::new());
+        }
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
-        provider_results::section(
-            "checksum",
-            crate::i18n::t("校验和"),
-            serde_json::to_value(checksum_rows(ctx, &target.reference)?)
-                .map_err(|error| RpcError::internal(error.to_string()))?,
-        )
+        let reader = ctx
+            .files()
+            .open_read(&target.reference)
+            .map_err(|error| RpcError::internal(error.to_string()))?;
+        let values = checksums::calculate_selected(reader, &requested)
+            .map_err(RpcError::internal)?
+            .into_iter()
+            .map(|hash| {
+                let id = match hash.algorithm {
+                    "SHA-256" => "sha256",
+                    "SHA-512" => "sha512",
+                    "SHA-1" => "sha1",
+                    "MD5" => "md5",
+                    "CRC32" => "crc32",
+                    _ => unreachable!("calculate_selected returns known algorithms"),
+                };
+                (id, hash.value)
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        fields
+            .iter()
+            .map(|field| {
+                values
+                    .get(field.field_id.as_str())
+                    .map(|value| {
+                        provider_results::result(&field.section_id, &field.field_id, value)
+                    })
+                    .ok_or_else(|| RpcError::internal("checksum result missing"))
+            })
+            .collect()
     }
 }

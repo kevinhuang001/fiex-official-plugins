@@ -23,7 +23,7 @@ pub(crate) enum Source {
 pub(crate) struct Cache {
     pub(crate) path: String,
     pub(crate) source: Source,
-    /// The `open` response, kept so `info.resolve` and `data.open` share one
+    /// The `open` response, kept so Info computations and `data.open` share one
     /// parse instead of parsing the same workbook twice.
     pub(crate) meta: Value,
 }

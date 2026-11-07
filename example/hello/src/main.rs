@@ -9,7 +9,7 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, VfsProvider},
-    RpcError,
+    InfoFieldKey, RpcError,
 };
 use serde_json::{json, Value};
 
@@ -134,13 +134,20 @@ impl VfsProvider for HelloFiles {
     }
 }
 
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
+
 struct HelloInfo;
 
 impl sdk::InfoProvider for HelloInfo {
-    fn resolve(
+    fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        if ctx.targets().is_empty() {
+            return Err(RpcError::invalid_params("missing target"));
+        }
         let meta = ctx
             .targets()
             .first()
@@ -149,35 +156,22 @@ impl sdk::InfoProvider for HelloInfo {
         let extension = meta
             .and_then(|value| value.extension.as_deref())
             .unwrap_or("");
-        Ok(vec![sdk::InfoSection {
-            source: String::new(),
-            provider: String::new(),
-            plugin_id: None,
-            id: "example".into(),
-            title: "示例信息".into(),
-            rows: vec![
-                sdk::InfoRow {
-                    label: "文件".into(),
-                    value: name.into(),
-                    copyable: false,
-                },
-                sdk::InfoRow {
-                    label: "扩展名".into(),
-                    value: extension.into(),
-                    copyable: false,
-                },
-                sdk::InfoRow {
-                    label: "问候语".into(),
-                    value: greeting(ctx),
-                    copyable: false,
-                },
-                sdk::InfoRow {
-                    label: "可复制".into(),
-                    value: "这一行可以复制".into(),
-                    copyable: true,
-                },
-            ],
-        }])
+        fields
+            .iter()
+            .map(|field| {
+                if field.section_id != "example" {
+                    return Err(RpcError::invalid_params("unknown example Info section"));
+                }
+                let value = match field.field_id.as_str() {
+                    "file" => name.to_string(),
+                    "extension" => extension.to_string(),
+                    "greeting" => greeting(ctx),
+                    "copyable" => "这一行可以复制".into(),
+                    _ => return Err(RpcError::invalid_params("unknown example Info field")),
+                };
+                Ok(provider_results::result("example", &field.field_id, value))
+            })
+            .collect()
     }
 }
 

@@ -9,12 +9,14 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod pdf;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 mod render;
 #[path = "../../../support/resources.rs"]
 mod resources;
 mod sanitize;
 
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{self as sdk, InfoFieldKey, RpcError};
 use serde_json::Value;
 use std::io::Read;
 use std::sync::{Mutex, OnceLock};
@@ -91,31 +93,51 @@ fn pdf_pages(
     render::render_pdf_pages(bytes, &extension, page_limit(ctx)?)
 }
 
-fn info_rows(
+fn info_fields(
     ctx: &dyn sdk::ProviderInvocation,
     target: &sdk::ResourceContext,
-) -> Result<Value, RpcError> {
+) -> Result<Vec<(String, String, String)>, RpcError> {
     let extension = render::extension(resources::name(target)?);
     let value = cached_render(ctx, target)?;
     let html = value["html"].as_str().unwrap_or("");
     let count = |needle: &str| html.matches(needle).count();
-    Ok(serde_json::json!({"rows": [
-        {"label":crate::i18n::t("格式"),"value":extension.to_ascii_uppercase()},
-        {"label":crate::i18n::t("段落"),"value":count("<p").to_string()},
-        {"label":crate::i18n::t("标题"),"value":count("<h1").to_string()},
-        {"label":crate::i18n::t("表格"),"value":count("<table").to_string()},
-        {"label":crate::i18n::t("图片"),"value":count("<img").to_string()},
-        {"label":crate::i18n::t("列表项"),"value":count("<li").to_string()},
-    ]}))
+    Ok(vec![
+        (
+            "format".into(),
+            crate::i18n::t("格式").into(),
+            extension.to_ascii_uppercase(),
+        ),
+        (
+            "paragraphs".into(),
+            crate::i18n::t("段落").into(),
+            count("<p").to_string(),
+        ),
+        (
+            "headings".into(),
+            crate::i18n::t("标题").into(),
+            count("<h1").to_string(),
+        ),
+        (
+            "tables".into(),
+            crate::i18n::t("表格").into(),
+            count("<table").to_string(),
+        ),
+        (
+            "images".into(),
+            crate::i18n::t("图片").into(),
+            count("<img").to_string(),
+        ),
+        (
+            "listItems".into(),
+            crate::i18n::t("列表项").into(),
+            count("<li").to_string(),
+        ),
+    ])
 }
 
 fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     let method = ctx.method();
     match method {
-        "office.info" => {
-            let target = resources::request_input(&ctx, "path")?;
-            info_rows(&ctx, &target)
-        }
         "office.render" => {
             let target = resources::request_input(&ctx, "path")?;
             cached_render(&ctx, &target)
@@ -143,17 +165,51 @@ fn main() {
     }
 }
 
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn resolve(
+    fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        for field in fields {
+            if field.section_id != "office"
+                || !matches!(
+                    field.field_id.as_str(),
+                    "format" | "paragraphs" | "headings" | "tables" | "images" | "listItems"
+                )
+            {
+                return Err(RpcError::invalid_params("unknown Office Info field"));
+            }
+        }
+        if fields.is_empty() {
+            return Ok(Vec::new());
+        }
         let target = resources::target(ctx)?;
-        let rows = info_rows(ctx, &target)?;
-        provider_results::section("office", crate::i18n::t("文档"), rows["rows"].clone())
+        let values = if fields.iter().any(|field| field.field_id != "format") {
+            info_fields(ctx, &target)?
+                .into_iter()
+                .map(|(id, _, value)| (id, value))
+                .collect::<std::collections::HashMap<_, _>>()
+        } else {
+            std::collections::HashMap::new()
+        };
+        let format = || -> Result<String, RpcError> {
+            Ok(render::extension(resources::name(&target)?).to_ascii_uppercase())
+        };
+        fields
+            .iter()
+            .map(|field| {
+                let value = if field.field_id == "format" {
+                    Some(format()?)
+                } else {
+                    values.get(&field.field_id).cloned()
+                };
+                value
+                    .map(|value| provider_results::result("office", &field.field_id, value))
+                    .ok_or_else(|| RpcError::internal("Office Info result missing"))
+            })
+            .collect()
     }
 }
 impl sdk::PreviewProvider for Presentation {

@@ -60,6 +60,76 @@ pub fn calculate(mut file: impl Read) -> Result<Vec<Checksum>, String> {
     ])
 }
 
+/// Compute only the requested digest algorithms while reading the file once.
+pub fn calculate_selected(
+    mut file: impl Read,
+    requested: &[&str],
+) -> Result<Vec<Checksum>, String> {
+    let requested: std::collections::BTreeSet<_> = requested.iter().copied().collect();
+    let mut md5 = requested.contains("md5").then(Md5::new);
+    let mut sha1 = requested.contains("sha1").then(Sha1::new);
+    let mut sha256 = requested.contains("sha256").then(Sha256::new);
+    let mut sha512 = requested.contains("sha512").then(Sha512::new);
+    let mut crc = requested.contains("crc32").then(crc32fast::Hasher::new);
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer).map_err(|error| error.to_string())?;
+        if count == 0 {
+            break;
+        }
+        let bytes = &buffer[..count];
+        if let Some(value) = &mut md5 {
+            value.update(bytes);
+        }
+        if let Some(value) = &mut sha1 {
+            value.update(bytes);
+        }
+        if let Some(value) = &mut sha256 {
+            value.update(bytes);
+        }
+        if let Some(value) = &mut sha512 {
+            value.update(bytes);
+        }
+        if let Some(value) = &mut crc {
+            value.update(bytes);
+        }
+    }
+    let mut result = Vec::with_capacity(requested.len());
+    for algorithm in requested {
+        let hash = match algorithm {
+            "md5" => md5.take().map(|value| Checksum {
+                algorithm: "MD5",
+                value: value
+                    .finalize()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect(),
+            }),
+            "sha1" => sha1.take().map(|value| Checksum {
+                algorithm: "SHA-1",
+                value: format!("{:x}", value.finalize()),
+            }),
+            "sha256" => sha256.take().map(|value| Checksum {
+                algorithm: "SHA-256",
+                value: format!("{:x}", value.finalize()),
+            }),
+            "sha512" => sha512.take().map(|value| Checksum {
+                algorithm: "SHA-512",
+                value: format!("{:x}", value.finalize()),
+            }),
+            "crc32" => crc.take().map(|value| Checksum {
+                algorithm: "CRC32",
+                value: format!("{:08x}", value.finalize()),
+            }),
+            _ => return Err(format!("unsupported checksum algorithm: {algorithm}")),
+        };
+        if let Some(hash) = hash {
+            result.push(hash);
+        }
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +145,16 @@ mod tests {
         assert_eq!(hashes[2].value, "a9993e364706816aba3e25717850c26c9cd0d89d");
         assert_eq!(hashes[3].value, "900150983cd24fb0d6963f7d28e17f72");
         assert_eq!(hashes[4].value, "352441c2");
+    }
+
+    #[test]
+    fn selected_hash_computes_only_the_requested_algorithm() {
+        let hashes = calculate_selected(&b"abc"[..], &["sha256"]).unwrap();
+        assert_eq!(hashes.len(), 1);
+        assert_eq!(hashes[0].algorithm, "SHA-256");
+        assert_eq!(
+            hashes[0].value,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 }

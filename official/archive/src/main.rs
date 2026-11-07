@@ -5,7 +5,7 @@ mod ignores;
 mod listing;
 #[path = "../../../support/resources.rs"]
 mod resources;
-use fiex_plugin_sdk::{self as sdk, ProviderInvocationExt, RpcError};
+use fiex_plugin_sdk::{self as sdk, InfoCompute, InfoFieldKey, ProviderInvocationExt, RpcError};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
@@ -291,11 +291,11 @@ fn archive_menu_input(
     Ok(json!({"targets":targets,"parentId":parent_id}))
 }
 
-fn archive_info(
+fn archive_info_fields(
     path: &sdk::ResourceRef,
     p: &Value,
     host: &dyn sdk::ProviderInvocation,
-) -> Result<Value, RpcError> {
+) -> Result<Vec<(String, String, String)>, RpcError> {
     let password = p.get("password").and_then(Value::as_str);
     let listing = listing::list(path, password, host.sdk_context()).map_err(RpcError::internal)?;
     let compressed = host
@@ -318,31 +318,55 @@ fn archive_info(
         .rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_uppercase())
         .unwrap_or_else(|| "UNKNOWN".into());
-    let mut rows = vec![
-        json!({"label":crate::i18n::t("格式"),"value":format}),
-        json!({"label":crate::i18n::t("压缩后大小"),"value":format_size(compressed)}),
-        json!({"label":crate::i18n::t("解压后大小"),"value":format_size(uncompressed)}),
-        json!({"label":crate::i18n::t("文件数"),"value":count.to_string()}),
+    let mut fields = vec![
+        ("format".into(), crate::i18n::t("格式").into(), format),
+        (
+            "compressedSize".into(),
+            crate::i18n::t("压缩后大小").into(),
+            format_size(compressed),
+        ),
+        (
+            "uncompressedSize".into(),
+            crate::i18n::t("解压后大小").into(),
+            format_size(uncompressed),
+        ),
+        (
+            "entryCount".into(),
+            crate::i18n::t("文件数").into(),
+            count.to_string(),
+        ),
     ];
     if uncompressed > 0 {
         let saved = 1.0 - compressed as f64 / uncompressed as f64;
-        rows.push(
-            json!({"label":crate::i18n::t("压缩率"),"value":format!("{:.1}%", saved * 100.0)}),
-        );
+        fields.push((
+            "compressionRatio".into(),
+            crate::i18n::t("压缩率").into(),
+            format!("{:.1}%", saved * 100.0),
+        ));
     }
-    if listing
-        .get("encrypted")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        rows.push(json!({"label":crate::i18n::t("加密"),"value":crate::i18n::t("是")}));
-    }
+    fields.push((
+        "encrypted".into(),
+        crate::i18n::t("加密").into(),
+        if listing
+            .get("encrypted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            crate::i18n::t("是").into()
+        } else {
+            crate::i18n::t("否").into()
+        },
+    ));
     if listing.get("supported").and_then(Value::as_bool) == Some(false) {
         if let Some(message) = listing.get("message").and_then(Value::as_str) {
-            rows.push(json!({"label":crate::i18n::t("说明"),"value":message}));
+            fields.push((
+                "message".into(),
+                crate::i18n::t("说明").into(),
+                message.into(),
+            ));
         }
     }
-    Ok(json!({"rows": rows}))
+    Ok(fields)
 }
 
 fn run_operation(
@@ -405,9 +429,6 @@ fn run_operation(
                 Ok(json!(result))
             })?;
             Ok(json!({"taskId": task.id()}))
-        }
-        "archive.info" => {
-            archive_info(&resources::from_params(p, "path", host)?.reference, p, host)
         }
         "archive.list" => match listing::list(
             &resources::from_params(p, "path", host)?.reference,
@@ -556,15 +577,91 @@ mod context_menu_tests {
 mod provider_results;
 struct Archive;
 impl sdk::InfoProvider for Archive {
-    fn resolve(
+    fn describe(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
+        if ctx.target().is_none() {
+            return Err(RpcError::invalid_params("missing target"));
+        }
+        Ok(vec![provider_results::section(
+            "archive",
+            crate::i18n::t("压缩包"),
+            &[
+                ("format", crate::i18n::t("格式"), InfoCompute::OnDemand),
+                (
+                    "compressedSize",
+                    crate::i18n::t("压缩后大小"),
+                    InfoCompute::OnDemand,
+                ),
+                (
+                    "uncompressedSize",
+                    crate::i18n::t("解压后大小"),
+                    InfoCompute::OnDemand,
+                ),
+                (
+                    "entryCount",
+                    crate::i18n::t("文件数"),
+                    InfoCompute::OnDemand,
+                ),
+                (
+                    "compressionRatio",
+                    crate::i18n::t("压缩率"),
+                    InfoCompute::OnDemand,
+                ),
+                ("encrypted", crate::i18n::t("加密"), InfoCompute::OnDemand),
+                ("message", crate::i18n::t("说明"), InfoCompute::OnDemand),
+            ],
+        )])
+    }
+
+    fn compute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        let requested = fields
+            .iter()
+            .map(|field| {
+                if field.section_id != "archive"
+                    || !matches!(
+                        field.field_id.as_str(),
+                        "format"
+                            | "compressedSize"
+                            | "uncompressedSize"
+                            | "entryCount"
+                            | "compressionRatio"
+                            | "encrypted"
+                            | "message"
+                    )
+                {
+                    return Err(RpcError::invalid_params("unknown archive field"));
+                }
+                Ok(field.field_id.as_str())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if requested.is_empty() {
+            return Ok(Vec::new());
+        }
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
-        let rows = archive_info(&target.reference, &json!({}), ctx)?;
-        provider_results::section("archive", crate::i18n::t("压缩包"), rows["rows"].clone())
+        let values = archive_info_fields(&target.reference, &json!({}), ctx)?
+            .into_iter()
+            .map(|(id, _, value)| (id, value))
+            .collect::<std::collections::HashMap<_, _>>();
+        Ok(fields
+            .iter()
+            .map(|field| match values.get(&field.field_id) {
+                Some(value) => provider_results::result("archive", &field.field_id, value),
+                None => sdk::InfoFieldResult {
+                    section_id: "archive".into(),
+                    field_id: field.field_id.clone(),
+                    value: None,
+                    unavailable: true,
+                },
+            })
+            .collect())
     }
 }
 impl sdk::PreviewProvider for Archive {

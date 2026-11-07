@@ -51,5 +51,5 @@ Core 校验并注入 CSS 变量
 
 - 只允许 token，不允许 CSS 注入、外链、脚本；
 - Core 校验路径、token 名和值；
-- 主题包没有 Rust 端代码，也没有 `preview.open`/`info.resolve`；
+- 主题包没有 Rust 端代码，也没有 `preview.open`/`info.describe`/`info.compute`；
 - 可以直接参考官方 `vista`、`win11` 主题包。

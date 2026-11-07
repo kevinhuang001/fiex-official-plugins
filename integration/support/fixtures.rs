@@ -21,7 +21,7 @@ pub fn reference(path: &Path) -> ResourceRef {
         .or_insert_with(|| ResourceSnapshot::new(
             &path.to_string_lossy(),
             path,
-            "integration-fixture",
+            "local",
             "application/octet-stream",
         )
         .reference)

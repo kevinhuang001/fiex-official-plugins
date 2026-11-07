@@ -9,12 +9,14 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod pdf;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 mod render;
 #[path = "../../../support/resources.rs"]
 mod resources;
 mod sanitize;
 
-use fiex_plugin_sdk::{self as sdk, InfoCompute, InfoFieldKey, RpcError};
+use fiex_plugin_sdk::{self as sdk, InfoFieldKey, RpcError};
 use serde_json::Value;
 use std::io::Read;
 use std::sync::{Mutex, OnceLock};
@@ -163,31 +165,8 @@ fn main() {
     }
 }
 
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn describe(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
-        if ctx.target().is_none() {
-            return Err(RpcError::invalid_params("missing target"));
-        }
-        Ok(vec![provider_results::section(
-            "office",
-            crate::i18n::t("文档"),
-            &[
-                ("format", crate::i18n::t("格式"), InfoCompute::OnOpen),
-                ("paragraphs", crate::i18n::t("段落"), InfoCompute::OnDemand),
-                ("headings", crate::i18n::t("标题"), InfoCompute::OnDemand),
-                ("tables", crate::i18n::t("表格"), InfoCompute::OnDemand),
-                ("images", crate::i18n::t("图片"), InfoCompute::OnDemand),
-                ("listItems", crate::i18n::t("列表项"), InfoCompute::OnDemand),
-            ],
-        )])
-    }
-
     fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,

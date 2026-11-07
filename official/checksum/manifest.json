@@ -69,18 +69,61 @@
         "extensions": [],
         "kinds": [
           "file"
-        ],
-      }
+        ]
+      },
+      "sections": [
+        {
+          "id": "checksums",
+          "title": "校验和",
+          "fields": [
+            {
+              "id": "sha256",
+              "label": "SHA-256",
+              "compute": "onDemand"
+            },
+            {
+              "id": "sha512",
+              "label": "SHA-512",
+              "compute": "onDemand"
+            },
+            {
+              "id": "sha1",
+              "label": "SHA-1",
+              "compute": "onDemand"
+            },
+            {
+              "id": "md5",
+              "label": "MD5",
+              "compute": "onDemand"
+            },
+            {
+              "id": "crc32",
+              "label": "CRC32",
+              "compute": "onDemand"
+            }
+          ]
+        }
+      ]
     }
   },
   "locales": {
     "en": {
       "校验和": "Checksums",
-      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "Calculate SHA-256, SHA-512, SHA-1, MD5 and CRC32 checksums."
+      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "Calculate SHA-256, SHA-512, SHA-1, MD5 and CRC32 checksums.",
+      "SHA-256": "SHA-256",
+      "SHA-512": "SHA-512",
+      "SHA-1": "SHA-1",
+      "MD5": "MD5",
+      "CRC32": "CRC32"
     },
     "zh-TW": {
       "校验和": "校驗和",
-      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "計算 SHA-256、SHA-512、SHA-1、MD5 與 CRC32。"
+      "计算 SHA-256、SHA-512、SHA-1、MD5 与 CRC32。": "計算 SHA-256、SHA-512、SHA-1、MD5 與 CRC32。",
+      "SHA-256": "SHA-256",
+      "SHA-512": "SHA-512",
+      "SHA-1": "SHA-1",
+      "MD5": "MD5",
+      "CRC32": "CRC32"
     }
   }
 }

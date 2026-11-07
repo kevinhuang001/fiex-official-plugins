@@ -1,10 +1,12 @@
 //! RPC dispatch over the open-file cache.
 use fiex_plugin_sdk::ProviderInvocationExt;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 #[path = "../../../support/resources.rs"]
 mod resources;
 use crate::open::{open, page_of, Cache};
 use fiex_plugin_sdk as sdk;
-use fiex_plugin_sdk::{InfoCompute, InfoFieldKey, RpcError};
+use fiex_plugin_sdk::{InfoFieldKey, RpcError};
 use serde_json::Value;
 use std::sync::Mutex;
 
@@ -135,29 +137,8 @@ pub(crate) fn dispatch(
     }
 }
 
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 pub(crate) struct Presentation(pub std::sync::Arc<Mutex<Option<Cache>>>);
 impl sdk::InfoProvider for Presentation {
-    fn describe(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
-        if ctx.target().is_none() {
-            return Err(RpcError::invalid_params("missing target"));
-        }
-        Ok(vec![provider_results::section(
-            "data",
-            crate::i18n::t("数据表"),
-            &[
-                ("format", crate::i18n::t("格式"), InfoCompute::OnOpen),
-                ("datasets", crate::i18n::t("数据集"), InfoCompute::OnDemand),
-                ("columns", crate::i18n::t("首表列数"), InfoCompute::OnDemand),
-                ("rows", crate::i18n::t("首表行数"), InfoCompute::OnDemand),
-            ],
-        )])
-    }
-
     fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,

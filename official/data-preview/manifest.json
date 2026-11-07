@@ -102,21 +102,56 @@
           "feather",
           "ipc",
           "avro"
-        ],
-        "requiredOps": [
-          "read"
         ]
-      }
+      },
+      "sections": [
+        {
+          "id": "data",
+          "title": "数据表",
+          "fields": [
+            {
+              "id": "format",
+              "label": "格式",
+              "compute": "onOpen"
+            },
+            {
+              "id": "datasets",
+              "label": "数据集",
+              "compute": "onDemand"
+            },
+            {
+              "id": "columns",
+              "label": "首表列数",
+              "compute": "onDemand"
+            },
+            {
+              "id": "rows",
+              "label": "首表行数",
+              "compute": "onDemand"
+            }
+          ]
+        }
+      ]
     }
   },
   "locales": {
     "en": {
       "数据预览": "Data Preview",
-      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "Read-only preview of SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro, with pagination and sorting."
+      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "Read-only preview of SQLite, CSV/TSV, Excel, Parquet, Arrow IPC and Avro, with pagination and sorting.",
+      "数据表": "Data",
+      "格式": "Format",
+      "数据集": "Datasets",
+      "首表列数": "Columns in first dataset",
+      "首表行数": "Rows in first dataset"
     },
     "zh-TW": {
       "数据预览": "資料預覽",
-      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "表格資料的唯讀預覽：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支援分頁與排序。"
+      "表格数据的只读预览：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支持分页与排序。": "表格資料的唯讀預覽：SQLite、CSV/TSV、Excel、Parquet、Arrow IPC、Avro，支援分頁與排序。",
+      "数据表": "資料表",
+      "格式": "格式",
+      "数据集": "資料集",
+      "首表列数": "首個資料集欄數",
+      "首表行数": "首個資料集資料列數"
     }
   }
 }

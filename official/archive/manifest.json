@@ -161,11 +161,51 @@
           "tbz2",
           "xz",
           "txz"
-        ],
-        "requiredOps": [
-          "read"
         ]
-      }
+      },
+      "sections": [
+        {
+          "id": "archive",
+          "title": "压缩包",
+          "fields": [
+            {
+              "id": "format",
+              "label": "格式",
+              "compute": "onDemand"
+            },
+            {
+              "id": "compressedSize",
+              "label": "压缩后大小",
+              "compute": "onDemand"
+            },
+            {
+              "id": "uncompressedSize",
+              "label": "解压后大小",
+              "compute": "onDemand"
+            },
+            {
+              "id": "entryCount",
+              "label": "文件数",
+              "compute": "onDemand"
+            },
+            {
+              "id": "compressionRatio",
+              "label": "压缩率",
+              "compute": "onDemand"
+            },
+            {
+              "id": "encrypted",
+              "label": "加密",
+              "compute": "onDemand"
+            },
+            {
+              "id": "message",
+              "label": "说明",
+              "compute": "onDemand"
+            }
+          ]
+        }
+      ]
     },
     "decorations": {
       "match": {
@@ -197,14 +237,30 @@
       "压缩与解压 ZIP、RAR、7z、TAR 等格式。": "Compress and extract ZIP, RAR, 7z, TAR and other archives.",
       "压缩时忽略的文件或目录": "Files or directories to ignore when compressing",
       "解压时忽略的文件或目录": "Files or directories to ignore when extracting",
-      "解压输出上限（GiB）": "Maximum extracted size (GiB)"
+      "解压输出上限（GiB）": "Maximum extracted size (GiB)",
+      "压缩包": "Archive",
+      "格式": "Format",
+      "压缩后大小": "Compressed size",
+      "解压后大小": "Uncompressed size",
+      "文件数": "Entries",
+      "压缩率": "Compression ratio",
+      "加密": "Encrypted",
+      "说明": "Details"
     },
     "zh-TW": {
       "压缩与解压": "壓縮與解壓",
       "压缩与解压 ZIP、RAR、7z、TAR 等格式。": "壓縮與解壓 ZIP、RAR、7z、TAR 等格式。",
       "压缩时忽略的文件或目录": "壓縮時忽略的檔案或目錄",
       "解压时忽略的文件或目录": "解壓時忽略的檔案或目錄",
-      "解压输出上限（GiB）": "解壓輸出上限（GiB）"
+      "解压输出上限（GiB）": "解壓輸出上限（GiB）",
+      "压缩包": "壓縮檔",
+      "格式": "格式",
+      "压缩后大小": "壓縮後大小",
+      "解压后大小": "解壓後大小",
+      "文件数": "檔案數",
+      "压缩率": "壓縮率",
+      "加密": "加密",
+      "说明": "說明"
     }
   }
 }

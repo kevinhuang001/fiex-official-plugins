@@ -1,10 +1,10 @@
 use fiex_plugin_sdk::ProviderInvocationExt;
 mod checksums;
-#[path = "../../../support/i18n.rs"]
-mod i18n;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 #[path = "../../../support/resources.rs"]
 mod resources;
-use fiex_plugin_sdk::{self as sdk, InfoCompute, InfoFieldKey, RpcError};
+use fiex_plugin_sdk::{self as sdk, InfoFieldKey, RpcError};
 use serde_json::{json, Value};
 
 fn run(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
@@ -42,30 +42,8 @@ fn main() {
     }
 }
 
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 pub(crate) struct Presentation;
 impl sdk::InfoProvider for Presentation {
-    fn describe(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
-        if ctx.target().is_none() {
-            return Err(RpcError::invalid_params("missing target"));
-        }
-        Ok(vec![provider_results::section(
-            "checksums",
-            crate::i18n::t("校验和"),
-            &[
-                ("sha256", "SHA-256", InfoCompute::OnDemand),
-                ("sha512", "SHA-512", InfoCompute::OnDemand),
-                ("sha1", "SHA-1", InfoCompute::OnDemand),
-                ("md5", "MD5", InfoCompute::OnDemand),
-                ("crc32", "CRC32", InfoCompute::OnDemand),
-            ],
-        )])
-    }
-
     fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,

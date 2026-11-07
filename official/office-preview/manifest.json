@@ -84,11 +84,46 @@
           "docx",
           "xlsx",
           "pptx"
-        ],
-        "requiredOps": [
-          "read"
         ]
-      }
+      },
+      "sections": [
+        {
+          "id": "office",
+          "title": "文档",
+          "fields": [
+            {
+              "id": "format",
+              "label": "格式",
+              "compute": "onOpen"
+            },
+            {
+              "id": "paragraphs",
+              "label": "段落",
+              "compute": "onDemand"
+            },
+            {
+              "id": "headings",
+              "label": "标题",
+              "compute": "onDemand"
+            },
+            {
+              "id": "tables",
+              "label": "表格",
+              "compute": "onDemand"
+            },
+            {
+              "id": "images",
+              "label": "图片",
+              "compute": "onDemand"
+            },
+            {
+              "id": "listItems",
+              "label": "列表项",
+              "compute": "onDemand"
+            }
+          ]
+        }
+      ]
     },
     "settings": [
       {
@@ -104,12 +139,26 @@
     "en": {
       "Office 预览": "Office Preview",
       "预览页数": "Preview page limit",
-      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Read-only Word, Excel and PowerPoint preview. DOCX/PPTX are rendered to the first pages as PDF entirely inside the plugin with pure Rust, with no Office or external converter dependency."
+      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Read-only Word, Excel and PowerPoint preview. DOCX/PPTX are rendered to the first pages as PDF entirely inside the plugin with pure Rust, with no Office or external converter dependency.",
+      "文档": "Document",
+      "格式": "Format",
+      "段落": "Paragraphs",
+      "标题": "Headings",
+      "表格": "Tables",
+      "图片": "Images",
+      "列表项": "List items"
     },
     "zh-TW": {
       "Office 预览": "Office 預覽",
       "预览页数": "預覽頁數",
-      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Word、Excel、PowerPoint 的唯讀預覽。Word/PowerPoint 由外掛內純 Rust 渲染為前幾頁 PDF，不依賴 Office 或外部轉換器。"
+      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Word、Excel、PowerPoint 的唯讀預覽。Word/PowerPoint 由外掛內純 Rust 渲染為前幾頁 PDF，不依賴 Office 或外部轉換器。",
+      "文档": "文件",
+      "格式": "格式",
+      "段落": "段落",
+      "标题": "標題",
+      "表格": "表格",
+      "图片": "圖片",
+      "列表项": "清單項目"
     }
   }
 }

@@ -1,26 +1,23 @@
-//! Cross-repository test for the 2-column "show info" metadata extension.
+//! Cross-repository smoke test for on-demand Info fields through Core's plugin host.
 #[path = "../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
-use serde_json::json;
+use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
 
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
-fn ensure_approved(id: &str) {
-    if !fiex_lib::plugins::host::catalog()
-        .iter()
-        .any(|plugin| plugin.id == id && plugin.approved)
-    {
-        fiex_lib::plugins::host::approve_install(id).expect("install approval failed");
-    }
-}
-
 fn approve(id: &str) {
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(manifest, _)| manifest.id == id)
         .expect("plugin must be installed in FIEX_PLUGIN_DIR");
-    ensure_approved(id);
+    if !plugin_host::catalog()
+        .iter()
+        .any(|plugin| plugin.id == id && plugin.approved)
+    {
+        plugin_host::approve_install(id).expect("install approval failed");
+    }
     plugin_host::activate(
         id,
         &plugin_host::activation_requirements(&manifest).unwrap(),
@@ -28,7 +25,7 @@ fn approve(id: &str) {
     .unwrap();
 }
 
-fn wait_task(task_id: &str) -> serde_json::Value {
+fn wait_task(task_id: &str) -> Value {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
     loop {
         let task = plugin_host::global()
@@ -48,6 +45,26 @@ fn wait_task(task_id: &str) -> serde_json::Value {
     }
 }
 
+fn compute(plugin: &str, root: &Path, targets: &[PathBuf], fields: Value) -> Value {
+    fixtures::invoke_selected(
+        plugin,
+        "info.compute",
+        json!({ "fields": fields }),
+        root.to_str().unwrap(),
+        targets,
+    )
+    .expect("info.compute failed")
+}
+
+fn field<'a>(result: &'a Value, field_id: &str) -> &'a Value {
+    result["fields"]
+        .as_array()
+        .expect("info.compute must return fields")
+        .iter()
+        .find(|field| field["fieldId"].as_str() == Some(field_id))
+        .unwrap_or_else(|| panic!("field {field_id} is missing: {result}"))
+}
+
 fn main() {
     fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();
     let root = std::env::temp_dir().join(format!("fiex-info-e2e-{}", std::process::id()));
@@ -57,21 +74,16 @@ fn main() {
     std::fs::write(&file, b"abc").unwrap();
 
     approve("org.fiex.checksum");
-    let details =
-        fiex_lib::plugins::providers::info::file_info_resource(file.to_str().unwrap()).unwrap();
-    assert!(
-        details.iter().any(|section| section.id == "core.metadata"),
-        "built-in metadata section is missing"
+    let checksum = compute(
+        "org.fiex.checksum",
+        &root,
+        std::slice::from_ref(&file),
+        json!([{ "sectionId": "checksums", "fieldId": "sha256" }]),
     );
-    let checksum = details
-        .iter()
-        .find(|section| section.title == "校验和")
-        .expect("checksum info section is missing");
-    assert!(checksum.id.starts_with("org.fiex.checksum."));
-    assert!(checksum
-        .rows
-        .iter()
-        .any(|row| row.label == "SHA-256" && row.value.starts_with("ba7816bf")));
+    assert_eq!(
+        field(&checksum, "sha256")["value"],
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
 
     approve("org.fiex.archive");
     let archive = root.join("bundle.zip");
@@ -79,8 +91,8 @@ fn main() {
         "org.fiex.archive",
         "archive.compress",
         json!({
-            "paths": [fixtures::reference(std::path::Path::new(&file))],
-            "destination": fixtures::reference(std::path::Path::new(&archive)),
+            "paths": [fixtures::reference(&file)],
+            "destination": fixtures::reference(&archive),
             "format": "zip",
             "ignores": []
         }),
@@ -95,17 +107,25 @@ fn main() {
         "archive task result should be a ref: {created}"
     );
 
-    let details =
-        fiex_lib::plugins::providers::info::file_info_resource(archive.to_str().unwrap()).unwrap();
-    let info = details
-        .iter()
-        .find(|section| section.title == "压缩包")
-        .expect("archive info section is missing");
-    assert!(info.rows.iter().any(|row| row.label == "文件数"));
-    assert!(info.rows.iter().any(|row| row.label == "压缩率"));
+    let archive_info = compute(
+        "org.fiex.archive",
+        &root,
+        std::slice::from_ref(&archive),
+        json!([
+            { "sectionId": "archive", "fieldId": "format" },
+            { "sectionId": "archive", "fieldId": "entryCount" }
+        ]),
+    );
+    assert_eq!(field(&archive_info, "entryCount")["value"], "1");
+    assert!(
+        field(&archive_info, "format")["value"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()),
+        "archive format should be available: {archive_info}"
+    );
 
     plugin_host::global().stop("org.fiex.archive");
     plugin_host::global().stop("org.fiex.checksum");
     std::fs::remove_dir_all(&root).ok();
-    println!("PASS: checksum and archive metadata through the info extension");
+    println!("PASS: checksum and archive on-demand Info fields through Core's plugin host");
 }

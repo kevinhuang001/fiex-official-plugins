@@ -129,7 +129,35 @@
         "kinds": [
           "file"
         ]
-      }
+      },
+      "sections": [
+        {
+          "id": "example",
+          "title": "示例信息",
+          "fields": [
+            {
+              "id": "file",
+              "label": "文件",
+              "compute": "onOpen"
+            },
+            {
+              "id": "extension",
+              "label": "扩展名",
+              "compute": "onOpen"
+            },
+            {
+              "id": "greeting",
+              "label": "问候语",
+              "compute": "onOpen"
+            },
+            {
+              "id": "copyable",
+              "label": "可复制",
+              "compute": "onOpen"
+            }
+          ]
+        }
+      ]
     },
     "preview": {
       "priority": 60,

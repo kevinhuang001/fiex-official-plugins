@@ -9,7 +9,7 @@ use fiex_plugin_sdk::ProviderInvocationExt;
 use fiex_plugin_sdk::{
     self as sdk,
     filesystem::{FsEntry, FsListing, FsRead, FsRequest, VfsProvider},
-    InfoCompute, InfoFieldKey, RpcError,
+    InfoFieldKey, RpcError,
 };
 use serde_json::{json, Value};
 
@@ -140,30 +140,14 @@ mod provider_results;
 struct HelloInfo;
 
 impl sdk::InfoProvider for HelloInfo {
-    fn describe(
-        &self,
-        ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
-        if ctx.target().is_none() {
-            return Err(RpcError::invalid_params("missing target"));
-        }
-        Ok(vec![provider_results::section(
-            "example",
-            "示例信息",
-            &[
-                ("file", "文件", InfoCompute::OnOpen),
-                ("extension", "扩展名", InfoCompute::OnOpen),
-                ("greeting", "问候语", InfoCompute::OnOpen),
-                ("copyable", "可复制", InfoCompute::OnOpen),
-            ],
-        )])
-    }
-
     fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
         fields: &[InfoFieldKey],
     ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        if ctx.targets().is_empty() {
+            return Err(RpcError::invalid_params("missing target"));
+        }
         let meta = ctx
             .targets()
             .first()

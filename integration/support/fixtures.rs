@@ -18,7 +18,13 @@ pub fn reference(path: &Path) -> ResourceRef {
         .lock()
         .unwrap()
         .entry(path.to_path_buf())
-        .or_insert_with(|| ResourceSnapshot::new(&path.to_string_lossy(), path).reference)
+        .or_insert_with(|| ResourceSnapshot::new(
+            &path.to_string_lossy(),
+            path,
+            "integration-fixture",
+            "application/octet-stream",
+        )
+        .reference)
         .clone()
 }
 pub fn invoke_selected(

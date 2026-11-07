@@ -234,5 +234,77 @@
   "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": {
     "en": "Read-only Word, Excel and PowerPoint preview. DOCX/PPTX are rendered to the first pages as PDF entirely inside the plugin with pure Rust, with no Office or external converter dependency.",
     "zh-TW": "Word、Excel、PowerPoint 的唯讀預覽。Word/PowerPoint 由外掛內純 Rust 渲染為前幾頁 PDF，不依賴 Office 或外部轉換器。"
+  },
+  "压缩包": {
+    "en": "Archive",
+    "zh-TW": "壓縮檔"
+  },
+  "格式": {
+    "en": "Format",
+    "zh-TW": "格式"
+  },
+  "压缩后大小": {
+    "en": "Compressed size",
+    "zh-TW": "壓縮後大小"
+  },
+  "解压后大小": {
+    "en": "Uncompressed size",
+    "zh-TW": "解壓後大小"
+  },
+  "文件数": {
+    "en": "Entries",
+    "zh-TW": "檔案數"
+  },
+  "压缩率": {
+    "en": "Compression ratio",
+    "zh-TW": "壓縮率"
+  },
+  "加密": {
+    "en": "Encrypted",
+    "zh-TW": "加密"
+  },
+  "说明": {
+    "en": "Details",
+    "zh-TW": "說明"
+  },
+  "数据表": {
+    "en": "Data",
+    "zh-TW": "資料表"
+  },
+  "数据集": {
+    "en": "Datasets",
+    "zh-TW": "資料集"
+  },
+  "首表列数": {
+    "en": "Columns in first dataset",
+    "zh-TW": "首個資料集欄數"
+  },
+  "首表行数": {
+    "en": "Rows in first dataset",
+    "zh-TW": "首個資料集資料列數"
+  },
+  "文档": {
+    "en": "Document",
+    "zh-TW": "文件"
+  },
+  "段落": {
+    "en": "Paragraphs",
+    "zh-TW": "段落"
+  },
+  "标题": {
+    "en": "Headings",
+    "zh-TW": "標題"
+  },
+  "表格": {
+    "en": "Tables",
+    "zh-TW": "表格"
+  },
+  "图片": {
+    "en": "Images",
+    "zh-TW": "圖片"
+  },
+  "列表项": {
+    "en": "List items",
+    "zh-TW": "清單項目"
   }
 }

@@ -1,14 +1,10 @@
-# Info：显示简介
+# Info：声明字段并按需计算
 
-Info 只在用户点击“显示简介”时调用，固定事件为 `info.resolve`。
+Info 使用两个标准事件：`info.describe` 在打开窗口时声明当前资源适用的字段；`info.compute` 只计算 Core 请求的字段。打开窗口不会自动读取文件内容或计算哈希。
 
 ## Manifest
 
 ```json
-"permissions": {
-  "metadata": { "enabled": true },
-  "files": { "read": { "enabled": true } }
-},
 "extensions": {
   "info": {
     "match": { "extensions": ["txt", "md"], "kinds": ["file"] },
@@ -17,38 +13,51 @@ Info 只在用户点击“显示简介”时调用，固定事件为 `info.resol
 }
 ```
 
-`info` 是单个对象，不是数组。
+描述阶段无需文件内容读取权限。需要读取内容的字段在用户主动请求计算后，仍通过 `ctx.files()` 执行，并继续受到 Core 权限检查。
 
 ## Rust 实现
 
 ```rust
-struct ExampleInfo;
-
 impl sdk::InfoProvider for ExampleInfo {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation)
-        -> Result<Vec<sdk::InfoSection>, RpcError>
-    {
-        let name = ctx.targets().first()
-            .and_then(|target| target.metadata.as_ref())
-            .map(|meta| meta.name.as_str())
-            .unwrap_or("unknown");
-        Ok(vec![sdk::InfoSection {
-            source: String::new(),
-            provider: String::new(),
-            plugin_id: None,
+    fn describe(
+        &self,
+        _ctx: &dyn sdk::ProviderInvocation,
+    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
+        Ok(vec![sdk::InfoSectionDescriptor {
             id: "example".into(),
             title: "示例信息".into(),
-            rows: vec![sdk::InfoRow {
-                label: "文件".into(),
-                value: name.into(),
-                copyable: true,
+            fields: vec![sdk::InfoFieldDescriptor {
+                id: "name".into(),
+                label: "文件名".into(),
+                compute: sdk::InfoCompute::OnOpen,
             }],
         }])
+    }
+
+    fn compute(
+        &self,
+        ctx: &dyn sdk::ProviderInvocation,
+        fields: &[sdk::InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        let name = ctx.targets().first()
+            .and_then(|target| target.metadata.as_ref())
+            .map(|metadata| metadata.name.as_str())
+            .unwrap_or("unknown");
+        fields.iter().map(|field| {
+            if field.section_id != "example" || field.field_id != "name" {
+                return Err(RpcError::invalid_params("unknown Info field"));
+            }
+            Ok(sdk::InfoFieldResult {
+                section_id: field.section_id.clone(),
+                field_id: field.field_id.clone(),
+                value: Some(name.to_string()),
+                unavailable: false,
+            })
+        }).collect()
     }
 }
 ```
 
-不要手写 `match ctx.method()`。需要读内容时使用
-`ctx.files().read_to_string(&target.reference)`，不要传宿主路径。
+使用 `onOpen` 的字段会在窗口打开后自动请求；`onDemand` 字段显示计算入口，只有用户点击时才会提交对应字段 ID。计算结果统一是展示文本，复制由 Core UI 提供。
 
 完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloInfo`。

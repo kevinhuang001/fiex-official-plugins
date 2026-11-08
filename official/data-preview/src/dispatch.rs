@@ -1,10 +1,12 @@
 //! RPC dispatch over the open-file cache.
 use fiex_plugin_sdk::ProviderInvocationExt;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 #[path = "../../../support/resources.rs"]
 mod resources;
 use crate::open::{open, page_of, Cache};
 use fiex_plugin_sdk as sdk;
-use fiex_plugin_sdk::RpcError;
+use fiex_plugin_sdk::{InfoFieldKey, RpcError};
 use serde_json::Value;
 use std::sync::Mutex;
 
@@ -36,11 +38,11 @@ fn cached_open(
     Ok(value)
 }
 
-fn info_rows(
+fn info_fields(
     ctx: &dyn sdk::ProviderInvocation,
     target: &sdk::ResourceContext,
     cache: &Mutex<Option<Cache>>,
-) -> Result<Value, RpcError> {
+) -> Result<Vec<(String, String, String)>, RpcError> {
     let value = cached_open(ctx, target, cache)?;
     let datasets = value
         .get("datasets")
@@ -64,12 +66,32 @@ fn info_rows(
         .and_then(Value::as_u64)
         .or_else(|| value.pointer("/summary/rows").and_then(Value::as_u64))
         .unwrap_or(0);
-    Ok(serde_json::json!({"rows": [
-        {"label":crate::i18n::t("格式"),"value":value.get("format").and_then(Value::as_str).unwrap_or("").to_ascii_uppercase()},
-        {"label":crate::i18n::t("数据集"),"value":datasets.len().to_string()},
-        {"label":crate::i18n::t("首表列数"),"value":columns.to_string()},
-        {"label":crate::i18n::t("首表行数"),"value":rows.to_string()},
-    ]}))
+    Ok(vec![
+        (
+            "format".into(),
+            crate::i18n::t("格式").into(),
+            value
+                .get("format")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_ascii_uppercase(),
+        ),
+        (
+            "datasets".into(),
+            crate::i18n::t("数据集").into(),
+            datasets.len().to_string(),
+        ),
+        (
+            "columns".into(),
+            crate::i18n::t("首表列数").into(),
+            columns.to_string(),
+        ),
+        (
+            "rows".into(),
+            crate::i18n::t("首表行数").into(),
+            rows.to_string(),
+        ),
+    ])
 }
 
 pub(crate) fn dispatch(
@@ -79,10 +101,6 @@ pub(crate) fn dispatch(
     let method = ctx.method();
     let p = ctx.params();
     match method {
-        "data.info" => {
-            let target = resources::request_input(&ctx, "path")?;
-            info_rows(&ctx, &target, cache)
-        }
         "data.open" => {
             let target = resources::request_input(&ctx, "path")?;
             cached_open(&ctx, &target, cache)
@@ -119,17 +137,52 @@ pub(crate) fn dispatch(
     }
 }
 
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 pub(crate) struct Presentation(pub std::sync::Arc<Mutex<Option<Cache>>>);
 impl sdk::InfoProvider for Presentation {
-    fn resolve(
+    fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        for field in fields {
+            if field.section_id != "data"
+                || !matches!(
+                    field.field_id.as_str(),
+                    "format" | "datasets" | "columns" | "rows"
+                )
+            {
+                return Err(RpcError::invalid_params("unknown data preview Info field"));
+            }
+        }
+        if fields.is_empty() {
+            return Ok(Vec::new());
+        }
         let target = resources::target(ctx)?;
-        let rows = info_rows(ctx, &target, &self.0)?;
-        provider_results::section("data", crate::i18n::t("数据表"), rows["rows"].clone())
+        let values = if fields.iter().any(|field| field.field_id != "format") {
+            info_fields(ctx, &target, &self.0)?
+                .into_iter()
+                .map(|(id, _, value)| (id, value))
+                .collect::<std::collections::HashMap<_, _>>()
+        } else {
+            std::collections::HashMap::new()
+        };
+        fields
+            .iter()
+            .map(|field| {
+                let value = if field.field_id == "format" {
+                    resources::name(&target)?
+                        .rsplit_once('.')
+                        .map(|(_, extension)| extension.to_ascii_uppercase())
+                        .unwrap_or_default()
+                } else {
+                    values
+                        .get(&field.field_id)
+                        .cloned()
+                        .ok_or_else(|| RpcError::internal("data preview Info result missing"))?
+                };
+                Ok(provider_results::result("data", &field.field_id, value))
+            })
+            .collect()
     }
 }
 impl sdk::PreviewProvider for Presentation {

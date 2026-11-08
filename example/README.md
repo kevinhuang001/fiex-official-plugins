@@ -54,7 +54,7 @@ org.example.hello/
   "name": "示例插件",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "6.0",
+    "protocolVersion": "7.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-example.exe",
       "macos-aarch64": "fiex-plugin-example",
@@ -101,21 +101,31 @@ use serde_json::{json, Value};
 struct ExampleInfo;
 
 impl sdk::InfoProvider for ExampleInfo {
-    fn resolve(&self, ctx: &dyn sdk::ProviderInvocation) -> Result<Vec<sdk::InfoSection>, RpcError> {
-        let name = ctx.targets().first().and_then(|t| t.metadata.as_ref())
-            .map(|m| m.name.as_str()).unwrap_or("unknown");
-        Ok(vec![sdk::InfoSection {
-            source: String::new(),
-            provider: String::new(),
-            plugin_id: None,
+    fn describe(&self, _ctx: &dyn sdk::ProviderInvocation)
+        -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError>
+    {
+        Ok(vec![sdk::InfoSectionDescriptor {
             id: "example".into(),
             title: "示例信息".into(),
-            rows: vec![sdk::InfoRow {
-                label: "文件".into(),
-                value: name.into(),
-                copyable: false,
+            fields: vec![sdk::InfoFieldDescriptor {
+                id: "name".into(),
+                label: "文件名".into(),
+                compute: sdk::InfoCompute::OnOpen,
             }],
         }])
+    }
+
+    fn compute(&self, ctx: &dyn sdk::ProviderInvocation, fields: &[sdk::InfoFieldKey])
+        -> Result<Vec<sdk::InfoFieldResult>, RpcError>
+    {
+        let name = ctx.targets().first().and_then(|t| t.metadata.as_ref())
+            .map(|m| m.name.as_str()).unwrap_or("unknown");
+        fields.iter().map(|field| Ok(sdk::InfoFieldResult {
+            section_id: field.section_id.clone(),
+            field_id: field.field_id.clone(),
+            value: Some(name.into()),
+            unavailable: false,
+        })).collect()
     }
 }
 
@@ -145,7 +155,7 @@ Provider 就不会注册该事件。
 
 | Provider trait | 处理的事件 |
 | --- | --- |
-| `InfoProvider` | `info.resolve` |
+| `InfoProvider` | `info.describe` / `info.compute` |
 | `PreviewProvider` | `preview.open` |
 | `DecorationProvider` | `decorations.resolve` |
 | `ContextMenuProvider` | `contextMenu.resolve` / `contextMenu.execute` |
@@ -493,7 +503,7 @@ for (const [key, value] of Object.entries(tokens)) {
 | -------------- | --------------------------------- | ---------------------------------------------------------- |
 | `contextMenus` | `true` 或 `{match}`               | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
 | `decorations`  | `{match?,priority?}`              | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
-| `info`         | `{match?,priority?}`              | 用户“显示简介” → 固定 `info.resolve`                       |
+| `info`         | `{match?,priority?}`              | 打开“显示简介”后调用 `info.describe`，按字段调用 `info.compute` |
 | `preview`      | `{match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
 | `connections`  | `{title,fields}`                  | 添加连接 / 点击连接 → `connection.create/open`             |
 | `vfs`          | `{title,readOnly?}`               | Core Explorer 的文件树请求                                 |
@@ -523,12 +533,12 @@ for (const [key, value] of Object.entries(tokens)) {
 - `kinds` 为 `file` / `directory` / `connection`；
 - `selection` 仅用于 contextMenus：`zero` / `single` / `multi` / `any`；空白处右键需明确声明 `zero`；
 - 不满足就不会调用插件；空 `match` 表示不过滤；
-- `info` / `preview` 只针对用户当前选中的**单个资源**评估，并且只在点击“显示简介 / 快速查看”时才调用；
+- `info` / `preview` 只针对用户当前选中的**单个资源**评估；打开 Info 先声明字段，字段值按 `onOpen` 或用户点击 `onDemand` 获取；
 - `contextMenus` 的 `selection` 先按选中数量过滤，再验证所有目标。
 
-### 7.1 Info：标准事件 `info.resolve`
+### 7.1 Info：字段描述与按需计算
 
-Manifest：
+Manifest 仍使用 `extensions.info.match` 和 `priority` 选择候选插件，不在 Manifest 中重复声明字段：
 
 ```json
 "info": {
@@ -541,53 +551,24 @@ Manifest：
 }
 ```
 
-Core 为 `info.resolve` 构造 `ProviderInvocation`，权限投影后的目标资源保存在 `targets` 中：
+打开 Info 后，Core 先调用 `info.describe`。插件返回 section 和字段目录，每个字段只包含稳定 ID、标签以及 `onOpen` 或 `onDemand` 策略：
 
 ```json
 {
-  "sessionId": "opaque",
-  "targets": [{
-    "ref": { "mountId": "local", "nodeId": "fiex-resource:..." },
-    "view": { "type": "fs", "providerId": "core:local-fs", "mountId": "local" },
-    "storage": { "type": "fs", "providerId": "core:local-fs", "mountId": "local" },
-    "capabilities": { "operations": ["read", "stat"] },
-    "metadata": {
-      "name": "notes.md",
-      "kind": "file",
-      "extension": "md",
-      "mime": "text/markdown",
-      "size": 2451,
-      "modified": 1792920000
-    },
+  "sections": [{
+    "id": "example",
+    "title": "示例信息",
+    "fields": [
+      {"id": "name", "label": "文件名", "compute": "onOpen"},
+      {"id": "sha256", "label": "SHA-256", "compute": "onDemand"}
+    ]
   }]
 }
 ```
 
-`metadata` 只在 `permissions.metadata.enabled` 时出现；`read` 只在 `permissions.files.read.enabled` 时出现。
+`onOpen` 字段由 Core 在后台请求；`onDemand` 字段先显示为未计算，只有用户点击后才会调用 `info.compute`，且请求只包含被点击的字段 ID。结果使用 `{sectionId, fieldId, value}`；无法取得的字段可以返回 `unavailable: true`。字段声明不包含权限、缓存或值类型配置，缓存和授权仍由 Core 统一处理。
 
-插件返回：
-
-```json
-{
-  "sections": [
-    {
-      "id": "example",
-      "title": "示例信息",
-      "rows": [
-        { "label": "文件", "value": "notes.md" },
-        { "label": "SHA-256", "value": "…", "copyable": true }
-      ]
-    }
-  ]
-}
-```
-
-- `id` 在插件内唯一，Core 会变成 `<pluginId>.<id>`；
-- `copyable: true` 让 Core 在值旁边显示复制按钮；
-- 没有 `files.read` 就不要调用 `ctx.files().open_read`；
-- 内置的 `core.metadata` / 音频 / 视频 section 与插件 section 由同一个 Registry 合并。
-
-示例实现见 `hello/src/main.rs` 的 `info.resolve`。
+`describe` 不应读取文件内容。需要内容读取的 Provider 不应在 `match.requiredOps` 中要求 `read` 来隐藏字段；在用户主动计算后通过 `ctx.files()` 读取，Core 会在执行时检查权限。示例实现见 `hello/src/main.rs` 的 `HelloInfo`，完整说明见 [`docs/info.md`](docs/info.md)。
 
 ### 7.2 Preview：标准事件 `preview.open`
 

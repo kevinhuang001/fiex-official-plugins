@@ -1,14 +1,10 @@
-//! Typed standard-event results shared by official plugins.
-use fiex_plugin_sdk::{InfoSection, RpcError};
-use serde_json::Value;
-pub fn section(id: &str, title: &str, rows: Value) -> Result<Vec<InfoSection>, RpcError> {
-    Ok(vec![InfoSection {
-        id: id.into(),
-        title: title.into(),
-        source: String::new(),
-        provider: String::new(),
-        plugin_id: None,
-        rows: serde_json::from_value(rows)
-            .map_err(|error| RpcError::internal(error.to_string()))?,
-    }])
+use fiex_plugin_sdk::InfoFieldResult;
+
+pub fn result(section_id: &str, field_id: &str, value: impl Into<String>) -> InfoFieldResult {
+    InfoFieldResult {
+        section_id: section_id.into(),
+        field_id: field_id.into(),
+        value: Some(value.into()),
+        unavailable: false,
+    }
 }

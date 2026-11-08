@@ -3,9 +3,11 @@ mod archives;
 mod i18n;
 mod ignores;
 mod listing;
+#[path = "../../../support/provider_results.rs"]
+mod provider_results;
 #[path = "../../../support/resources.rs"]
 mod resources;
-use fiex_plugin_sdk::{self as sdk, ProviderInvocationExt, RpcError};
+use fiex_plugin_sdk::{self as sdk, InfoFieldKey, ProviderInvocationExt, RpcError};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
@@ -291,11 +293,11 @@ fn archive_menu_input(
     Ok(json!({"targets":targets,"parentId":parent_id}))
 }
 
-fn archive_info(
+fn archive_info_fields(
     path: &sdk::ResourceRef,
     p: &Value,
     host: &dyn sdk::ProviderInvocation,
-) -> Result<Value, RpcError> {
+) -> Result<Vec<(String, String, String)>, RpcError> {
     let password = p.get("password").and_then(Value::as_str);
     let listing = listing::list(path, password, host.sdk_context()).map_err(RpcError::internal)?;
     let compressed = host
@@ -318,31 +320,55 @@ fn archive_info(
         .rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_uppercase())
         .unwrap_or_else(|| "UNKNOWN".into());
-    let mut rows = vec![
-        json!({"label":crate::i18n::t("格式"),"value":format}),
-        json!({"label":crate::i18n::t("压缩后大小"),"value":format_size(compressed)}),
-        json!({"label":crate::i18n::t("解压后大小"),"value":format_size(uncompressed)}),
-        json!({"label":crate::i18n::t("文件数"),"value":count.to_string()}),
+    let mut fields = vec![
+        ("format".into(), crate::i18n::t("格式").into(), format),
+        (
+            "compressedSize".into(),
+            crate::i18n::t("压缩后大小").into(),
+            format_size(compressed),
+        ),
+        (
+            "uncompressedSize".into(),
+            crate::i18n::t("解压后大小").into(),
+            format_size(uncompressed),
+        ),
+        (
+            "entryCount".into(),
+            crate::i18n::t("文件数").into(),
+            count.to_string(),
+        ),
     ];
     if uncompressed > 0 {
         let saved = 1.0 - compressed as f64 / uncompressed as f64;
-        rows.push(
-            json!({"label":crate::i18n::t("压缩率"),"value":format!("{:.1}%", saved * 100.0)}),
-        );
+        fields.push((
+            "compressionRatio".into(),
+            crate::i18n::t("压缩率").into(),
+            format!("{:.1}%", saved * 100.0),
+        ));
     }
-    if listing
-        .get("encrypted")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        rows.push(json!({"label":crate::i18n::t("加密"),"value":crate::i18n::t("是")}));
-    }
+    fields.push((
+        "encrypted".into(),
+        crate::i18n::t("加密").into(),
+        if listing
+            .get("encrypted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            crate::i18n::t("是").into()
+        } else {
+            crate::i18n::t("否").into()
+        },
+    ));
     if listing.get("supported").and_then(Value::as_bool) == Some(false) {
         if let Some(message) = listing.get("message").and_then(Value::as_str) {
-            rows.push(json!({"label":crate::i18n::t("说明"),"value":message}));
+            fields.push((
+                "message".into(),
+                crate::i18n::t("说明").into(),
+                message.into(),
+            ));
         }
     }
-    Ok(json!({"rows": rows}))
+    Ok(fields)
 }
 
 fn run_operation(
@@ -405,9 +431,6 @@ fn run_operation(
                 Ok(json!(result))
             })?;
             Ok(json!({"taskId": task.id()}))
-        }
-        "archive.info" => {
-            archive_info(&resources::from_params(p, "path", host)?.reference, p, host)
         }
         "archive.list" => match listing::list(
             &resources::from_params(p, "path", host)?.reference,
@@ -473,98 +496,55 @@ fn main() {
     }
 }
 
-#[cfg(test)]
-mod context_menu_tests {
-    use super::*;
-
-    #[test]
-    fn compression_options_are_resolved_only_after_expanding() {
-        let targets = json!({"targets":[{"metadata":{"name":"notes.txt","kind":"file","operations":{"read":true}}}]});
-        let root = archive_menu(&targets);
-        let items = root["items"].as_array().unwrap();
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0]["kind"], "submenu");
-        assert_eq!(items[0]["id"], "archive.compress");
-        let children = archive_menu(&json!({
-            "targets":targets["targets"],
-            "parentId":"archive.compress"
-        }));
-        let items = children["items"].as_array().unwrap();
-        assert!(items.len() >= 2);
-        assert!(items.iter().all(|item| item.get("parentId").is_none()));
-        assert!(items.iter().any(|item| item["id"] == "archive.zip"));
-    }
-
-    #[test]
-    fn menus_require_content_capabilities_without_source_predicates() {
-        for metadata in [
-            json!({"name":"system.zip","kind":"file","operations":{"stat":true,"read":false}}),
-            json!({"name":"link.zip","kind":"symlink","operations":{"read":true}}),
-            json!({"name":"opaque.zip","kind":"file"}),
-        ] {
-            assert!(
-                archive_menu(&json!({"targets":[{"metadata":metadata}]}))["items"]
-                    .as_array()
-                    .unwrap()
-                    .is_empty()
-            );
-        }
-        let root = archive_menu(
-            &json!({"targets":[{"metadata":{"name":"folder","kind":"directory","operations":{"list":true}}}]}),
-        );
-        assert_eq!(root["items"][0]["id"], "archive.compress");
-    }
-
-    #[test]
-    fn encrypted_hook_failures_point_at_the_password_actions() {
-        assert!(hook_error_message("Password required").contains("密码"));
-        assert!(hook_error_message("archive is encrypted").contains("预览"));
-        assert_eq!(hook_error_message("磁盘已满"), "磁盘已满");
-    }
-
-    #[test]
-    fn manifest_negotiates_a_longer_ui_budget_for_archive_listing() {
-        let manifest: Value = serde_json::from_str(include_str!("../manifest.json")).unwrap();
-        let timeout = manifest["extensions"]["ui"]["timeoutMs"]
-            .as_u64()
-            .expect("manifest must declare extensions.ui.timeoutMs");
-        assert!(
-            timeout >= 120_000,
-            "archive listing needs a longer budget than Core's old default"
-        );
-    }
-
-    #[test]
-    fn extracting_archive_stays_a_single_action() {
-        let root = archive_menu(
-            &json!({"targets":[{"metadata":{"name":"sample.zip","kind":"file","operations":{"read":true}}}]}),
-        );
-        assert_eq!(root["items"][0]["id"], "archive.extract");
-        assert_eq!(root["items"].as_array().unwrap().len(), 1);
-        assert!(archive_menu(&json!({"targets":[]}))["items"]
-            .as_array()
-            .unwrap()
-            .is_empty());
-        assert!(archive_menu(&json!({"parentId":"foreign"}))["items"]
-            .as_array()
-            .unwrap()
-            .is_empty());
-    }
-}
-
-#[path = "../../../support/provider_results.rs"]
-mod provider_results;
 struct Archive;
 impl sdk::InfoProvider for Archive {
-    fn resolve(
+    fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSection>, RpcError> {
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
+        let requested = fields
+            .iter()
+            .map(|field| {
+                if field.section_id != "archive"
+                    || !matches!(
+                        field.field_id.as_str(),
+                        "format"
+                            | "compressedSize"
+                            | "uncompressedSize"
+                            | "entryCount"
+                            | "compressionRatio"
+                            | "encrypted"
+                            | "message"
+                    )
+                {
+                    return Err(RpcError::invalid_params("unknown archive field"));
+                }
+                Ok(field.field_id.as_str())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if requested.is_empty() {
+            return Ok(Vec::new());
+        }
         let target = ctx
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing target"))?;
-        let rows = archive_info(&target.reference, &json!({}), ctx)?;
-        provider_results::section("archive", crate::i18n::t("压缩包"), rows["rows"].clone())
+        let values = archive_info_fields(&target.reference, &json!({}), ctx)?
+            .into_iter()
+            .map(|(id, _, value)| (id, value))
+            .collect::<std::collections::HashMap<_, _>>();
+        Ok(fields
+            .iter()
+            .map(|field| match values.get(&field.field_id) {
+                Some(value) => provider_results::result("archive", &field.field_id, value),
+                None => sdk::InfoFieldResult {
+                    section_id: "archive".into(),
+                    field_id: field.field_id.clone(),
+                    value: None,
+                    unavailable: true,
+                },
+            })
+            .collect())
     }
 }
 impl sdk::PreviewProvider for Archive {
@@ -702,5 +682,84 @@ impl sdk::HookProvider for Archive {
             .target()
             .ok_or_else(|| RpcError::invalid_params("missing hook target"))?;
         before_open(&target.reference, &json!({}), ctx)
+    }
+}
+
+#[cfg(test)]
+mod context_menu_tests {
+    use super::*;
+
+    #[test]
+    fn compression_options_are_resolved_only_after_expanding() {
+        let targets = json!({"targets":[{"metadata":{"name":"notes.txt","kind":"file","operations":{"read":true}}}]});
+        let root = archive_menu(&targets);
+        let items = root["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["kind"], "submenu");
+        assert_eq!(items[0]["id"], "archive.compress");
+        let children = archive_menu(&json!({
+            "targets":targets["targets"],
+            "parentId":"archive.compress"
+        }));
+        let items = children["items"].as_array().unwrap();
+        assert!(items.len() >= 2);
+        assert!(items.iter().all(|item| item.get("parentId").is_none()));
+        assert!(items.iter().any(|item| item["id"] == "archive.zip"));
+    }
+
+    #[test]
+    fn menus_require_content_capabilities_without_source_predicates() {
+        for metadata in [
+            json!({"name":"system.zip","kind":"file","operations":{"stat":true,"read":false}}),
+            json!({"name":"link.zip","kind":"symlink","operations":{"read":true}}),
+            json!({"name":"opaque.zip","kind":"file"}),
+        ] {
+            assert!(
+                archive_menu(&json!({"targets":[{"metadata":metadata}]}))["items"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        let root = archive_menu(
+            &json!({"targets":[{"metadata":{"name":"folder","kind":"directory","operations":{"list":true}}}]}),
+        );
+        assert_eq!(root["items"][0]["id"], "archive.compress");
+    }
+
+    #[test]
+    fn encrypted_hook_failures_point_at_the_password_actions() {
+        assert!(hook_error_message("Password required").contains("密码"));
+        assert!(hook_error_message("archive is encrypted").contains("预览"));
+        assert_eq!(hook_error_message("磁盘已满"), "磁盘已满");
+    }
+
+    #[test]
+    fn manifest_negotiates_a_longer_ui_budget_for_archive_listing() {
+        let manifest: Value = serde_json::from_str(include_str!("../manifest.json")).unwrap();
+        let timeout = manifest["extensions"]["ui"]["timeoutMs"]
+            .as_u64()
+            .expect("manifest must declare extensions.ui.timeoutMs");
+        assert!(
+            timeout >= 120_000,
+            "archive listing needs a longer budget than Core's old default"
+        );
+    }
+
+    #[test]
+    fn extracting_archive_stays_a_single_action() {
+        let root = archive_menu(
+            &json!({"targets":[{"metadata":{"name":"sample.zip","kind":"file","operations":{"read":true}}}]}),
+        );
+        assert_eq!(root["items"][0]["id"], "archive.extract");
+        assert_eq!(root["items"].as_array().unwrap().len(), 1);
+        assert!(archive_menu(&json!({"targets":[]}))["items"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(archive_menu(&json!({"parentId":"foreign"}))["items"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 }

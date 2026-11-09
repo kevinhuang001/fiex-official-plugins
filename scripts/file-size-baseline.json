@@ -1,0 +1,22 @@
+{
+  "example/hello/src/main.rs": 341,
+  "official/archive/src/main.rs": 766,
+  "official/archive/ui/src/App.tsx": 421,
+  "official/gpg/src/commands.rs": 338,
+  "official/openlist/src/fs.rs": 355,
+  "official/smb/src/main.rs": 634,
+  "official/webdav/src/fs.rs": 405,
+  "sdk/rust/contracts/src/dto/preflight.rs": 435,
+  "sdk/rust/contracts/src/matcher.rs": 358,
+  "sdk/rust/contracts/src/providers.rs": 450,
+  "sdk/rust/src/context.rs": 674,
+  "sdk/rust/src/filesystem/server.rs": 342,
+  "sdk/rust/src/filesystem/tests.rs": 302,
+  "sdk/rust/src/filesystem/tests/streams.rs": 344,
+  "sdk/rust/src/http.rs": 427,
+  "sdk/rust/src/providers.rs": 352,
+  "sdk/rust/src/runtime/mod.rs": 353,
+  "sdk/rust/src/sdk_tests.rs": 959,
+  "sdk/rust/src/tasks.rs": 343,
+  "sdk/ui/src/index.ts": 450
+}

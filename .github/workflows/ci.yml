@@ -58,6 +58,7 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -r scripts/requirements-i18n.txt
       - run: npm ci
+      - run: npm run check:size
       - run: npm run check:i18n
       - run: npm run test:i18n
       - name: Typecheck and rebuild self-contained panels

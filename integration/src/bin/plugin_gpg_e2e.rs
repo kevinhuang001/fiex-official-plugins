@@ -25,7 +25,9 @@ fn main() {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
-    std::env::set_var("GNUPGHOME", &home);
+    // SAFETY: this executable sets GNUPGHOME before the plugin host starts
+    // worker threads, and it never mutates process environment afterward.
+    unsafe { std::env::set_var("GNUPGHOME", &home) };
     assert!(
         std::process::Command::new("gpg")
             .args([

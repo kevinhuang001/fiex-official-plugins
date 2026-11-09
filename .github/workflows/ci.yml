@@ -38,6 +38,8 @@ jobs:
           cargo fmt --manifest-path example/hello/Cargo.toml --check || status=1
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py || status=1
           exit "$status"
+      - name: Enforce Archive plugin source size
+        run: node scripts/check-archive-size.mjs
 
   ui:
     name: Standalone plugin panels

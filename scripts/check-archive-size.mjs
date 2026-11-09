@@ -10,7 +10,7 @@ function visit(directory) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) visit(path)
     else if (path.endsWith('.rs')) {
-      const lines = readFileSync(path, 'utf8').split('\\n').length
+      const lines = readFileSync(path, 'utf8').split(/\r?\n/).length
       if (lines > limit) oversized.push([relative('.', path), lines])
     }
   }

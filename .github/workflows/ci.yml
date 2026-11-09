@@ -40,6 +40,8 @@ jobs:
           exit "$status"
       - name: Enforce Archive plugin source size
         run: node scripts/check-archive-size.mjs
+      - name: Enforce Rust source size baselines
+        run: npm run check:size
 
   ui:
     name: Standalone plugin panels

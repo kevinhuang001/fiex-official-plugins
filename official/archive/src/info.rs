@@ -1,6 +1,6 @@
 use super::*;
 use fiex_plugin_sdk::{self as sdk, ProviderInvocationExt, RpcError};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 pub(super) fn archive_info_fields(
     path: &sdk::ResourceRef,
@@ -68,14 +68,14 @@ pub(super) fn archive_info_fields(
             crate::i18n::t("否").into()
         },
     ));
-    if listing.get("supported").and_then(Value::as_bool) == Some(false) {
-        if let Some(message) = listing.get("message").and_then(Value::as_str) {
-            fields.push((
-                "message".into(),
-                crate::i18n::t("说明").into(),
-                message.into(),
-            ));
-        }
+    if listing.get("supported").and_then(Value::as_bool) == Some(false)
+        && let Some(message) = listing.get("message").and_then(Value::as_str)
+    {
+        fields.push((
+            "message".into(),
+            crate::i18n::t("说明").into(),
+            message.into(),
+        ));
     }
     Ok(fields)
 }

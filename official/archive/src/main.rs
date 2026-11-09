@@ -15,7 +15,7 @@ mod support;
 #[cfg(test)]
 mod tests;
 
-use fiex_plugin_sdk::{self as sdk, ProviderInvocationExt};
+use fiex_plugin_sdk as sdk;
 use info::archive_info_fields;
 use menu::{archive_menu, archive_menu_input, archive_resource};
 use operations::run_operation;

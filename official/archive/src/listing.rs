@@ -1,7 +1,7 @@
 //! Read-only archive listings for the preview panel.
 use fiex_plugin_sdk as sdk;
 use fiex_plugin_sdk::ProviderInvocationExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::{Read, Seek};
 
 const MAX_ENTRIES: usize = 5000;

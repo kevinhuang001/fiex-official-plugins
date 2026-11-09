@@ -1,9 +1,8 @@
 //! Per-format archive readers.
 use super::super::{
-    err,
+    ArchiveContext, CANCELLED, MAX_ENTRIES, err,
     extract::extract_file,
     paths::{entry_ref, safe_name},
-    ArchiveContext, CANCELLED, MAX_ENTRIES,
 };
 use crate::ignores::IgnoreSet;
 use std::{

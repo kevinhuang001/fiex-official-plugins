@@ -1,6 +1,6 @@
 use super::{archives, listing};
 use fiex_plugin_sdk::{self as sdk, ProviderInvocationExt, RpcError};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
 /// How long a `beforeOpen` hook waits for an extraction that is likely quick.

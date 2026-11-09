@@ -1,6 +1,6 @@
 use super::*;
 use fiex_plugin_sdk::{self as sdk, RpcError};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub(super) fn archive_menu(params: &Value) -> Value {
     // Source semantics and capabilities alone decide applicability. A

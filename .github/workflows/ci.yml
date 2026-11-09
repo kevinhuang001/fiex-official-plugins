@@ -199,13 +199,13 @@ jobs:
           # Every declared panel must resolve through the real host, including
           # the advanced-compression panel nested in a context submenu.
           cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --features usbfs --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
-          cargo run --manifest-path integration/Cargo.toml --example plugin_connection_view_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_info_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_preview_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_decorations_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_gpg_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_connection_view_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_git_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_optional_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_info_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_preview_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_decorations_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_gpg_e2e
       - name: SSH plugin against a real local sshd
         shell: bash
         env:
@@ -370,7 +370,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
           python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64 --slugs webdav smb
-          cargo run --manifest-path integration/Cargo.toml --example plugin_network_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_network_e2e
 
       - name: Remote fixture diagnostics
         if: failure()

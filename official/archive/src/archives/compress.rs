@@ -1,6 +1,6 @@
 //! Compression entry point: collect the sources to store, then hand them to the
 //! writer for the requested format.
-use super::{err, formats, paths::text, ArchiveContext, MAX_ENTRIES};
+use super::{ArchiveContext, MAX_ENTRIES, err, formats, paths::text};
 use crate::ignores::IgnoreSet;
 use fiex_plugin_sdk::{Files, ResourceRef};
 use std::path::Path;

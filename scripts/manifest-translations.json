@@ -115,6 +115,10 @@
     "en": "Office Preview",
     "zh-TW": "Office 預覽"
   },
+  "Word、Excel、PowerPoint 的只读预览，并可将 DOCX、XLSX、PPTX 导出为 PDF。预览和转换均由插件内 Rust 实现，不依赖 Microsoft Office 或外部转换器。": {
+    "en": "Read-only Word, Excel and PowerPoint preview, with PDF export for DOCX, XLSX and PPTX. Rendering and conversion run in the Rust plugin without Microsoft Office or external converters.",
+    "zh-TW": "Word、Excel、PowerPoint 唯讀預覽，並支援將 DOCX、XLSX、PPTX 匯出為 PDF。預覽和轉換均由外掛內的 Rust 實作，不依賴 Microsoft Office 或外部轉換器。"
+  },
   "Word、Excel、PowerPoint 的只读预览。文本级渲染，复杂版式会简化。": {
     "en": "Read-only Word, Excel and PowerPoint preview. Complex layouts are simplified.",
     "zh-TW": "Word、Excel、PowerPoint 的唯讀預覽。文字層級渲染，複雜版面會簡化。"

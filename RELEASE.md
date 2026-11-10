@@ -1,3 +1,7 @@
+# Fiex plugins 0.5.12
+
+- Rename the Office plugin's user-facing name from Office Preview to Office. Add an Office context menu that converts DOCX, XLSX and PPTX files to sibling PDFs using the plugin's Rust conversion pipeline.
+
 # Fiex plugins 0.5.11
 
 - Migrate all changed official providers to the shared typed SDK contracts and align VFS, ContextMenu, Search, Info, Preview, Decoration, Hook, Toolbar, and Connection calls with the unified Core provider pipeline.

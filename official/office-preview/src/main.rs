@@ -1,4 +1,4 @@
-//! Read-only Word / Excel / PowerPoint preview.
+//! Word / Excel / PowerPoint preview and PDF export.
 //!
 //! Parsing is delegated to `office_oxide`, which reads the OOXML package and
 //! renders structured HTML: headings, paragraphs, lists, tables and sheet /
@@ -6,6 +6,7 @@
 //! walks the XML by hand. Charts, SmartArt, animations, embedded objects and
 //! legacy `.doc/.xls/.ppt` remain out of scope.
 use fiex_plugin_sdk::ProviderInvocationExt;
+mod context_menu;
 #[path = "../../../support/i18n.rs"]
 mod i18n;
 mod pdf;
@@ -155,12 +156,10 @@ fn main() {
         .diagnostics()
         .info(Presentation)
         .preview(Presentation)
+        .context_menu(context_menu::OfficeMenu)
         .serve_with("org.fiex.office-preview", dispatch)
     {
-        eprintln!(
-            "Office preview IPC failed: transport closed ({:?})",
-            error.kind()
-        );
+        eprintln!("Office IPC failed: transport closed ({:?})", error.kind());
         std::process::exit(1);
     }
 }

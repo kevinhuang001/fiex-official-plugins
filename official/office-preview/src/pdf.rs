@@ -1,8 +1,8 @@
-//! Plugin-owned Office-to-PDF preview.
+//! Plugin-owned Office-to-PDF conversion and preview.
 //!
-//! `office2pdf` converts DOCX/PPTX into a real PDF using pure Rust. The plugin
-//! then rasterizes only the requested first pages with `hayro` for its own
-//! viewer. Core never parses the document or renders the PDF.
+//! `office2pdf` converts DOCX/XLSX/PPTX into a real PDF using pure Rust. The
+//! plugin can export the full PDF or rasterize its first pages with `hayro` for
+//! the in-app viewer. Core never parses the document or renders the PDF.
 use base64::Engine;
 use fiex_plugin_sdk::RpcError;
 use hayro::hayro_interpret::InterpreterSettings;
@@ -17,7 +17,18 @@ const MAX_ENCODED: usize = 2_500_000;
 
 fn format(extension: &str) -> Result<Format, RpcError> {
     Format::from_extension(extension)
-        .ok_or_else(|| RpcError::invalid_params("only docx and pptx can be converted to PDF"))
+        .ok_or_else(|| RpcError::invalid_params("only docx, xlsx and pptx can be converted to PDF"))
+}
+
+/// Convert the entire selected workbook or presentation to a PDF for export.
+pub(crate) fn document_pdf(bytes: &[u8], extension: &str) -> Result<Vec<u8>, RpcError> {
+    let result =
+        office2pdf::convert_bytes(bytes, format(extension)?, &ConvertOptions::default())
+            .map_err(|error| RpcError::internal(format!("Office conversion failed: {error}")))?;
+    if result.pdf.len() > 128 * 1024 * 1024 {
+        return Err(RpcError::internal("generated PDF is too large"));
+    }
+    Ok(result.pdf)
 }
 
 /// Convert the document and keep at most `limit` PDF pages.
@@ -84,4 +95,34 @@ pub(crate) fn images(
         "pages": pages,
         "count": pages.len(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::document_pdf;
+
+    #[test]
+    fn docx_xlsx_and_pptx_export_as_pdf() {
+        for (extension, bytes) in [
+            (
+                "docx",
+                include_bytes!("../tests/fixtures/fixture.docx").as_slice(),
+            ),
+            (
+                "xlsx",
+                include_bytes!("../tests/fixtures/fixture.xlsx").as_slice(),
+            ),
+            (
+                "pptx",
+                include_bytes!("../tests/fixtures/fixture.pptx").as_slice(),
+            ),
+        ] {
+            let pdf = document_pdf(bytes, extension)
+                .unwrap_or_else(|error| panic!("{extension} conversion failed: {error}"));
+            assert!(
+                pdf.starts_with(b"%PDF-"),
+                "{extension} did not produce a PDF"
+            );
+        }
+    }
 }

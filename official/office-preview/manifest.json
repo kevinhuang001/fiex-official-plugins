@@ -164,9 +164,7 @@
       "标题": "Headings",
       "表格": "Tables",
       "图片": "Images",
-      "列表项": "List items",
-      "转换为 PDF": "Convert to PDF",
-      "正在转换为 PDF": "Converting to PDF…"
+      "列表项": "List items"
     },
     "zh-TW": {
       "Office": "Office",
@@ -178,9 +176,7 @@
       "标题": "標題",
       "表格": "表格",
       "图片": "圖片",
-      "列表项": "清單項目",
-      "转换为 PDF": "轉換為 PDF",
-      "正在转换为 PDF": "正在轉換為 PDF…"
+      "列表项": "清單項目"
     }
   }
 }

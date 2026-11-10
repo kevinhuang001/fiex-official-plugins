@@ -1,6 +1,6 @@
 //! A packaged connection uses the generic Core navigation/PluginView bridge.
 use fiex_lib::plugins::host;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn main() {
     fiex_lib::plugins::security::sandbox::run_wrapper_if_requested();

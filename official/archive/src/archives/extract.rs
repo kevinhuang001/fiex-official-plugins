@@ -1,9 +1,8 @@
 //! Extraction entry point: stage into a hidden sibling directory, delegate the
 //! per-format reading, then move the result to a non-colliding target.
 use super::{
-    err, formats,
+    ArchiveContext, err, formats,
     paths::{entry_ref, unique},
-    ArchiveContext,
 };
 use crate::ignores::IgnoreSet;
 use fiex_plugin_sdk::{Files, ResourceRef};

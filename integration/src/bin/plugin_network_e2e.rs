@@ -1,7 +1,7 @@
 //! Real HTTP and TCP SDK calls through Core, including explicit host consent.
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use fiex_lib::plugins::host as plugin_host;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Integration tests install packages directly; record the same install
 /// approval a user gives in the marketplace before activating permissions.
@@ -26,9 +26,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
     )
     .unwrap();
     // Neither loopback nor LAN addresses have implicit access.
-    assert!(plugin_host::global()
-        .invoke(id, "connection.validate", json!({"connection": config}))
-        .is_err());
+    assert!(
+        plugin_host::global()
+            .invoke(id, "connection.validate", json!({"connection": config}))
+            .is_err()
+    );
     plugin_host::set_network_domain(id, "127.0.0.1", true).unwrap();
     let kind = if id == "org.fiex.webdav" {
         "webdav"
@@ -53,11 +55,13 @@ fn check(id: &str, config: Value, expected: &[u8]) {
             json!({"connection": config, "mountId": mount_id, "nodeId": "", "limit": 200}),
         )
         .expect("network listing through Core failed");
-    assert!(listing["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|entry| entry["name"] == "hello.txt"));
+    assert!(
+        listing["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["name"] == "hello.txt")
+    );
     let opened = plugin_host::global()
         .invoke(
             id,
@@ -95,11 +99,13 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 json!({"connection": config, "mountId": mount_id, "nodeId": "hello.txt"}),
             )
             .unwrap();
-        assert!(!discovered["operations"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|op| op == "write"));
+        assert!(
+            !discovered["operations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|op| op == "write")
+        );
     } else {
         let source_dir = tempfile::tempdir().unwrap();
         let source = source_dir.path().join("source.dat");
@@ -146,19 +152,21 @@ fn check(id: &str, config: Value, expected: &[u8]) {
                 )
                 .unwrap();
             assert_ne!(committed["revision"], baseline["revision"]);
-            assert!(plugin_host::global()
-                .invoke(
-                    id,
-                    "vfs.beginWrite",
-                    json!({
-                        "connection": config,
-                        "mountId": mount_id,
-                        "nodeId": "hello.txt",
-                        "size": 1,
-                        "ifRevision": baseline["revision"]
-                    }),
-                )
-                .is_err());
+            assert!(
+                plugin_host::global()
+                    .invoke(
+                        id,
+                        "vfs.beginWrite",
+                        json!({
+                            "connection": config,
+                            "mountId": mount_id,
+                            "nodeId": "hello.txt",
+                            "size": 1,
+                            "ifRevision": baseline["revision"]
+                        }),
+                    )
+                    .is_err()
+            );
             let opened = plugin_host::global()
                 .invoke(
                     id,
@@ -197,10 +205,12 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         ))
         .unwrap()
         .unwrap();
-        assert!(listing
-            .entries
-            .iter()
-            .any(|entry| entry.name == "hello.txt"));
+        assert!(
+            listing
+                .entries
+                .iter()
+                .any(|entry| entry.name == "hello.txt")
+        );
         let hello = format!("{}hello.txt", connection.mount_path);
         futures::executor::block_on(fiex_lib::remote::sync_one(&hello, &Default::default()))
             .unwrap();
@@ -210,9 +220,11 @@ fn check(id: &str, config: Value, expected: &[u8]) {
         assert_eq!(std::fs::read(cached).unwrap(), expected);
     }
     plugin_host::set_network_domain(id, "127.0.0.1", false).unwrap();
-    assert!(plugin_host::global()
-        .invoke(id, "connection.validate", json!({"connection":config}))
-        .is_err());
+    assert!(
+        plugin_host::global()
+            .invoke(id, "connection.validate", json!({"connection":config}))
+            .is_err()
+    );
     fiex_lib::remote::remove_connection(&connection.id).unwrap();
 }
 

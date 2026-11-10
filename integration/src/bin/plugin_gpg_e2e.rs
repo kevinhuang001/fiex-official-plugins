@@ -1,5 +1,5 @@
 //! Real GnuPG behind Core's authorized command broker, with an isolated keyring.
-#[path = "../support/fixtures.rs"]
+#[path = "../../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
 use serde_json::json;
@@ -25,23 +25,27 @@ fn main() {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
-    std::env::set_var("GNUPGHOME", &home);
-    assert!(std::process::Command::new("gpg")
-        .args([
-            "--batch",
-            "--pinentry-mode",
-            "loopback",
-            "--passphrase",
-            "",
-            "--quick-generate-key",
-            "Fiex CI <fiex@example.invalid>",
-            "rsa2048",
-            "sign,encrypt",
-            "1d"
-        ])
-        .status()
-        .unwrap()
-        .success());
+    // SAFETY: this executable sets GNUPGHOME before the plugin host starts
+    // worker threads, and it never mutates process environment afterward.
+    unsafe { std::env::set_var("GNUPGHOME", &home) };
+    assert!(
+        std::process::Command::new("gpg")
+            .args([
+                "--batch",
+                "--pinentry-mode",
+                "loopback",
+                "--passphrase",
+                "",
+                "--quick-generate-key",
+                "Fiex CI <fiex@example.invalid>",
+                "rsa2048",
+                "sign,encrypt",
+                "1d"
+            ])
+            .status()
+            .unwrap()
+            .success()
+    );
     let (manifest, _) = plugin_host::installed_manifests()
         .into_iter()
         .find(|(m, _)| m.id == "org.fiex.gpg")
@@ -106,11 +110,13 @@ fn main() {
     )
     .unwrap();
     std::fs::write(&input, b"tampered").unwrap();
-    assert!(invoke(
-        "gpg.verify",
-        json!({"input":reference(&input),"signature":reference(&signature)})
-    )
-    .is_err());
+    assert!(
+        invoke(
+            "gpg.verify",
+            json!({"input":reference(&input),"signature":reference(&signature)})
+        )
+        .is_err()
+    );
     for id in ["org.fiex.theme.vista", "org.fiex.theme.win11"] {
         let (manifest, _) = plugin_host::installed_manifests()
             .into_iter()
@@ -123,9 +129,11 @@ fn main() {
         )
         .unwrap();
     }
-    assert!(plugin_host::themes()
-        .iter()
-        .any(|theme| theme.id == "org.fiex.theme.vista:vista"));
+    assert!(
+        plugin_host::themes()
+            .iter()
+            .any(|theme| theme.id == "org.fiex.theme.vista:vista")
+    );
     plugin_host::global().stop("org.fiex.gpg");
     let _ = std::process::Command::new("gpgconf")
         .args(["--kill", "gpg-agent"])

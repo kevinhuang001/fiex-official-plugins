@@ -1,5 +1,5 @@
 //! Cross-repository smoke test for the optional Archive and Checksum plugins.
-#[path = "../support/fixtures.rs"]
+#[path = "../../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
 use serde_json::json;

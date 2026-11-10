@@ -1,5 +1,5 @@
 //! Per-format archive writers.
-use super::super::{compress::Source, err, ArchiveContext, CANCELLED};
+use super::super::{ArchiveContext, CANCELLED, compress::Source, err};
 use std::io::{self, Read, Seek, Write};
 
 /// Cancels a long single-file copy between chunks instead of at file boundaries.

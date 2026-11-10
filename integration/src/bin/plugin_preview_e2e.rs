@@ -1,5 +1,5 @@
 //! Cross-repository test for the unified EventContext/PreviewView contract.
-#[path = "../support/fixtures.rs"]
+#[path = "../../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::{
     events, host as plugin_host, providers::preview, resource::resource_context::ResourceSnapshot,
@@ -76,8 +76,7 @@ fn main() {
     wait_task(started["taskId"].as_str().expect("compress task id"));
 
     let display = archive.to_str().unwrap();
-    let candidates = preview::resource_candidates_json(display)
-        .expect("preview candidates");
+    let candidates = preview::resource_candidates_json(display).expect("preview candidates");
     assert!(
         candidates
             .iter()
@@ -108,20 +107,15 @@ fn main() {
     assert!(context.get("resource").is_none());
     assert!(context.get("intent").is_none());
     assert!(context["targets"][0].get("read").is_none());
-    let view = events::invoke_prepared(
-        &plugin.id,
-        "preview.open",
-        context,
-        scope,
-    )
-    .expect("archive preview.open failed");
+    let view = events::invoke_prepared(&plugin.id, "preview.open", context, scope)
+        .expect("archive preview.open failed");
     assert_eq!(view["kind"], "html", "{view}");
     assert_eq!(view["view"]["source"], "package", "{view}");
     let entry = view["view"]["entry"]
         .as_str()
         .expect("package preview entry");
-    let html_path = plugin_host::plugin_view_asset("org.fiex.archive", entry)
-        .expect("package preview asset");
+    let html_path =
+        plugin_host::plugin_view_asset("org.fiex.archive", entry).expect("package preview asset");
     let html = std::fs::read_to_string(html_path).expect("read package preview asset");
     assert!(html.to_ascii_lowercase().contains("<html"), "{entry}");
 

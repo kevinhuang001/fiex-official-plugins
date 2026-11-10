@@ -38,6 +38,10 @@ jobs:
           cargo fmt --manifest-path example/hello/Cargo.toml --check || status=1
           python -m py_compile scripts/package-fiex-plugin.py scripts/test-plugin-process.py scripts/test-live-remotes.py scripts/test-git-vfs.py scripts/test-ssh-plugin.py || status=1
           exit "$status"
+      - name: Enforce Archive plugin source size
+        run: node scripts/check-archive-size.mjs
+      - name: Enforce Rust source size baselines
+        run: npm run check:size
 
   ui:
     name: Standalone plugin panels
@@ -198,13 +202,13 @@ jobs:
           # Every declared panel must resolve through the real host, including
           # the advanced-compression panel nested in a context submenu.
           cargo run --locked --manifest-path core/src-tauri/Cargo.toml --no-default-features --features usbfs --example plugin_panels -- org.fiex.archive org.fiex.gpg org.fiex.git
-          cargo run --manifest-path integration/Cargo.toml --example plugin_connection_view_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_git_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_optional_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_info_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_preview_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_decorations_e2e
-          cargo run --manifest-path integration/Cargo.toml --example plugin_gpg_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_connection_view_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_git_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_optional_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_info_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_preview_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_decorations_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_gpg_e2e
       - name: SSH plugin against a real local sshd
         shell: bash
         env:
@@ -369,7 +373,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$FIEX_PLUGIN_DIR"
           python scripts/install-test-packages.py --packages packages --destination "$FIEX_PLUGIN_DIR" --platform linux-x86_64 --slugs webdav smb
-          cargo run --manifest-path integration/Cargo.toml --example plugin_network_e2e
+          cargo run --manifest-path integration/Cargo.toml --bin plugin_network_e2e
 
       - name: Remote fixture diagnostics
         if: failure()

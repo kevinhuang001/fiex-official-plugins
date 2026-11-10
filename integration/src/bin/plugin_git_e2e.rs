@@ -1,6 +1,6 @@
 //! Cross-repository smoke test: real Git plugin through Core's process host
 //! and generic plugin VFS router. Not shipped in release bundles.
-#[path = "../support/fixtures.rs"]
+#[path = "../../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::{
     plugins::host as plugin_host, plugins::providers::decorations as plugin_decorations,
@@ -163,22 +163,28 @@ fn main() {
     assert_eq!(plugin_vfs::read_prefix(&child, 1024).unwrap(), b"hello\n");
     assert!(fiex_lib::remote::connection_for_path(&child).is_none());
     assert!(plugin_vfs::list("fiex://mount/unknown/", true, &[]).is_err());
-    assert!(plugin_host::global()
-        .invoke(id, "vfs.beginWrite", json!({"connection":{},"nodeId":"x"}))
-        .is_err());
+    assert!(
+        plugin_host::global()
+            .invoke(id, "vfs.beginWrite", json!({"connection":{},"nodeId":"x"}))
+            .is_err()
+    );
     let unselected = fiex_lib::plugins::resource::fs_access::Scope::selected(&repo, &[]).unwrap();
-    assert!(fiex_lib::plugins::mounts::open_view(
-        id,
-        &json!({"contributionId":"history","resourceRoot":root,"viewContext":{}}),
-        &unselected
-    )
-    .is_err());
-    assert!(fiex_lib::plugins::mounts::open_view(
-        id,
-        &json!({"contributionId":"foreign","resourceRoot":root,"viewContext":{}}),
-        &unselected
-    )
-    .is_err());
+    assert!(
+        fiex_lib::plugins::mounts::open_view(
+            id,
+            &json!({"contributionId":"history","resourceRoot":root,"viewContext":{}}),
+            &unselected
+        )
+        .is_err()
+    );
+    assert!(
+        fiex_lib::plugins::mounts::open_view(
+            id,
+            &json!({"contributionId":"foreign","resourceRoot":root,"viewContext":{}}),
+            &unselected
+        )
+        .is_err()
+    );
     plugin_host::set_enabled(id, false).unwrap();
     assert!(plugin_vfs::read_prefix(&child, 1024).is_err());
     assert!(plugin_vfs::handles(&child));

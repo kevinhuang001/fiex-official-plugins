@@ -1,8 +1,8 @@
 //! Cross-repository smoke test for on-demand Info fields through Core's plugin host.
-#[path = "../support/fixtures.rs"]
+#[path = "../../support/fixtures.rs"]
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
 /// Integration tests install packages directly; record the same install

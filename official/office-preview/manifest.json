@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
   "id": "org.fiex.office-preview",
-  "name": "Office 预览",
-  "version": "0.3.2",
-  "description": "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。",
+  "name": "Office",
+  "version": "0.3.3",
+  "description": "Word、Excel、PowerPoint 的只读预览，并可将 DOCX、XLSX、PPTX 导出为 PDF。预览和转换均由插件内 Rust 实现，不依赖 Microsoft Office 或外部转换器。",
   "icon": "file-text",
   "author": {
     "name": "Fiex Contributors",
@@ -41,7 +41,7 @@
         "enabled": false
       },
       "create": {
-        "enabled": false
+        "enabled": true
       },
       "delete": {
         "enabled": false
@@ -133,32 +133,54 @@
         "defaultValue": 6,
         "placeholder": "6"
       }
-    ]
+    ],
+    "contextMenus": {
+      "match": {
+        "extensions": [
+          "docx",
+          "xlsx",
+          "pptx"
+        ],
+        "exclude": {
+          "view": {
+            "providerIds": [
+              "core:applications",
+              "core:trash",
+              "core:recent"
+            ]
+          }
+        }
+      }
+    }
   },
   "locales": {
     "en": {
-      "Office 预览": "Office Preview",
+      "Office": "Office",
       "预览页数": "Preview page limit",
-      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Read-only Word, Excel and PowerPoint preview. DOCX/PPTX are rendered to the first pages as PDF entirely inside the plugin with pure Rust, with no Office or external converter dependency.",
+      "Word、Excel、PowerPoint 的只读预览，并可将 DOCX、XLSX、PPTX 导出为 PDF。预览和转换均由插件内 Rust 实现，不依赖 Microsoft Office 或外部转换器。": "Read-only Word, Excel and PowerPoint preview, with PDF export for DOCX, XLSX and PPTX. Rendering and conversion run in the Rust plugin without Microsoft Office or external converters.",
       "文档": "Document",
       "格式": "Format",
       "段落": "Paragraphs",
       "标题": "Headings",
       "表格": "Tables",
       "图片": "Images",
-      "列表项": "List items"
+      "列表项": "List items",
+      "转换为 PDF": "Convert to PDF",
+      "正在转换为 PDF": "Converting to PDF…"
     },
     "zh-TW": {
-      "Office 预览": "Office 預覽",
+      "Office": "Office",
       "预览页数": "預覽頁數",
-      "Word、Excel、PowerPoint 的只读预览。Word/PowerPoint 由插件内纯 Rust 渲染为前几页 PDF，不依赖 Office 或外部转换器。": "Word、Excel、PowerPoint 的唯讀預覽。Word/PowerPoint 由外掛內純 Rust 渲染為前幾頁 PDF，不依賴 Office 或外部轉換器。",
+      "Word、Excel、PowerPoint 的只读预览，并可将 DOCX、XLSX、PPTX 导出为 PDF。预览和转换均由插件内 Rust 实现，不依赖 Microsoft Office 或外部转换器。": "Word、Excel、PowerPoint 唯讀預覽，並支援將 DOCX、XLSX、PPTX 匯出為 PDF。預覽和轉換均由外掛內的 Rust 實作，不依賴 Microsoft Office 或外部轉換器。",
       "文档": "文件",
       "格式": "格式",
       "段落": "段落",
       "标题": "標題",
       "表格": "表格",
       "图片": "圖片",
-      "列表项": "清單項目"
+      "列表项": "清單項目",
+      "转换为 PDF": "轉換為 PDF",
+      "正在转换为 PDF": "正在轉換為 PDF…"
     }
   }
 }

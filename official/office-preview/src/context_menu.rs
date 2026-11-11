@@ -48,11 +48,7 @@ impl sdk::ContextMenuProvider for OfficeMenu {
             return Ok(Vec::new());
         };
         match request.parent_id.as_deref() {
-            None => {
-                let mut office = sdk::MenuItem::submenu(SUBMENU_ID, "Office");
-                office.icon = Some("application".into());
-                Ok(vec![office])
-            }
+            None => Ok(vec![sdk::MenuItem::submenu(SUBMENU_ID, "Office")]),
             Some(SUBMENU_ID) => {
                 let mut convert = sdk::MenuItem::action(CONVERT_ID, crate::i18n::t("转换为 PDF"));
                 convert.icon = Some("file-down".into());

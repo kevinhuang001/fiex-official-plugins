@@ -162,6 +162,8 @@ jobs:
             perf/aria2-adaptive-provider-reads-20261030) core_branch=perf/aria2-engine-and-streams-20261030 ;;
             codex/view-excludes-20261102|codex/unified-provider-plugins-20261101) core_branch=codex/provider-runtime-unification-20261104 ;;
             codex/info-on-demand-refactor-20261106) core_branch=codex/info-on-demand-refactor-20261106 ;;
+            # The protocol-8 Info migration is paired with Core PR #91.
+            codex/info-provider-single-section-20261111) core_branch=codex/info-provider-single-section-20261111 ;;
             *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
           esac
           if git -C core fetch --depth=1 origin "$core_branch"; then
@@ -270,6 +272,8 @@ jobs:
             perf/aria2-adaptive-provider-reads-20261030) core_branch=perf/aria2-engine-and-streams-20261030 ;;
             codex/view-excludes-20261102) core_branch=codex/menu-performance-20261102 ;;
             codex/info-on-demand-refactor-20261106) core_branch=codex/info-on-demand-refactor-20261106 ;;
+            # The protocol-8 Info migration is paired with Core PR #91.
+            codex/info-provider-single-section-20261111) core_branch=codex/info-provider-single-section-20261111 ;;
             *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
           esac
           if git -C core fetch --depth=1 origin "$core_branch"; then

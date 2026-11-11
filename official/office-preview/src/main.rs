@@ -172,7 +172,7 @@ impl sdk::InfoProvider for Presentation {
         fields: &[InfoFieldKey],
     ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
         for field in fields {
-            if field.section_id != "office"
+            if field.subsection_id != "office"
                 || !matches!(
                     field.field_id.as_str(),
                     "format" | "paragraphs" | "headings" | "tables" | "images" | "listItems"

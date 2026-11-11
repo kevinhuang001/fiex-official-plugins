@@ -145,7 +145,7 @@ impl sdk::InfoProvider for Presentation {
         fields: &[InfoFieldKey],
     ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
         for field in fields {
-            if field.section_id != "data"
+            if field.subsection_id != "data"
                 || !matches!(
                     field.field_id.as_str(),
                     "format" | "datasets" | "columns" | "rows"

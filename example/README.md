@@ -54,7 +54,7 @@ org.example.hello/
   "name": "示例插件",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "7.0",
+    "protocolVersion": "8.0",
     "entrypoints": {
       "windows-x86_64": "fiex-plugin-example.exe",
       "macos-aarch64": "fiex-plugin-example",
@@ -101,31 +101,22 @@ use serde_json::{json, Value};
 struct ExampleInfo;
 
 impl sdk::InfoProvider for ExampleInfo {
-    fn describe(&self, _ctx: &dyn sdk::ProviderInvocation)
-        -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError>
-    {
-        Ok(vec![sdk::InfoSectionDescriptor {
-            id: "example".into(),
-            title: "示例信息".into(),
-            fields: vec![sdk::InfoFieldDescriptor {
-                id: "name".into(),
-                label: "文件名".into(),
-                compute: sdk::InfoCompute::OnOpen,
-            }],
-        }])
-    }
-
     fn compute(&self, ctx: &dyn sdk::ProviderInvocation, fields: &[sdk::InfoFieldKey])
         -> Result<Vec<sdk::InfoFieldResult>, RpcError>
     {
         let name = ctx.targets().first().and_then(|t| t.metadata.as_ref())
             .map(|m| m.name.as_str()).unwrap_or("unknown");
-        fields.iter().map(|field| Ok(sdk::InfoFieldResult {
-            section_id: field.section_id.clone(),
-            field_id: field.field_id.clone(),
-            value: Some(name.into()),
-            unavailable: false,
-        })).collect()
+        fields.iter().map(|field| {
+            if field.subsection_id != "details" || field.field_id != "name" {
+                return Err(RpcError::invalid_params("unknown Info field"));
+            }
+            Ok(sdk::InfoFieldResult {
+                subsection_id: field.subsection_id.clone(),
+                field_id: field.field_id.clone(),
+                value: Some(name.into()),
+                unavailable: false,
+            })
+        }).collect()
     }
 }
 
@@ -155,7 +146,7 @@ Provider 就不会注册该事件。
 
 | Provider trait | 处理的事件 |
 | --- | --- |
-| `InfoProvider` | `info.describe` / `info.compute` |
+| `InfoProvider` | `info.compute`；字段在 Manifest 静态声明 |
 | `PreviewProvider` | `preview.open` |
 | `DecorationProvider` | `decorations.resolve` |
 | `ContextMenuProvider` | `contextMenu.resolve` / `contextMenu.execute` |
@@ -503,7 +494,7 @@ for (const [key, value] of Object.entries(tokens)) {
 | -------------- | --------------------------------- | ---------------------------------------------------------- |
 | `contextMenus` | `true` 或 `{match}`               | 右键 → `contextMenu.resolve`，点击 → `contextMenu.execute` |
 | `decorations`  | `{match?,priority?}`              | 目录切换 → 标准 `decorations.resolve`（仅动态）            |
-| `info`         | `{match?,priority?}`              | 打开“显示简介”后调用 `info.describe`，按字段调用 `info.compute` |
+| `info`         | `{title,subsections,match?,priority?}` | 打开“显示简介”后按声明计算字段；每个 Provider 只显示一个标题 |
 | `preview`      | `{match?,priority?,maxBytes?}`    | 用户预览 → `preview.open`                                  |
 | `connections`  | `{title,fields}`                  | 添加连接 / 点击连接 → `connection.create/open`             |
 | `vfs`          | `{title,readOnly?}`               | Core Explorer 的文件树请求                                 |
@@ -538,26 +529,19 @@ for (const [key, value] of Object.entries(tokens)) {
 
 ### 7.1 Info：字段描述与按需计算
 
-Manifest 仍使用 `extensions.info.match` 和 `priority` 选择候选插件，不在 Manifest 中重复声明字段：
+Manifest 静态声明一个 Provider 标题和其内部 Subsection。Subsection 只用于匹配、路由和计算，不会在 Info 界面形成二级标题：
 
 ```json
 "info": {
+  "title": "示例信息",
+  "priority": 80,
   "match": {
     "extensions": ["txt", "md", "log"],
     "mimeTypes": ["text/*"],
     "kinds": ["file"]
   },
-  "priority": 80
-}
-```
-
-打开 Info 后，Core 先调用 `info.describe`。插件返回 section 和字段目录，每个字段只包含稳定 ID、标签以及 `onOpen` 或 `onDemand` 策略：
-
-```json
-{
-  "sections": [{
-    "id": "example",
-    "title": "示例信息",
+  "subsections": [{
+    "id": "details",
     "fields": [
       {"id": "name", "label": "文件名", "compute": "onOpen"},
       {"id": "sha256", "label": "SHA-256", "compute": "onDemand"}
@@ -566,9 +550,9 @@ Manifest 仍使用 `extensions.info.match` 和 `priority` 选择候选插件，�
 }
 ```
 
-`onOpen` 字段由 Core 在后台请求；`onDemand` 字段先显示为未计算，只有用户点击后才会调用 `info.compute`，且请求只包含被点击的字段 ID。结果使用 `{sectionId, fieldId, value}`；无法取得的字段可以返回 `unavailable: true`。字段声明不包含权限、缓存或值类型配置，缓存和授权仍由 Core 统一处理。
+`onOpen` 字段由 Core 在后台请求；`onDemand` 字段先显示为未计算，只有用户点击后才会调用 `info.compute`，且请求只包含被点击的 `{subsectionId, fieldId}`。结果使用相同的键；无法取得的字段可以返回 `unavailable: true`。字段声明不包含权限或缓存配置，缓存和授权仍由 Core 统一处理。
 
-`describe` 不应读取文件内容。需要内容读取的 Provider 不应在 `match.requiredOps` 中要求 `read` 来隐藏字段；在用户主动计算后通过 `ctx.files()` 读取，Core 会在执行时检查权限。示例实现见 `hello/src/main.rs` 的 `HelloInfo`，完整说明见 [`docs/info.md`](docs/info.md)。
+字段描述不读取文件内容。需要内容读取的 Provider 不应在 `match.requiredOps` 中要求 `read` 来隐藏字段；在用户主动计算后通过 `ctx.files()` 读取，Core 会在执行时检查权限。示例实现见 `hello/src/main.rs` 的 `HelloInfo`，完整说明见 [`docs/info.md`](docs/info.md)。
 
 ### 7.2 Preview：标准事件 `preview.open`
 

@@ -1,63 +1,72 @@
-# Info：声明字段并按需计算
+# Info：静态字段声明与按需计算
 
-Info 使用两个标准事件：`info.describe` 在打开窗口时声明当前资源适用的字段；`info.compute` 只计算 Core 请求的字段。打开窗口不会自动读取文件内容或计算哈希。
+一个 Info Provider 在窗口里对应一个可见 Section。Provider 可以声明多个 `subsections`，但它们只用于匹配资源、组织字段和定位计算请求；用户看不到 Subsection 标题或容器。符合条件的字段按 Manifest 中的声明顺序平铺显示。
+
+Core 在打开 Info 时读取 Manifest 中的静态描述，不会为描述字段调用插件。插件只实现 `info.compute`。`onOpen` 字段由 Core 在打开后请求；`onDemand` 字段只有用户点击“计算”后才会请求。
 
 ## Manifest
 
 ```json
-"extensions": {
-  "info": {
-    "match": { "extensions": ["txt", "md"], "kinds": ["file"] },
-    "priority": 80
+{
+  "extensions": {
+    "info": {
+      "title": "Example information",
+      "priority": 80,
+      "match": { "extensions": ["txt", "md"], "kinds": ["file"] },
+      "subsections": [
+        {
+          "id": "details",
+          "fields": [
+            { "id": "name", "label": "File name", "compute": "onOpen" },
+            { "id": "sha256", "label": "SHA-256", "compute": "onDemand" }
+          ]
+        }
+      ]
+    }
   }
 }
 ```
 
-描述阶段无需文件内容读取权限。需要读取内容的字段在用户主动请求计算后，仍通过 `ctx.files()` 执行，并继续受到 Core 权限检查。
+`title` is the visible Provider heading. Subsections have an `id`, optional static `match` rules, and fields; they do not have a title. Extension and MIME conditions are case insensitive. Values within a match dimension use OR, while different dimensions use AND. An omitted or empty dimension places no restriction on that dimension.
 
-## Rust 实现
+For example, an audio Provider can declare separate `audio` and `video` subsections. An MP3 matches the audio subsection only, and the Info window still shows one Provider heading. If no subsection matches the trusted resource snapshot, Core omits that Provider instead of displaying an empty heading.
+
+## Rust implementation
+
+The compute request identifies a field by `(subsectionId, fieldId)`. Keep the subsection ID and field ID paired when validating requests and returning results.
 
 ```rust
 impl sdk::InfoProvider for ExampleInfo {
-    fn describe(
-        &self,
-        _ctx: &dyn sdk::ProviderInvocation,
-    ) -> Result<Vec<sdk::InfoSectionDescriptor>, RpcError> {
-        Ok(vec![sdk::InfoSectionDescriptor {
-            id: "example".into(),
-            title: "示例信息".into(),
-            fields: vec![sdk::InfoFieldDescriptor {
-                id: "name".into(),
-                label: "文件名".into(),
-                compute: sdk::InfoCompute::OnOpen,
-            }],
-        }])
-    }
-
     fn compute(
         &self,
         ctx: &dyn sdk::ProviderInvocation,
         fields: &[sdk::InfoFieldKey],
     ) -> Result<Vec<sdk::InfoFieldResult>, RpcError> {
-        let name = ctx.targets().first()
+        let name = ctx
+            .targets()
+            .first()
             .and_then(|target| target.metadata.as_ref())
             .map(|metadata| metadata.name.as_str())
             .unwrap_or("unknown");
-        fields.iter().map(|field| {
-            if field.section_id != "example" || field.field_id != "name" {
-                return Err(RpcError::invalid_params("unknown Info field"));
-            }
-            Ok(sdk::InfoFieldResult {
-                section_id: field.section_id.clone(),
-                field_id: field.field_id.clone(),
-                value: Some(name.to_string()),
-                unavailable: false,
+
+        fields
+            .iter()
+            .map(|field| {
+                if field.subsection_id != "details" || field.field_id != "name" {
+                    return Err(RpcError::invalid_params("unknown Info field"));
+                }
+                Ok(sdk::InfoFieldResult {
+                    subsection_id: field.subsection_id.clone(),
+                    field_id: field.field_id.clone(),
+                    value: Some(name.to_owned()),
+                    unavailable: false,
+                })
             })
-        }).collect()
+            .collect()
     }
 }
 ```
 
-使用 `onOpen` 的字段会在窗口打开后自动请求；`onDemand` 字段显示计算入口，只有用户点击时才会提交对应字段 ID。计算结果统一是展示文本，复制由 Core UI 提供。
+Return exactly the requested fields. Return `unavailable: true` with no value when the data cannot be obtained. `InfoFieldKey` and `InfoFieldResult` reject the old `sectionId` wire key. Reading file contents still goes through the authorized `ctx.files()` API after the user requests an `onDemand` field.
 
-完整实现见 [`hello/src/main.rs`](../hello/src/main.rs) 的 `HelloInfo`。
+Complete working code is in [`hello/src/main.rs`](../hello/src/main.rs).

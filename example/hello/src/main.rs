@@ -159,7 +159,7 @@ impl sdk::InfoProvider for HelloInfo {
         fields
             .iter()
             .map(|field| {
-                if field.section_id != "example" {
+                if field.subsection_id != "example" {
                     return Err(RpcError::invalid_params("unknown example Info section"));
                 }
                 let value = match field.field_id.as_str() {

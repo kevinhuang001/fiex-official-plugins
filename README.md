@@ -53,7 +53,7 @@ panels/commands.
 
 ## Typed provider API
 
-Standard events (`info.describe`, `info.compute`, `preview.open`, `decorations.resolve`,
+Standard events (`info.compute`, `preview.open`, `decorations.resolve`,
 `contextMenu.resolve/execute`, `search.query`, `hooks.invoke`, `toolbar.invoke`,
 `connection.*`) can be registered with the optional `sdk::Providers` API
 instead of a hand-written `match ctx.method()`. File access is one typed

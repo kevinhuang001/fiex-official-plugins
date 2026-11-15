@@ -25,7 +25,8 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_CACHE_SIZE: "10G"
       CARGO_INCREMENTAL: "0"
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      # Short Windows paths keep rustc command lines below CreateProcess limits.
+      CARGO_TARGET_DIR: ${{ runner.os == 'Windows' && format('{0}/t', runner.temp) || format('{0}/target', github.workspace) }}
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
       TARGET: ${{ inputs.target }}
@@ -37,6 +38,7 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ inputs.target == 'x86_64-pc-windows-msvc' && '1.99.1' || 'stable' }}
           targets: ${{ inputs.target }}
           components: clippy
       - name: Configure sccache
@@ -48,7 +50,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           # Include the root workspace and its actual lockfile, not only Git.
-          workspaces: . -> target
+          workspaces: . -> ${{ env.CARGO_TARGET_DIR }}
           key: official-${{ inputs.target }}-${{ inputs.shard }}
           cache-all-crates: true
           cache-on-failure: true
@@ -82,7 +84,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/test-plugin-process.py --target "$PLATFORM" --binary-root "target/$TARGET/release" --slugs $SLUGS
+          python scripts/test-plugin-process.py --target "$PLATFORM" --binary-root "$CARGO_TARGET_DIR/$TARGET/release" --slugs $SLUGS
       - name: Service process regressions
         if: inputs.shard == 'services'
         shell: bash
@@ -90,19 +92,19 @@ jobs:
           set -euo pipefail
           suffix=''
           if [ "$RUNNER_OS" = Windows ]; then suffix='.exe'; fi
-          python scripts/test-git-vfs.py --binary "target/$TARGET/release/fiex-plugin-git$suffix"
+          python scripts/test-git-vfs.py --binary "$CARGO_TARGET_DIR/$TARGET/release/fiex-plugin-git$suffix"
           python -m pip install --quiet paramiko==4.0.0
-          python scripts/test-ssh-regression.py --binary "target/$TARGET/release/fiex-plugin-ssh$suffix"
-          python scripts/test-gdrive.py --binary "target/$TARGET/release/fiex-plugin-gdrive$suffix"
+          python scripts/test-ssh-regression.py --binary "$CARGO_TARGET_DIR/$TARGET/release/fiex-plugin-ssh$suffix"
+          python scripts/test-gdrive.py --binary "$CARGO_TARGET_DIR/$TARGET/release/fiex-plugin-gdrive$suffix"
           for slug in webdav openlist; do
-            python scripts/test-connection-sync.py --kind "$slug" --binary "target/$TARGET/release/fiex-plugin-$slug$suffix"
+            python scripts/test-connection-sync.py --kind "$slug" --binary "$CARGO_TARGET_DIR/$TARGET/release/fiex-plugin-$slug$suffix"
           done
       - name: Archive verified binaries with executable permissions
         shell: bash
         run: |
           python - <<'PY'
           import json, os, pathlib, tarfile
-          root = pathlib.Path('target') / os.environ['TARGET'] / 'release'
+          root = pathlib.Path(os.environ['CARGO_TARGET_DIR']) / os.environ['TARGET'] / 'release'
           with tarfile.open(pathlib.Path(os.environ['RUNNER_TEMP']) / 'native.tar.gz', 'w:gz', compresslevel=1) as archive:
               for slug in os.environ['SLUGS'].split():
                   manifest = json.loads((pathlib.Path('official') / slug / 'manifest.json').read_text(encoding='utf-8'))

@@ -164,12 +164,15 @@ jobs:
             codex/info-on-demand-refactor-20261106) core_branch=codex/info-on-demand-refactor-20261106 ;;
             # The protocol-8 Info migration is paired with Core PR #91.
             codex/info-provider-single-section-20261111) core_branch=codex/info-provider-single-section-20261111 ;;
+            codex/cleanup-sdk-size-baseline-20261116) core_branch=codex/fix-refactor-ci-fixtures-20261116 ;;
+            codex/protocol8-integration-fixes-20261116) core_branch=codex/repair-refactor-runtime-20261116 ;;
             *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
           esac
           if git -C core fetch --depth=1 origin "$core_branch"; then
             git -C core checkout --detach FETCH_HEAD
           else
-            echo "Companion Core branch unavailable; testing against main."
+            echo "Companion Core branch unavailable: $core_branch" >&2
+            exit 1
           fi
       - name: Checkout Core's pinned SDK
         run: git -C core submodule update --init sdk
@@ -274,12 +277,15 @@ jobs:
             codex/info-on-demand-refactor-20261106) core_branch=codex/info-on-demand-refactor-20261106 ;;
             # The protocol-8 Info migration is paired with Core PR #91.
             codex/info-provider-single-section-20261111) core_branch=codex/info-provider-single-section-20261111 ;;
+            codex/cleanup-sdk-size-baseline-20261116) core_branch=codex/fix-refactor-ci-fixtures-20261116 ;;
+            codex/protocol8-integration-fixes-20261116) core_branch=codex/repair-refactor-runtime-20261116 ;;
             *) echo "No companion Core branch configured; testing against main."; exit 0 ;;
           esac
           if git -C core fetch --depth=1 origin "$core_branch"; then
             git -C core checkout --detach FETCH_HEAD
           else
-            echo "Companion Core branch unavailable; testing against main."
+            echo "Companion Core branch unavailable: $core_branch" >&2
+            exit 1
           fi
       - name: Checkout Core SDK
         run: git -C core submodule update --init sdk

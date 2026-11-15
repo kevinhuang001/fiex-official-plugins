@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-fiex = { path = "../core/src-tauri", default-features = false, features = ["usbfs"] }
+fiex = { path = "../core/src-tauri", default-features = false, features = ["usbfs", "integration-test"] }
 serde_json = "1"
 futures = "0.3"
 base64 = "0.22"

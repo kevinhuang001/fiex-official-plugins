@@ -3,8 +3,8 @@
 use fiex_lib::{plugins::host as plugin_host, remote};
 use serde_json::json;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 /// Integration tests install packages directly; record the same install

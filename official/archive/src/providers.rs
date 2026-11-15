@@ -12,7 +12,7 @@ impl sdk::InfoProvider for Archive {
         let requested = fields
             .iter()
             .map(|field| {
-                if field.section_id != "archive"
+                if field.subsection_id != "archive"
                     || !matches!(
                         field.field_id.as_str(),
                         "format"
@@ -44,7 +44,7 @@ impl sdk::InfoProvider for Archive {
             .map(|field| match values.get(&field.field_id) {
                 Some(value) => provider_results::result("archive", &field.field_id, value),
                 None => sdk::InfoFieldResult {
-                    section_id: "archive".into(),
+                    subsection_id: "archive".into(),
                     field_id: field.field_id.clone(),
                     value: None,
                     unavailable: true,

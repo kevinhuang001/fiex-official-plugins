@@ -52,7 +52,7 @@ impl sdk::InfoProvider for Presentation {
         let requested = fields
             .iter()
             .map(|field| {
-                if field.section_id != "checksums" {
+                if field.subsection_id != "checksums" {
                     return Err(RpcError::invalid_params("unknown checksum section"));
                 }
                 let algorithm = match field.field_id.as_str() {
@@ -97,7 +97,7 @@ impl sdk::InfoProvider for Presentation {
                 values
                     .get(field.field_id.as_str())
                     .map(|value| {
-                        provider_results::result(&field.section_id, &field.field_id, value)
+                        provider_results::result(&field.subsection_id, &field.field_id, value)
                     })
                     .ok_or_else(|| RpcError::internal("checksum result missing"))
             })

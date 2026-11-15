@@ -39,7 +39,7 @@ class Fixture:
         # caught here instead of only in the app.
         self.request = None
         self.tasks = set()
-        self.call('plugin.initialize', {'protocolVersion':'7.0'})
+        self.call('plugin.initialize', {'protocolVersion':'8.0'})
 
     def authorize(self, p):
         authorization = p.get('authorization') or {}

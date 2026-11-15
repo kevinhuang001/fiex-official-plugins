@@ -2,7 +2,7 @@
 
 > License: GPL-3.0-or-later. These plugins are optional; nothing is bundled with Fiex.
 
-Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, OpenList, Office preview, data viewer, Archive, Checksum and the Windows Everything search provider.
+Independent optional native process plugins for [Fiex](https://github.com/kevinhuang001/fiex): Git, WebDAV, SMB, OpenList, Office, data viewer, Archive, Checksum and the Windows Everything search provider.
 
 **No plugins ship inside the Fiex application.** All plugins, including these official examples, require the user to download, install and approve the declared permissions. Publishing here grants no special trust.
 
@@ -53,7 +53,7 @@ panels/commands.
 
 ## Typed provider API
 
-Standard events (`info.describe`, `info.compute`, `preview.open`, `decorations.resolve`,
+Standard events (`info.compute`, `preview.open`, `decorations.resolve`,
 `contextMenu.resolve/execute`, `search.query`, `hooks.invoke`, `toolbar.invoke`,
 `connection.*`) can be registered with the optional `sdk::Providers` API
 instead of a hand-written `match ctx.method()`. File access is one typed
@@ -85,11 +85,20 @@ Core validates `{ sections: [...] }` / `PreviewView`; preview HTML is returned a
 a package-confined `view.entry` instead of being listed in the manifest. See
 `fiex/docs/plugins/08-UNIFIED-PREVIEW-INFO.md`.
 
-Archive, Office preview and Data preview declare a package-local
+Archive, Office and Data preview declare a package-local
 `extensions.preview.loading` document. Core shows that document while the real
 preview iframe loads in the background. The preview calls `preview.ready` after
 its first data render, and Core then removes the loading document, so users never
 see an empty plugin shell or a second spinner.
+
+## Office to PDF
+
+The Office plugin supports PDF export for DOCX, XLSX and PPTX files. Its context
+menu starts a cancellable background task, reads the source through the scoped
+file SDK, converts the bytes with the Rust `office2pdf` library, then creates and
+commits a sibling `.pdf` through `Files::child` and `Files::create`. Core refreshes
+the invoking directory after the task reports success. Conversion does not use
+Microsoft Office, a system command, or a network service.
 
 ## UI builds
 

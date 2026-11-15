@@ -78,7 +78,7 @@ fn main() {
         "org.fiex.checksum",
         &root,
         std::slice::from_ref(&file),
-        json!([{ "sectionId": "checksums", "fieldId": "sha256" }]),
+        json!([{ "subsectionId": "checksums", "fieldId": "sha256" }]),
     );
     assert_eq!(
         field(&checksum, "sha256")["value"],
@@ -112,8 +112,8 @@ fn main() {
         &root,
         std::slice::from_ref(&archive),
         json!([
-            { "sectionId": "archive", "fieldId": "format" },
-            { "sectionId": "archive", "fieldId": "entryCount" }
+            { "subsectionId": "archive", "fieldId": "format" },
+            { "subsectionId": "archive", "fieldId": "entryCount" }
         ]),
     );
     assert_eq!(field(&archive_info, "entryCount")["value"], "1");

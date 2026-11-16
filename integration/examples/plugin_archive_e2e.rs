@@ -15,7 +15,7 @@
 mod fixtures;
 use fiex_lib::plugins::host as plugin_host;
 use fiex_lib::plugins::providers::{context_menu, hooks};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -77,7 +77,7 @@ fn wait_until(what: &str, seconds: u64, mut done: impl FnMut() -> bool) {
 
 fn execute_menu(info: &plugin_host::PluginInfo, item: &str, selected: &Path, root: &Path) -> Value {
     let paths = vec![selected.to_string_lossy().into_owned()];
-    let menus = context_menu::query_plugins(root.to_str().unwrap(), &paths)
+    let menus = context_menu::query_plugins(root.to_str().unwrap(), &paths, None)
         .unwrap_or_else(|error| panic!("plugin menu query failed: {error}"));
     let menu = menus
         .iter()
@@ -211,14 +211,17 @@ fn main() {
         archive.to_str().unwrap(),
         Some("plugin:org.fiex.archive"),
         None,
+        fiex_lib::core::fs::IntegrationTestUserActionContext::for_test(),
     )
     .expect("archive preview must resolve");
     assert_eq!(preview["view"]["kind"], "html");
     assert_eq!(preview["view"]["timeoutMs"], 300_000);
-    assert!(preview["view"]["html"]
-        .as_str()
-        .unwrap()
-        .contains("archive.list"));
+    assert!(
+        preview["view"]["html"]
+            .as_str()
+            .unwrap()
+            .contains("archive.list")
+    );
 
     // The preview document lists through the same Core host.
     let listing = fixtures::invoke_selected(
@@ -230,11 +233,13 @@ fn main() {
     )
     .expect("archive.list through the host");
     assert_eq!(listing["supported"], true);
-    assert!(listing["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|entry| entry["name"] == "hello.txt"));
+    assert!(
+        listing["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["name"] == "hello.txt")
+    );
 
     plugin_host::global().stop("org.fiex.archive");
     println!("PASS: Archive context-menu and beforeOpen flows through the real Core host");
